@@ -1,0 +1,35 @@
+repos:
+-   repo: https://github.com/lorenzwalthert/precommit
+    rev: v0.4.3.9003
+    hooks: 
+    #### WILL MODIFY FILES ####
+    -   id: use-tidy-description
+    # -   id: roxygenize
+    # problems: it will enforce the tidyverse
+    # -   id: style-files
+    # -   id: spell-check
+        # args: [--lang="en_GB", --read-only]
+    #### DO NOT MODIFY FILES ####
+    # Checks if your .R and .Rmd files are “valid” R code
+    -   id: parsable-R
+    # No browser() statement in it.
+    -   id: no-browser-statement
+    # No print() statement in it.
+    -   id: no-print-statement
+    # No debug() or debugonce().
+    -   id: no-debug-statement
+    # Checks if packages used are listed in your DESCRIPTION file.
+    -   id: deps-in-desc
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks: 
+    -   id: check-added-large-files
+    -   id: end-of-file-fixer
+        exclude: '\.Rd' # sometimes roxygen fails to generate EOF blank line.
+    -   id: file-contents-sorter
+        files: '^\.Rbuildignore$'
+-   repo: https://github.com/pre-commit-ci/pre-commit-ci-config
+    rev: v1.6.1
+    hooks:
+    # Only required when https://pre-commit.ci is used for config validation
+    -   id: check-pre-commit-ci-config
