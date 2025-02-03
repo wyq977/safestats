@@ -78,4 +78,3 @@ test_that("Test that theta = lambda2/lambda1 and that less implies lambda2 < lam
   names(referenceResult) <- "e"
   expect_equal("object"=result$eValue, "expected"=referenceResult)
 })
-

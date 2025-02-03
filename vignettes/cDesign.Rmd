@@ -252,4 +252,3 @@ The vertical line shows the end of the first study.
 
 # Concluding remarks
 We provided some insights on how to design an e-variable experiment, and we showed how inference can be sped up by exploiting the sequential nature of e-variables. 
-

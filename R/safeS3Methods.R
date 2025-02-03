@@ -870,4 +870,3 @@ plot.safeTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
     lines(n1Vec, eValueVec, lwd=lwd, col=lineColour)
   }
 }
-
