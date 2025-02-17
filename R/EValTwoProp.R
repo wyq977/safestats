@@ -17,7 +17,11 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
   betaA1 <- betaA2 <- betaB1 <- betaB2 <- 0.18
   eVal <- 1
 
+  # case 1: No restriction on prior --------------------------------------------
   if (esType == "none") {
+    if (!is.null(esMin)) {
+      stop("There should be no minimum difference in this case!")
+    }
     # init vector
     totalSuccessA <- cumsum(ya)
     totalSuccessB <- cumsum(yb)
@@ -27,7 +31,6 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
     totalFailB <- groupSizeVecB - totalSuccessB
 
     thetaA <- thetaB <- theta0 <- rep(0.5, length(ya))
-    # case 1: No restriction on prior, just calculate
 
     # vectorize operation except 1st
     theta <- safestats:::updateETwoProportions(
@@ -49,31 +52,33 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
     )
 
     eVal <- prod(eValVec)
-  } else if (esType == "logOddsRatio") {
-    # case 2: log-odds ratio difference
+  } else if (esType == "difference" || esType == "logOddsRatio") {
+    # case 2/3: restrict difference on (0, 1)^2 para. space --------------------
+    # they all used Bayensian updating in each timesteps between blocks
+    # the only difference are the calculation of thetaB and grid
     if (!is.numeric(esMin)) {
       stop("esMin must be numeric for difference")
     }
-  } else if (esType == "difference") {
-    # case 3: absolute difference
-    if (!is.numeric(esMin)) {
-      stop("esMin must be numeric for difference")
-    }
-    # FIXME: plotting debugs
     gridSize <- 1e3
     K <- 1 / gridSize
 
-    rhoGrid <- seq(K / (1 - esMin), 1 - K, length.out = gridSize)
+    rhoGrid <- seq(K, 1 - K, length.out = gridSize)
 
-    # prepare prob. grid = rho x (1 - esMin)
-    thetaAgrid <- rhoGrid * (1 - esMin)
-    thetaBgrid <- thetaAgrid + esMin
+    if (esType == "difference") {
+      # prepare prob. grid = rho x (1 - esMin)
+      thetaAgrid <- rhoGrid * (1 - esMin)
+      thetaBgrid <- thetaAgrid + esMin
+    } else if (esType == "logOddsRatio") {
+      thetaAgrid <- rhoGrid
+      thetaBgrid <- sapply(thetaAgrid, calculateThetaBFromThetaAAndLOR, lOR = delta)
+    }
 
     # prior density for thetaA at each grid points with normalization
     # rho = thetaA / (1 - esMin) ~ Beta(shape1, shape2)
     thetaADensity <- stats::dbeta(rhoGrid, shape1 = betaA1, shape2 = betaA2)
     thetaADensity <- thetaADensity / sum(thetaADensity)
 
+    # TODO: Is the initial theta 1 / 2?
     thetaB <- thetaA <- theta0 <- rep(0.5, length(ya))
 
     for (i in 1:length(ya)) {
@@ -94,8 +99,14 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
       thetaA[i] <- thetaAgrid %*% thetaADensity
     }
 
-    thetaB <- thetaA + esMin
-    theta0 <- (na * thetaA + nb * thetaB)/(na + nb)
+    ## difference in calculating thetaB ----------------------------------------
+    if (esType == "difference") {
+      thetaB <- thetaA + esMin
+    } else if (esType == "logOddsRatio") {
+      thetaB <- safestats:::calculateThetaBFromThetaAAndLOR(thetaA = thetaA, lOR = esMin)
+    }
+
+    theta0 <- (na * thetaA + nb * thetaB) / (na + nb)
 
     # calculate eValVec
     eValVec <- safestats:::calculateETwoProportions(
@@ -104,7 +115,6 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
     )
 
     eVal <- prod(eValVec)
-
   }
 
   return(eVal)

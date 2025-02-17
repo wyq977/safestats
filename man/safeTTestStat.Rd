@@ -3,6 +3,7 @@
 \name{safeTTestStat}
 \alias{safeTTestStat}
 \alias{safeTTestStatNEffNu}
+\alias{safeTTestStatNEffNuMom}
 \alias{safeTTestStatTDensity}
 \title{Computes E-Values Based on the T-Statistic}
 \usage{
@@ -27,6 +28,18 @@ safeTTestStatNEffNu(
   tDensity = FALSE,
   paired = FALSE,
   eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+  ...
+)
+
+safeTTestStatNEffNuMom(
+  t,
+  nEff,
+  nu,
+  parameter,
+  alternative = c("twoSided", "less", "greater"),
+  tDensity = FALSE,
+  paired = FALSE,
+  k = 1,
   ...
 )
 
@@ -65,6 +78,8 @@ this specifies the size of the first sample for a two-sample test.}
 \item{nEff}{numeric > 0, the effective sample size. For one sample test this is just n.}
 
 \item{nu}{numeric > 0, the degrees of freedom.}
+
+\item{k}{the moment used for the non-local moment prior. Default 1}
 }
 \value{
 Returns a numeric that represent the e10, that is, the e-value in favour of the alternative over the null

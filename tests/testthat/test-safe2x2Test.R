@@ -10,13 +10,13 @@ test_that("bernoulliMLTwoProportions", {
 })
 
 test_that("no difference, two-sided test, na = nb", {
-  expected <- c(1, 1, 0.9929555)
-  actual <- vector(mode = "numeric", length = length(expected))
+  expectedResult <- c(1, 1, 1)
+  result <- vector(mode = "numeric", length = length(expectedResult))
 
   # all 1s, e = 1
   ya <- rep(1, 10)
   yb <- rep(1, 10)
-  actual[1] <- safestats::EValTwoProp(ya, yb,
+  result[1] <- safestats::EValTwoProp(ya, yb,
     alternative = "twoSided",
     na = 1, nb = 1, esType = "none"
   )
@@ -24,44 +24,64 @@ test_that("no difference, two-sided test, na = nb", {
   # all 0s, e = 1
   ya <- rep(0, 10)
   yb <- rep(0, 10)
-  actual[2] <- safestats::EValTwoProp(ya, yb,
+  result[2] <- safestats::EValTwoProp(ya, yb,
     alternative = "twoSided",
     na = 1, nb = 1, esType = "none"
   )
 
-  # unbalanced, na = 1, nb = 100
-  actual[3] <- safestats::EValTwoProp(ya, yb,
+  # all 0s, e = 1
+  ya <- rep(10, 10)
+  yb <- rep(100, 10)
+  result[3] <- safestats::EValTwoProp(ya, yb,
     alternative = "twoSided",
-    na = 1, nb = 4, esType = "none"
+    na = 10, nb = 100, esType = "none"
   )
 
-  expect_equal(actual, expected)
+  expect_equal(result, expectedResult)
 })
 
-
-test_that("no difference, two-sided test, na = nb original", {
-  expected <- c(1, 1, 0.9929555)
-  actual <- vector(mode = "numeric", length = length(expected))
-
-  designObj <- safestats::designSafeTwoProportions(
-    na = 1, nb = 1, alternativeRestriction = "none", alpha = 0.05, M = 1, nBlocksPlan = 10
-  )
+test_that("absolute difference, greater, na = nb", {
+  expectedResult <- c(1, 1)
+  result <- vector(mode = "numeric", length = length(expectedResult))
 
   # all 1s, e = 1
   ya <- rep(1, 10)
   yb <- rep(1, 10)
-  actual[1] <- safestats::safeTwoProportionsTest(ya, yb, designObj = designObj)$eValue
+  result[1] <- safestats::EValTwoProp(ya, yb,
+    alternative = "greater",
+    na = 1, nb = 1, esType = "difference", esMin = 0.2
+  )
 
   # all 0s, e = 1
   ya <- rep(0, 10)
   yb <- rep(0, 10)
-  actual[2] <- safestats::safeTwoProportionsTest(ya, yb, designObj = designObj)$eValue
-
-  # unbalanced, na = 1, nb = 100
-  designObj <- safestats::designSafeTwoProportions(
-    na = 1, nb = 4, alternativeRestriction = "none", alpha = 0.05, M = 1, nBlocksPlan = 10
+  result[1] <- safestats::EValTwoProp(ya, yb,
+    alternative = "greater",
+    na = 1, nb = 1, esType = "difference", esMin = 0.2
   )
-  actual[3] <- safestats::safeTwoProportionsTest(ya, yb, designObj = designObj)$eValue
 
-  expect_equal(actual, expected)
+  expect_equal(result, expectedResult)
+})
+
+test_that("no difference, two-sided test, na != nb", {
+  expectedResult <- c(1, 1)
+  result <- vector(mode = "numeric", length = length(expectedResult))
+
+  # all 1s, e = 1
+  ya <- rep(2, 10)
+  yb <- rep(20, 10)
+  result[1] <- safestats::EValTwoProp(ya, yb,
+    alternative = "twoSided",
+    na = 2, nb = 20, esType = "none"
+  )
+
+  # all 0s, e = 1
+  ya <- rep(0, 10)
+  yb <- rep(0, 10)
+  result[2] <- safestats::EValTwoProp(ya, yb,
+    alternative = "twoSided",
+    na = 20, nb = 2, esType = "none"
+  )
+
+  expect_equal(result, expectedResult)
 })
