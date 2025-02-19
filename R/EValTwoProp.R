@@ -14,6 +14,7 @@ likelihoodBernoulli <- function(n, x, theta) {
 EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
                         na = 1, nb = 1, esType = c("logOddsRatio", "difference", "none"),
                         esMin = NULL, alpha = 0.05, prior = NULL) {
+  # TODO: take prior beta coefficients
   betaA1 <- betaA2 <- betaB1 <- betaB2 <- 0.18
   eVal <- 1
 
@@ -30,28 +31,29 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
     totalFailA <- groupSizeVecA - totalSuccessA
     totalFailB <- groupSizeVecB - totalSuccessB
 
-    thetaA <- thetaB <- theta0 <- rep(0.5, length(ya))
 
-    # vectorize operation except 1st
-    theta <- safestats:::updateETwoProportions(
-      totalSuccessA[-length(totalSuccessA)], totalFailA[-length(totalFailA)],
-      totalSuccessB[-length(totalSuccessB)], totalFailB[-length(totalFailB)],
-      na, nb,
-      betaA1, betaA2,
-      betaB1, betaB2
-    )
+    # FIXME: same as before during initalization
+    thetaA <- thetaB <- theta0 <- 0.5
 
-    # assign values to all elements except 1st
-    thetaA[-1] <- theta$thetaA
-    thetaB[-1] <- theta$thetaB
-    theta0[-1] <- theta$theta0
+    for (i in seq_along(ya)) {
+      newE <- safestats:::calculateETwoProportions(
+        na1 = ya[i],
+        na = na,
+        nb1 = yb[i],
+        nb = nb,
+        thetaA = thetaA,
+        thetaB = thetaB,
+        theta0 = theta0
+      )
 
-    eValVec <- safestats:::calculateETwoProportions(
-      na1 = ya, na = na, nb1 = yb, nb = nb,
-      thetaA = thetaA, thetaB = thetaB, theta0 = theta0
-    )
+      eVal <- eVal * newE
 
-    eVal <- prod(eValVec)
+      thetaA <- safestats:::bernoulliMLTwoProportions(totalSuccessA[i], totalFailA[i], betaA1, betaA2)
+
+      thetaB <- safestats:::bernoulliMLTwoProportions(totalSuccessB[i], totalFailB[i], betaB1, betaB2)
+
+      theta0 <- (na * thetaA + nb * thetaB) / (na + nb)
+    }
   } else if (esType == "difference" || esType == "logOddsRatio") {
     # case 2/3: restrict difference on (0, 1)^2 para. space --------------------
     # they all used Bayensian updating in each timesteps between blocks
@@ -64,6 +66,7 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
 
     rhoGrid <- seq(K, 1 - K, length.out = gridSize)
 
+    ## difference in probability grid ------------------------------------------
     if (esType == "difference") {
       # prepare prob. grid = rho x (1 - esMin)
       thetaAgrid <- rhoGrid * (1 - esMin)
