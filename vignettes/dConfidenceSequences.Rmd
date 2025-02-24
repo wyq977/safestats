@@ -54,10 +54,12 @@ To assess the quality of these intervals across time, we fix a true data generat
 n <- 100
 muTrue <- 8
 sigmaTrue <- 1
-  
+
 set.seed(4)
-someDataSingle <- rnorm(n, mean=muTrue,
-                        sd=sigmaTrue)
+someDataSingle <- rnorm(n,
+  mean = muTrue,
+  sd = sigmaTrue
+)
 ```
 
 
@@ -85,27 +87,31 @@ To assess the performance of the classical confidence interval on the data gener
 
 
 ```{r, eval=FALSE}
-freqCi <- matrix(nrow=n, ncol=2)
+freqCi <- matrix(nrow = n, ncol = 2)
 
-meanVector <- 1/(1:n)*cumsum(someDataSingle)
+meanVector <- 1 / (1:n) * cumsum(someDataSingle)
 
 for (i in 1:n) {
-  tempResult <- computeConfidenceIntervalZ(nEff=i,
-                                          meanObs=meanVector[i],
-                                          eType="freq")
+  tempResult <- computeConfidenceIntervalZ(
+    nEff = i,
+    meanObs = meanVector[i],
+    eType = "freq"
+  )
   freqCi[i, ] <- tempResult
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n, freqCi[, 1], xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n, freqCi[, 1],
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 
 polygon(c(1:n, n:1), c(freqCi[, 2], rev(freqCi[, 1])),
-        col=freqColours[2], border=freqColours[1], lwd=2,
-        density = NULL, angle = -20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+  col = freqColours[2], border = freqColours[1], lwd = 2,
+  density = NULL, angle = -20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 The following code shows that between the 21st and 45th observation the true mean is outside the intervals. 
 
@@ -129,28 +135,29 @@ The following code stores a 1,000 times 100 confidence intervals:
 mIter <- 1000
 
 set.seed(1)
-allData <- matrix(rnorm(mIter*n, mean=muTrue), nrow=mIter)
-allFreqCis <- array(dim=c(mIter, n, 2))
+allData <- matrix(rnorm(mIter * n, mean = muTrue), nrow = mIter)
+allFreqCis <- array(dim = c(mIter, n, 2))
 
 
-# This indicates whether a simulation yielded an interval that 
+# This indicates whether a simulation yielded an interval that
 # does not cover the true mean
 freqCiError <- integer(mIter)
 
 # This indicates the first time an interval does not cover the true mean
-firstPassageTime <- rep(Inf, times=mIter)
+firstPassageTime <- rep(Inf, times = mIter)
 
 for (sim in 1:mIter) {
   someData <- allData[sim, ]
-  meanVector <- 1/(1:n)*cumsum(someData)
-  
+  meanVector <- 1 / (1:n) * cumsum(someData)
+
   for (i in 1:n) {
     tempResult <- computeConfidenceIntervalZ(
-      nEff=i, meanObs=meanVector[i], eType="freq")
+      nEff = i, meanObs = meanVector[i], eType = "freq"
+    )
     allFreqCis[sim, i, ] <- tempResult
-    
-    if ((tempResult[1] > muTrue || tempResult[2] < muTrue)
-        && freqCiError[sim] != 1) {
+
+    if ((tempResult[1] > muTrue || tempResult[2] < muTrue) &&
+      freqCiError[sim] != 1) {
       freqCiError[sim] <- 1
       firstPassageTime[sim] <- i
     }
@@ -166,34 +173,39 @@ for (i in 1:n) {
   complementCoverageRate[i] <- mean(firstPassageTime <= i)
 }
 
-freqCoverageRate <- 1-complementCoverageRate
+freqCoverageRate <- 1 - complementCoverageRate
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n, 100*freqCoverageRate, type="l", lwd=2, xlab="n",
-     ylab="Coverage rate (%)", col=freqColours[1], ylim=c(60, 100))
-lines(c(1, n), 100*c(1-alpha, 1-alpha), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n, 100 * freqCoverageRate,
+  type = "l", lwd = 2, xlab = "n",
+  ylab = "Coverage rate (%)", col = freqColours[1], ylim = c(60, 100)
+)
+lines(c(1, n), 100 * c(1 - alpha, 1 - alpha), lwd = 2, lty = 2)
 ```
 This plot reiterates the point that classical methods (i.e. p-values and confidence intervals) are made for one-shot inference. After the first time the confidence interval is computed the tolerable 5\% error was already "spent". 
 
 The following code can be run to inspect one of the failed intervals:
 
 ```{r, eval=FALSE}
-failedIndeces <- which(freqCiError==1)
+failedIndeces <- which(freqCiError == 1)
 
 someIndex <- failedIndeces[3]
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
-
-polygon(c(1:n, n:1), c(allFreqCis[someIndex, , 2],
-                       rev(allFreqCis[someIndex, , 1])),
-        col=freqColours[2], border=freqColours[1], lwd=2,
-        density = NULL, angle = -20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+polygon(c(1:n, n:1), c(
+  allFreqCis[someIndex, , 2],
+  rev(allFreqCis[someIndex, , 1])
+),
+col = freqColours[2], border = freqColours[1], lwd = 2,
+density = NULL, angle = -20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 
 # 2. <a name = "credibleIntervals">Bayesian 95\% credible intervals fail to cover the true mean with 95\% chance across time</a>
@@ -218,26 +230,29 @@ To assess the performance of the credible interval on the data with muTrue=8, we
 ```{r, eval=FALSE}
 someA <- 0
 someG <- 1
-bayesCi <- matrix(nrow=n, ncol=2)
+bayesCi <- matrix(nrow = n, ncol = 2)
 
-meanVector <- 1/(1:n)*cumsum(someDataSingle)
+meanVector <- 1 / (1:n) * cumsum(someDataSingle)
 
 for (i in 1:n) {
   tempResult <- computeConfidenceIntervalZ(
-    nEff=i, meanObs=meanVector[i], 
-    a=someA, g=someG, eType="credibleInterval")
+    nEff = i, meanObs = meanVector[i],
+    a = someA, g = someG, eType = "credibleInterval"
+  )
   bayesCi[i, ] <- tempResult
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 polygon(c(1:n, n:1), c(bayesCi[, 2], rev(bayesCi[, 1])),
-        col=bayesColours[2], border=bayesColours[1], lwd=2,
-        density = NULL, angle = 20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+  col = bayesColours[2], border = bayesColours[1], lwd = 2,
+  density = NULL, angle = 20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 Similar to the frequentist confidence intervals, the true mean falls outside the credible intervals between the 21st and the 45th observations, but also at the 11th and 17th obsrevations. 
 
@@ -260,30 +275,31 @@ mIter <- 1000
 someA <- muTrue
 
 set.seed(1)
-allData <- matrix(rnorm(mIter*n, mean=muTrue), nrow=mIter)
-allBayesCis <- array(dim=c(mIter, n, 2))
+allData <- matrix(rnorm(mIter * n, mean = muTrue), nrow = mIter)
+allBayesCis <- array(dim = c(mIter, n, 2))
 
 
-# This indicates whether a simulation yielded an interval that 
+# This indicates whether a simulation yielded an interval that
 # does not cover the true mean
 bayesCiError <- integer(mIter)
 
 # This indicates the first time an interval does not cover the true mean
-firstPassageTime <- rep(Inf, times=mIter)
+firstPassageTime <- rep(Inf, times = mIter)
 
 for (sim in 1:mIter) {
   someData <- allData[sim, ]
-  meanVector <- 1/(1:n)*cumsum(someData)
-  
+  meanVector <- 1 / (1:n) * cumsum(someData)
+
   for (i in 1:n) {
     tempResult <- computeConfidenceIntervalZ(
-      nEff=i, meanObs=meanVector[i], 
-      a=someA, g=someG, 
-      eType="credibleInterval")
+      nEff = i, meanObs = meanVector[i],
+      a = someA, g = someG,
+      eType = "credibleInterval"
+    )
     allBayesCis[sim, i, ] <- tempResult
-    
-    if ((tempResult[1] > muTrue || tempResult[2] < muTrue) 
-        && bayesCiError[sim] != 1) {
+
+    if ((tempResult[1] > muTrue || tempResult[2] < muTrue) &&
+      bayesCiError[sim] != 1) {
       bayesCiError[sim] <- 1
       firstPassageTime[sim] <- i
     }
@@ -299,34 +315,39 @@ for (i in 1:n) {
   complementCoverageRate[i] <- mean(firstPassageTime <= i)
 }
 
-bayesCoverageRate <- 1-complementCoverageRate
+bayesCoverageRate <- 1 - complementCoverageRate
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n, 100*bayesCoverageRate, type="l", lwd=2, xlab="n",
-     ylab="Coverage rate (%)", col=bayesColours[1], ylim=c(60, 100))
-lines(c(1, n), 100*c(1-alpha, 1-alpha), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n, 100 * bayesCoverageRate,
+  type = "l", lwd = 2, xlab = "n",
+  ylab = "Coverage rate (%)", col = bayesColours[1], ylim = c(60, 100)
+)
+lines(c(1, n), 100 * c(1 - alpha, 1 - alpha), lwd = 2, lty = 2)
 ```
 This plot shows that the credible interval centred at the a=muTrue yield worse coverage than the classical confidence intervals. <!--However, as time goes by and with more data the coverage rate still dips below the desirable 95\%. Setting a=muTrue is not realistic and typically we just set a=0. -->
 
 The following code can be run to inspect one of the failed intervals:
 
 ```{r, eval=FALSE}
-failedIndeces <- which(bayesCiError==1)
+failedIndeces <- which(bayesCiError == 1)
 
 someIndex <- failedIndeces[3]
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
-
-polygon(c(1:n, n:1), c(allBayesCis[someIndex, , 2],
-                       rev(allBayesCis[someIndex, , 1])),
-        col=bayesColours[2], border=bayesColours[1], lwd=2,
-        density = NULL, angle = 20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+polygon(c(1:n, n:1), c(
+  allBayesCis[someIndex, , 2],
+  rev(allBayesCis[someIndex, , 1])
+),
+col = bayesColours[2], border = bayesColours[1], lwd = 2,
+density = NULL, angle = 20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 
 # 3. <a name = "avConfidenceSequence">The 95\% anytime-valid confidence sequence/intervals will **always** cover the true mean with at least 95\% chance</a>
@@ -334,9 +355,11 @@ lines(c(1, n), c(muTrue, muTrue), lwd=2)
 The anytime-valid confidence sequence **inverts** the e-variable based on a so-called non-local moment distribution mixture. In other words, the 95\% anytime-valid confidence sequence contain all parameter values mu for which the e-variable is __less__ than 1/alpha = 20. Because the e-variable itself retains a type I error rate across time, so will the resulting confidence sequence. 
 
 ```{r, eval=FALSE}
-designObj <- designSafeZ(meanDiffMin=0.5,
-                         testType="twoSample",
-                         sigma=sigmaTrue)
+designObj <- designSafeZ(
+  meanDiffMin = 0.5,
+  testType = "twoSample",
+  sigma = sigmaTrue
+)
 designObj
 ```
 
@@ -344,26 +367,29 @@ designObj
 To assess the performance of the anytime-valid confidence sequence on the data with muTrue=8, we run the following code: 
 
 ```{r, eval=FALSE}
-anytimeCi <- matrix(nrow=n, ncol=2)
+anytimeCi <- matrix(nrow = n, ncol = 2)
 
-meanVector <- 1/(1:n)*cumsum(someDataSingle)
+meanVector <- 1 / (1:n) * cumsum(someDataSingle)
 
 for (i in 1:n) {
   tempResult <- computeConfidenceIntervalZ(
-    nEff=i, parameter=designObj$parameter, 
-    meanObs=meanVector[i])
+    nEff = i, parameter = designObj$parameter,
+    meanObs = meanVector[i]
+  )
   anytimeCi[i, ] <- tempResult
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 polygon(c(1:n, n:1), c(anytimeCi[, 2], rev(anytimeCi[, 1])),
-        col=eColours[2], border=eColours[1], lwd=2,
-        density = NULL, angle = -20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+  col = eColours[2], border = eColours[1], lwd = 2,
+  density = NULL, angle = -20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 The following code shows that the anytime-valid confidence sequence covers the true mean at each moment in time. 
 
@@ -377,22 +403,26 @@ which(anytimeCi[, 2] < muTrue)
 The anytime-valid intervals would thus lead to the correct conclusion that muTrue is a viable value for the true mean, regardless if, whether, or why data collection is stopped. To compare the three intervals we run the following code.  
 
 ```{r, eval=FALSE}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 
 polygon(c(1:n, n:1), c(anytimeCi[, 2], rev(anytimeCi[, 1])),
-        col=eColours[2], border=eColours[1], lwd=2,
-        density = NULL, angle = -20)
+  col = eColours[2], border = eColours[1], lwd = 2,
+  density = NULL, angle = -20
+)
 polygon(c(1:n, n:1), c(freqCi[, 2], rev(freqCi[, 1])),
-        col=freqColours[2], border=freqColours[1], lwd=2,
-        density = 60, angle = -20)
+  col = freqColours[2], border = freqColours[1], lwd = 2,
+  density = 60, angle = -20
+)
 polygon(c(1:n, n:1), c(bayesCi[, 2], rev(bayesCi[, 1])),
-        col=bayesColours[2], border=bayesColours[1], lwd=2,
-        density = 40, angle = 20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+  col = bayesColours[2], border = bayesColours[1], lwd = 2,
+  density = 40, angle = 20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 For large sample sizes the standard confidence interval and the credible interval become indistinguishable, and the difference between them is more prominent at the start. 
 
@@ -405,30 +435,31 @@ We will see that more than 950 out of these 1,000 data sets/repeated experiments
 mIter <- 1000
 
 set.seed(1)
-allData <- matrix(rnorm(mIter*n, mean=muTrue), nrow=mIter)
-allAnytimeCis <- array(dim=c(mIter, n, 2))
+allData <- matrix(rnorm(mIter * n, mean = muTrue), nrow = mIter)
+allAnytimeCis <- array(dim = c(mIter, n, 2))
 
 
-# This indicates whether a simulation yielded an interval that 
+# This indicates whether a simulation yielded an interval that
 # does not cover the true mean
 anytimeCiError <- integer(mIter)
 
 # This indicates the first time an interval does not cover the true mean
-firstPassageTime <- rep(Inf, times=mIter)
+firstPassageTime <- rep(Inf, times = mIter)
 
 for (sim in 1:mIter) {
   someData <- allData[sim, ]
-  meanVector <- 1/(1:n)*cumsum(someData)
-  
+  meanVector <- 1 / (1:n) * cumsum(someData)
+
   for (i in 1:n) {
     tempResult <- computeConfidenceIntervalZ(
-      nEff=i, meanObs=meanVector[i],
-      parameter=designObj$parameter)
-    
+      nEff = i, meanObs = meanVector[i],
+      parameter = designObj$parameter
+    )
+
     allAnytimeCis[sim, i, ] <- tempResult
-    
-    if ((tempResult[1] > muTrue || tempResult[2] < muTrue) 
-        && anytimeCiError[sim] != 1) {
+
+    if ((tempResult[1] > muTrue || tempResult[2] < muTrue) &&
+      anytimeCiError[sim] != 1) {
       anytimeCiError[sim] <- 1
       firstPassageTime[sim] <- i
     }
@@ -444,49 +475,57 @@ for (i in 1:n) {
   complementCoverageRate[i] <- mean(firstPassageTime <= i)
 }
 
-anytimeCiCoverageRate <- 1-complementCoverageRate
+anytimeCiCoverageRate <- 1 - complementCoverageRate
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n, 100*anytimeCiCoverageRate, type="l", lwd=2,
-     xlab="n", ylab="Coverage rate (%)", col=eColours[1],
-     ylim=c(60, 100))
-lines(c(1, n), 100*c(1-alpha, 1-alpha), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n, 100 * anytimeCiCoverageRate,
+  type = "l", lwd = 2,
+  xlab = "n", ylab = "Coverage rate (%)", col = eColours[1],
+  ylim = c(60, 100)
+)
+lines(c(1, n), 100 * c(1 - alpha, 1 - alpha), lwd = 2, lty = 2)
 ```
 This plot shows that the anytime-valid confidence sequences cover the true mean under repeated use as promised. 
 
 The following code can be run to inspect one of the failed intervals:
 
 ```{r, eval=FALSE}
-failedIndeces <- which(anytimeCiError==1)
+failedIndeces <- which(anytimeCiError == 1)
 
 someIndex <- failedIndeces[3]
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(NULL,
+  xlim = c(0, n), ylim = c(7, 9),
+  type = "l", xlab = "", ylab = "", cex.lab = 1.3,
+  cex.axis = 1.3
+)
 
-plot(NULL, xlim=c(0, n), ylim=c(7, 9),
-     type="l", xlab = "", ylab = "", cex.lab = 1.3, 
-     cex.axis = 1.3)
-
-polygon(c(1:n, n:1), c(allAnytimeCis[someIndex, , 2],
-                       rev(allAnytimeCis[someIndex, , 1])),
-        col=eColours[2], border=eColours[1], lwd=2,
-        density = NULL, angle = 20)
-lines(c(1, n), c(muTrue, muTrue), lwd=2)
+polygon(c(1:n, n:1), c(
+  allAnytimeCis[someIndex, , 2],
+  rev(allAnytimeCis[someIndex, , 1])
+),
+col = eColours[2], border = eColours[1], lwd = 2,
+density = NULL, angle = 20
+)
+lines(c(1, n), c(muTrue, muTrue), lwd = 2)
 ```
 
 The following code can be used to see all coverage rate profiles. 
 
 ```{r, eval=FALSE}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n, 100*anytimeCiCoverageRate, type="l", lwd=2,
-     xlab="n", ylab="Coverage rate (%)", col=eColours[1],
-     ylim=c(60, 100))
-lines(1:n, 100*bayesCoverageRate, col=bayesColours[1],
-      lwd=2)
-lines(1:n, 100*freqCoverageRate, col=freqColours[1], lwd=2)
-lines(c(1, n), 100*c(1-alpha, 1-alpha), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n, 100 * anytimeCiCoverageRate,
+  type = "l", lwd = 2,
+  xlab = "n", ylab = "Coverage rate (%)", col = eColours[1],
+  ylim = c(60, 100)
+)
+lines(1:n, 100 * bayesCoverageRate,
+  col = bayesColours[1],
+  lwd = 2
+)
+lines(1:n, 100 * freqCoverageRate, col = freqColours[1], lwd = 2)
+lines(c(1, n), 100 * c(1 - alpha, 1 - alpha), lwd = 2, lty = 2)
 ```
 
 # Sensitivity wrt to the parameter g and gMom: Credible intervals versus anytime-valid confidence intervals
@@ -501,26 +540,35 @@ anytimeCiWidth <- credibleIntervalWidth <- freqCiWidth <- numeric(30)
 
 for (i in nDomain) {
   tempResult <- computeConfidenceIntervalZ(
-    nEff=i, meanObs=8,  eType="freq")
-  freqCiWidth[i] <- tempResult[2]-tempResult[1]
-  
+    nEff = i, meanObs = 8, eType = "freq"
+  )
+  freqCiWidth[i] <- tempResult[2] - tempResult[1]
+
   tempResult <- computeConfidenceIntervalZ(
-    nEff=i, meanObs=8, a=someA,
-    g=someG, eType="credibleInterval")
-  credibleIntervalWidth[i] <- tempResult[2]-tempResult[1]
-  
+    nEff = i, meanObs = 8, a = someA,
+    g = someG, eType = "credibleInterval"
+  )
+  credibleIntervalWidth[i] <- tempResult[2] - tempResult[1]
+
   tempResult <- computeConfidenceIntervalZ(
-    nEff=i, meanObs=8, parameter=designObj$parameter)
-  anytimeCiWidth[i] <- tempResult[2]-tempResult[1]
+    nEff = i, meanObs = 8, parameter = designObj$parameter
+  )
+  anytimeCiWidth[i] <- tempResult[2] - tempResult[1]
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(nDomain, anytimeCiWidth, col=eColours[1], type="l",
-     lwd=2, ylim=c(0, 12))
-lines(nDomain, credibleIntervalWidth, col=bayesColours[1],
-      lwd=2)
-lines(nDomain, freqCiWidth, col=freqColours[1], lwd=2,
-      lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(nDomain, anytimeCiWidth,
+  col = eColours[1], type = "l",
+  lwd = 2, ylim = c(0, 12)
+)
+lines(nDomain, credibleIntervalWidth,
+  col = bayesColours[1],
+  lwd = 2
+)
+lines(nDomain, freqCiWidth,
+  col = freqColours[1], lwd = 2,
+  lty = 2
+)
 ```
 Hence, the anytime-valid confidence sequence is wider than the standard and Bayesian intervals. Equivalently, both standard confidence and (Bayesian) credible intervals are too narrow for them to be anytime-valid. 
 
@@ -535,26 +583,32 @@ For anytime-valid confidence sequences the following holds. For gMom small, the 
 ```{r, eval=FALSE}
 someA <- 0
 
-gDomain <- seq(0.01, 100, by=0.01)
+gDomain <- seq(0.01, 100, by = 0.01)
 anytimeCiWidth <- credibleIntervalWidth <- numeric(30)
 
 
 for (i in seq_along(gDomain)) {
   tempResult <- computeConfidenceIntervalZ(
-    nEff=1, meanObs=8, a=0, g=gDomain[i], 
-    eType="credibleInterval")
-  
-  credibleIntervalWidth[i] <- tempResult[2]-tempResult[1]
-  
+    nEff = 1, meanObs = 8, a = 0, g = gDomain[i],
+    eType = "credibleInterval"
+  )
+
+  credibleIntervalWidth[i] <- tempResult[2] - tempResult[1]
+
   tempResult <- computeConfidenceIntervalZ(
-    nEff=1, meanObs=8, parameter=gDomain[i])
-  anytimeCiWidth[i] <- tempResult[2]-tempResult[1]
+    nEff = 1, meanObs = 8, parameter = gDomain[i]
+  )
+  anytimeCiWidth[i] <- tempResult[2] - tempResult[1]
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(gDomain, anytimeCiWidth, col=eColours[1], type="l",
-     lwd=2, ylim=c(0, 16), xlab="g/gMom", ylab="Interval width")
-lines(gDomain, credibleIntervalWidth, col=bayesColours[1],
-      lwd=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(gDomain, anytimeCiWidth,
+  col = eColours[1], type = "l",
+  lwd = 2, ylim = c(0, 16), xlab = "g/gMom", ylab = "Interval width"
+)
+lines(gDomain, credibleIntervalWidth,
+  col = bayesColours[1],
+  lwd = 2
+)
 ```
 The plot provides an indication on how the widths of the two intervals differ for a range of hyper parameter values g and gMom set equal to g. The increase in width of the anytime-valid confidence sequence is hardly noticeable, because it increases very slowly (logarithmically), whereas the width of the credible interval stabilises at the width of the classical confidence interval. 

@@ -21,33 +21,36 @@
 #' @export
 #'
 #' @examples
-#' safeTTestStat(t=1, n1=100, parameter=0.4)
-#' safeTTestStat(t=3, n1=100, parameter=0.3)
+#' safeTTestStat(t = 1, n1 = 100, parameter = 0.4)
+#' safeTTestStat(t = 3, n1 = 100, parameter = 0.3)
 safeTTestStat <- function(
-    t, n1, n2=NULL, parameter,
-    alternative=c("twoSided", "less", "greater"),
-    tDensity=FALSE,
-    paired=FALSE,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    t, n1, n2 = NULL, parameter,
+    alternative = c("twoSided", "less", "greater"),
+    tDensity = FALSE,
+    paired = FALSE,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
     ...) {
-
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
 
-  nEff <- if (is.null(n2) || is.na(n2) || paired==TRUE) n1 else (1/n1+1/n2)^(-1)
-  nu <- if (is.null(n2) || is.na(n2) || paired==TRUE) n1-1 else n1+n2-2
+  nEff <- if (is.null(n2) || is.na(n2) || paired == TRUE) n1 else (1 / n1 + 1 / n2)^(-1)
+  nu <- if (is.null(n2) || is.na(n2) || paired == TRUE) n1 - 1 else n1 + n2 - 2
 
   result <- suppressWarnings(
-    safeTTestStatNEffNu("t"=t, "nEff"=nEff, "nu"=nu,
-                        "parameter"=parameter, "alternative"=alternative,
-                        "tDensity"=tDensity, "paired"=paired, "eType"=eType,
-                        ...)
+    safeTTestStatNEffNu(
+      "t" = t, "nEff" = nEff, "nu" = nu,
+      "parameter" = parameter, "alternative" = alternative,
+      "tDensity" = tDensity, "paired" = paired, "eType" = eType,
+      ...
+    )
   )
 
   return(result)
@@ -65,22 +68,22 @@ safeTTestStat <- function(
 #' @export
 safeTTestStatNEffNu <- function(
     t, nEff, nu, parameter,
-    alternative=c("twoSided", "less", "greater"),
-    tDensity=FALSE,
-    paired=FALSE,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    alternative = c("twoSided", "less", "greater"),
+    tDensity = FALSE,
+    paired = FALSE,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
     ...) {
-
   stopifnot(nEff >= 0, nu >= 0)
 
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
 
   # Note(Alexander): For "greater" and "less" this might not be ideal
-  if (nu < 1)
-    return(list("eValue"=1))
+  if (nu < 1) {
+    return(list("eValue" = 1))
+  }
 
-  if (eType=="grow") {
+  if (eType == "grow") {
     # TODO(Alexander):
     #   One-sided not as stable as two-sided due to hypergeo::genhypergeo for the odd component
     #   1. Use Kummer's transform again (??)
@@ -93,104 +96,111 @@ safeTTestStatNEffNu <- function(
     # TODO(Alexander): Remove in v0.9.0
     #
     deltaS <- parameter
-    a <- t^2/(nu+t^2)
-    expTerm <- exp((a-1)*nEff*deltaS^2/2)
+    a <- t^2 / (nu + t^2)
+    expTerm <- exp((a - 1) * nEff * deltaS^2 / 2)
 
     zeroIndex <- which(abs(expTerm) < .Machine$double.eps)
     eValues <- vector("numeric", length(expTerm))
 
-    zArg <- (-1)*a*nEff*deltaS^2/2
+    zArg <- (-1) * a * nEff * deltaS^2 / 2
     zArg <- zArg[!zeroIndex]
     # Note(Alexander): This made the vector shorter. Only there where expTerm is non-zero will we evaluate
     # the hypergeometric functions
 
-    aKummerFunction <- Re(hypergeo::genhypergeo(U=-nu/2, L=1/2, zArg))
+    aKummerFunction <- Re(hypergeo::genhypergeo(U = -nu / 2, L = 1 / 2, zArg))
 
-    if (alternative=="twoSided") {
+    if (alternative == "twoSided") {
       eValues[!zeroIndex] <- expTerm[!zeroIndex] * aKummerFunction
     } else {
-      bKummerFunction <- exp(lgamma(nu/2+1)-lgamma((nu+1)/2))*sqrt(2*nEff)*deltaS*t/sqrt(t^2+nu)[!zeroIndex] *
-        Re(hypergeo::genhypergeo(U=(1-nu)/2, L=3/2, zArg))
-      eValues[!zeroIndex] <- expTerm[!zeroIndex]*(aKummerFunction + bKummerFunction)
+      bKummerFunction <- exp(lgamma(nu / 2 + 1) - lgamma((nu + 1) / 2)) * sqrt(2 * nEff) * deltaS * t / sqrt(t^2 + nu)[!zeroIndex] *
+        Re(hypergeo::genhypergeo(U = (1 - nu) / 2, L = 3 / 2, zArg))
+      eValues[!zeroIndex] <- expTerm[!zeroIndex] * (aKummerFunction + bKummerFunction)
     }
 
-    if (eValues <= 0 && t!=0) {
+    if (eValues <= 0 && t != 0) {
       # warning("Numerical overflow: eValue close to zero. Ratio of t density employed.")
-      eValues <- safeTTestStatTDensity("t"=t, "parameter"=parameter, "nu"=nu,
-                                       "nEff"=nEff, "alternative"=alternative)
+      eValues <- safeTTestStatTDensity(
+        "t" = t, "parameter" = parameter, "nu" = nu,
+        "nEff" = nEff, "alternative" = alternative
+      )
     }
 
-    result <- list("eValue"=eValues)
+    result <- list("eValue" = eValues)
     return(result)
-  } else if (eType=="eCauchy") {
+  } else if (eType == "eCauchy") {
     kappaG <- parameter
 
-    if (alternative=="twoSided") {
+    if (alternative == "twoSided") {
       twoSidedCauchyIntegrand <- function(g) {
-        exp(-1/2*log(1+nEff*g)+(nu+1)/2*(log(1+t^2/nu)-log(1+t^2/(nu*(1+nEff*g))))
-            - 2*log(g) + stats::dgamma(x=1/g, shape=1/2, rate=kappaG^2/2, log=TRUE))
+        exp(-1 / 2 * log(1 + nEff * g) + (nu + 1) / 2 * (log(1 + t^2 / nu) - log(1 + t^2 / (nu * (1 + nEff * g))))
+          - 2 * log(g) + stats::dgamma(x = 1 / g, shape = 1 / 2, rate = kappaG^2 / 2, log = TRUE))
       }
 
       tempResult <- stats::integrate(twoSidedCauchyIntegrand, 0, Inf)
     } else {
       oneSidedCauchyIntegrand <- function(delta) {
-        2/kappaG*exp(
-          stats::dt(t, df=nu, ncp=sqrt(nEff)*delta, log=TRUE)
-          -stats::dt(t, df=nu, ncp=0, log=TRUE)
-          +stats::dt(delta/kappaG, df=1, ncp=0, log=TRUE)
+        2 / kappaG * exp(
+          stats::dt(t, df = nu, ncp = sqrt(nEff) * delta, log = TRUE)
+          - stats::dt(t, df = nu, ncp = 0, log = TRUE)
+            + stats::dt(delta / kappaG, df = 1, ncp = 0, log = TRUE)
         )
       }
 
-      if (alternative=="greater") {
+      if (alternative == "greater") {
         tempResult <- stats::integrate(oneSidedCauchyIntegrand, 0, Inf)
-      } else if (alternative=="less") {
+      } else if (alternative == "less") {
         tempResult <- stats::integrate(oneSidedCauchyIntegrand, -Inf, 0)
       }
     }
 
-    result <- list("eValue"=tempResult[["value"]],
-                   "eValueApproxError"=tempResult[["abs.error"]])
+    result <- list(
+      "eValue" = tempResult[["value"]],
+      "eValueApproxError" = tempResult[["abs.error"]]
+    )
     return(result)
-  } else if (eType=="eGauss") {
+  } else if (eType == "eGauss") {
     g <- parameter
 
-    if (alternative=="twoSided") {
-      logResult <- -1/2*log(1+nEff*g)+((nu+1)/2)*(log((1+t^2/nu))-log(1+t^2/(nu*(1+nEff*g))))
+    if (alternative == "twoSided") {
+      logResult <- -1 / 2 * log(1 + nEff * g) + ((nu + 1) / 2) * (log((1 + t^2 / nu)) - log(1 + t^2 / (nu * (1 + nEff * g))))
 
-      return(list("eValue"=exp(logResult)))
+      return(list("eValue" = exp(logResult)))
     } else {
       oneSidedGaussIntegrand <- function(delta) {
-        2*exp(
-          stats::dt(t, df=nu, ncp=sqrt(nEff)*delta, log=TRUE)
-          -stats::dt(t, df=nu, ncp=0, log=TRUE)
-          +stats::dnorm(delta, mean=0, sd=sqrt(g), log=TRUE)
+        2 * exp(
+          stats::dt(t, df = nu, ncp = sqrt(nEff) * delta, log = TRUE)
+          - stats::dt(t, df = nu, ncp = 0, log = TRUE)
+            + stats::dnorm(delta, mean = 0, sd = sqrt(g), log = TRUE)
         )
       }
 
-      if (alternative=="greater") {
+      if (alternative == "greater") {
         tempResult <- stats::integrate(oneSidedGaussIntegrand, 0, Inf)
-      } else if (alternative=="less") {
+      } else if (alternative == "less") {
         tempResult <- stats::integrate(oneSidedGaussIntegrand, -Inf, 0)
       }
     }
 
-    result <- list("eValue"=tempResult[["value"]],
-                   "eValueApproxError"=tempResult[["abs.error"]])
+    result <- list(
+      "eValue" = tempResult[["value"]],
+      "eValueApproxError" = tempResult[["abs.error"]]
+    )
     return(result)
-  } else if (eType=="bayarri") {
+  } else if (eType == "bayarri") {
     stop("not yet implemented")
-  } else if (eType=="lai") {
-
-    if (alternative!="twoSided")
+  } else if (eType == "lai") {
+    if (alternative != "twoSided") {
       stop("Lai's e-variable currently only for twoSided tests")
+    }
 
-    eValue <- (nu+1)/2*log(1+t^2/nu)+1/2*log(2*pi/nEff)
-    return(list(eValue=eValue))
-  } else if (eType=="mom") {
+    eValue <- (nu + 1) / 2 * log(1 + t^2 / nu) + 1 / 2 * log(2 * pi / nEff)
+    return(list(eValue = eValue))
+  } else if (eType == "mom") {
     tempResult <- safeTTestStatNEffNuMom(
-      t=t, nEff=nEff, nu=nu, parameter=parameter,
-      alternative=alternative, tDensity=tDensity,
-      paired=paired)
+      t = t, nEff = nEff, nu = nu, parameter = parameter,
+      alternative = alternative, tDensity = tDensity,
+      paired = paired
+    )
 
     return(tempResult)
   }
@@ -209,176 +219,199 @@ safeTTestStatNEffNu <- function(
 #'
 safeTTestStatNEffNuMom <- function(
     t, nEff, nu, parameter,
-    alternative=c("twoSided", "less", "greater"),
-    tDensity=FALSE,
-    paired=FALSE,
-    k=1,
+    alternative = c("twoSided", "less", "greater"),
+    tDensity = FALSE,
+    paired = FALSE,
+    k = 1,
     ...) {
-
   g <- parameter
 
   # Do t-density approximation numeric
   if (tDensity) {
     momIntegrand <- function(delta) {
       exp(
-        stats::dt(t, df=nu, ncp=sqrt(nEff)*delta, log=TRUE)
-        -stats::dt(t, df=nu, ncp=0, log=TRUE)
-        +stats::dnorm(delta, mean=0, sd=sqrt(g), log=TRUE)
-      )*delta^2/g
+        stats::dt(t, df = nu, ncp = sqrt(nEff) * delta, log = TRUE)
+        - stats::dt(t, df = nu, ncp = 0, log = TRUE)
+          + stats::dnorm(delta, mean = 0, sd = sqrt(g), log = TRUE)
+      ) * delta^2 / g
     }
 
     lowerBound <- switch(alternative,
-                         "twoSided"=-Inf,
-                         "greater"=0,
-                         "less"=-Inf)
+      "twoSided" = -Inf,
+      "greater" = 0,
+      "less" = -Inf
+    )
 
     upperBound <- switch(alternative,
-                         "twoSided"=Inf,
-                         "greater"=Inf,
-                         "less"=0)
+      "twoSided" = Inf,
+      "greater" = Inf,
+      "less" = 0
+    )
 
     tempResult <- stats::integrate(momIntegrand, lowerBound, upperBound)
 
-    sidedConstant <- if (alternative=="twoSided") 1 else 2
+    sidedConstant <- if (alternative == "twoSided") 1 else 2
 
-    result <- list("eValue"=sidedConstant*tempResult[["value"]],
-                   "eValueApproxError"=tempResult[["abs.error"]])
+    result <- list(
+      "eValue" = sidedConstant * tempResult[["value"]],
+      "eValueApproxError" = tempResult[["abs.error"]]
+    )
     return(result)
   }
 
   # For t infinite simplify some ratios
   if (is.infinite(t)) {
-    logTerm <- nu/2*log(1+nEff*g)
+    logTerm <- nu / 2 * log(1 + nEff * g)
 
-    if (k==1) {
-      hypTerm <- (1+nEff*g*(nu+1))/(1+nEff*g)
+    if (k == 1) {
+      hypTerm <- (1 + nEff * g * (nu + 1)) / (1 + nEff * g)
     } else {
       hypTerm <- suppressWarnings(
         try(
           hypergeo::f15.3.3(
-            A=-k, B=-nu/2, C=1/2,
-            z=nEff*g/(1+nEff*g))
+            A = -k, B = -nu / 2, C = 1 / 2,
+            z = nEff * g / (1 + nEff * g)
+          )
         )
       )
 
-      if (isTryError(hypTerm) || is.na(hypTerm))
-        hypTerm <- Re(hypergeo::hypergeo(A=-k, B=-nu/2, C=1/2, z=nEff*g/(1+nEff*g)))
+      if (isTryError(hypTerm) || is.na(hypTerm)) {
+        hypTerm <- Re(hypergeo::hypergeo(A = -k, B = -nu / 2, C = 1 / 2, z = nEff * g / (1 + nEff * g)))
+      }
     }
 
-    aPart <- exp(logTerm)*hypTerm
+    aPart <- exp(logTerm) * hypTerm
 
-    if (alternative=="twoSided") {
-      return(list(eValue=aPart))
+    if (alternative == "twoSided") {
+      return(list(eValue = aPart))
     } else {
       logBPart <-
-        lgamma(k+1)-lgamma(k+1/2)+lgamma(nu/2+1)-lgamma((nu+1)/2)+
-        1/2*(log(nEff*g)-log(1+nEff*g))+log(2)
+        lgamma(k + 1) - lgamma(k + 1 / 2) + lgamma(nu / 2 + 1) - lgamma((nu + 1) / 2) +
+        1 / 2 * (log(nEff * g) - log(1 + nEff * g)) + log(2)
 
       hypTermB <- suppressWarnings(
         try(
           hypergeo::f15.3.3(
-            A=1/2-k, B=1-(nu+1)/2, C=3/2,
-            z=nEff*g/(1+nEff*g))
+            A = 1 / 2 - k, B = 1 - (nu + 1) / 2, C = 3 / 2,
+            z = nEff * g / (1 + nEff * g)
+          )
         )
       )
 
       if (isTryError(hypTermB) || is.na(hypTermB)) {
-        hypTermB <- Re(hypergeo::hypergeo(A=1/2-k, B=1-(nu+1)/2, C=3/2,
-                                          z=nEff*g/(1+nEff*g)))
+        hypTermB <- Re(hypergeo::hypergeo(
+          A = 1 / 2 - k, B = 1 - (nu + 1) / 2, C = 3 / 2,
+          z = nEff * g / (1 + nEff * g)
+        ))
       }
 
       signAlternative <- switch(alternative,
-                                "greater"=1,
-                                "less"=-1)
+        "greater" = 1,
+        "less" = -1
+      )
 
-      eValueAlmost <- hypTerm+signAlternative*sign(t)*exp(logBPart)*hypTermB
+      eValueAlmost <- hypTerm + signAlternative * sign(t) * exp(logBPart) * hypTermB
 
-      if (eValueAlmost < 0)
+      if (eValueAlmost < 0) {
         stop("Overflow: eValue should be positive")
-
-      if (eValueAlmost==0)
-        eValueAlmost <- .Machine$double.xmin
-
-      eValue <- exp(logTerm)*eValueAlmost
-
-      if (alternative=="greater") {
-        if (t < 0 && eValue > 1)
-          warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
-      } else if (alternative=="less") {
-        if (t > 0 && eValue > 1)
-          warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
       }
 
-      return(list(eValue=eValue))
+      if (eValueAlmost == 0) {
+        eValueAlmost <- .Machine$double.xmin
+      }
+
+      eValue <- exp(logTerm) * eValueAlmost
+
+      if (alternative == "greater") {
+        if (t < 0 && eValue > 1) {
+          warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
+        }
+      } else if (alternative == "less") {
+        if (t > 0 && eValue > 1) {
+          warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
+        }
+      }
+
+      return(list(eValue = eValue))
     }
   }
 
   # Normal run here
   #
-  logTerm <- -(k+1/2)*log(1+nEff*g) +
-    (k+(nu+1)/2)*(log((1+t^2/nu))-log(1+t^2/(nu*(1+nEff*g))))
+  logTerm <- -(k + 1 / 2) * log(1 + nEff * g) +
+    (k + (nu + 1) / 2) * (log((1 + t^2 / nu)) - log(1 + t^2 / (nu * (1 + nEff * g))))
 
-  if (k==1) {
-    hypTerm <- exp(log(1+(1+nEff*g*(nu+1))/(nu*(1+nEff*g))*t^2)-log(1+t^2/nu))
+  if (k == 1) {
+    hypTerm <- exp(log(1 + (1 + nEff * g * (nu + 1)) / (nu * (1 + nEff * g)) * t^2) - log(1 + t^2 / nu))
   } else {
     hypTerm <- suppressWarnings(
       try(
         hypergeo::f15.3.3(
-          A=-k, B=-nu/2, C=1/2,
-          z=nEff*g/(1+nEff*g)*t^2/(nu+t^2))
+          A = -k, B = -nu / 2, C = 1 / 2,
+          z = nEff * g / (1 + nEff * g) * t^2 / (nu + t^2)
+        )
       )
     )
 
-    if (isTryError(hypTerm) || is.na(hypTerm))
-      hypTerm <- Re(hypergeo::hypergeo(A=-k, B=-nu/2, C=1/2, z=nEff*g/(1+nEff*g)*t^2/(nu+t^2)))
+    if (isTryError(hypTerm) || is.na(hypTerm)) {
+      hypTerm <- Re(hypergeo::hypergeo(A = -k, B = -nu / 2, C = 1 / 2, z = nEff * g / (1 + nEff * g) * t^2 / (nu + t^2)))
+    }
   }
 
-  aPart <- exp(logTerm)*hypTerm
+  aPart <- exp(logTerm) * hypTerm
 
-  if (alternative=="twoSided") {
-    return(list(eValue=aPart))
+  if (alternative == "twoSided") {
+    return(list(eValue = aPart))
   } else {
     logBPart <-
-      lgamma(k+1)-lgamma(k+1/2)+lgamma(nu/2+1)-lgamma((nu+1)/2)+
-      log(2)+1/2*(log(nEff*g)-log(1+nEff*g)-log(nu+t^2))
+      lgamma(k + 1) - lgamma(k + 1 / 2) + lgamma(nu / 2 + 1) - lgamma((nu + 1) / 2) +
+      log(2) + 1 / 2 * (log(nEff * g) - log(1 + nEff * g) - log(nu + t^2))
 
     hypTermB <- suppressWarnings(
       try(
         hypergeo::f15.3.3(
-          A=1/2-k, B=1-(nu+1)/2, C=3/2,
-          z=nEff*g/(1+nEff*g)*t^2/(nu+t^2))
+          A = 1 / 2 - k, B = 1 - (nu + 1) / 2, C = 3 / 2,
+          z = nEff * g / (1 + nEff * g) * t^2 / (nu + t^2)
+        )
       )
     )
 
     if (isTryError(hypTermB) || is.na(hypTermB)) {
-      hypTermB <- Re(hypergeo::hypergeo(A=1/2-k, B=1-(nu+1)/2, C=3/2,
-                                        z=nEff*g/(1+nEff*g)*t^2/(nu+t^2)))
+      hypTermB <- Re(hypergeo::hypergeo(
+        A = 1 / 2 - k, B = 1 - (nu + 1) / 2, C = 3 / 2,
+        z = nEff * g / (1 + nEff * g) * t^2 / (nu + t^2)
+      ))
     }
 
     signAlternative <- switch(alternative,
-                              "greater"=1,
-                              "less"=-1)
+      "greater" = 1,
+      "less" = -1
+    )
 
-    eValueAlmost <- hypTerm+signAlternative*t*exp(logBPart)*hypTermB
+    eValueAlmost <- hypTerm + signAlternative * t * exp(logBPart) * hypTermB
     eValueAlmost <- round(eValueAlmost, 9)
 
-    if (eValueAlmost < 0)
+    if (eValueAlmost < 0) {
       stop("Overflow: eValue should be positive")
-
-    if (eValueAlmost==0)
-      eValueAlmost <- .Machine$double.xmin
-
-    eValue <- exp(logTerm)*eValueAlmost
-
-    if (alternative=="greater") {
-      if (t < 0 && eValue > 1)
-        warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
-    } else if (alternative=="less") {
-      if (t > 0 && eValue > 1)
-        warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
     }
 
-    return(list(eValue=eValue))
+    if (eValueAlmost == 0) {
+      eValueAlmost <- .Machine$double.xmin
+    }
+
+    eValue <- exp(logTerm) * eValueAlmost
+
+    if (alternative == "greater") {
+      if (t < 0 && eValue > 1) {
+        warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
+      }
+    } else if (alternative == "less") {
+      if (t > 0 && eValue > 1) {
+        warning("Overflow: Subtraction of two large numbers: eValue should be smaller than one")
+      }
+    }
+
+    return(list(eValue = eValue))
   }
 }
 
@@ -395,14 +428,15 @@ safeTTestStatNEffNuMom <- function(
 #' alternative over the null.
 #'
 safeTTestStatTDensity <- function(t, parameter, nu, nEff,
-                                  alternative=c("twoSided", "less", "greater"),
-                                  paired=FALSE, ...) {
-
+                                  alternative = c("twoSided", "less", "greater"),
+                                  paired = FALSE, ...) {
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -410,18 +444,19 @@ safeTTestStatTDensity <- function(t, parameter, nu, nEff,
 
   deltaS <- parameter
 
-  if (alternative=="twoSided") {
-    logTerm1 <- stats::dt(t, df=nu, ncp=sqrt(nEff)*deltaS, log=TRUE)-stats::dt(t, df=nu, ncp=0, log=TRUE)
-    logTerm2 <- stats::dt(t, df=nu, ncp=-sqrt(nEff)*deltaS, log=TRUE)-stats::dt(t, df=nu, ncp=0, log=TRUE)
+  if (alternative == "twoSided") {
+    logTerm1 <- stats::dt(t, df = nu, ncp = sqrt(nEff) * deltaS, log = TRUE) - stats::dt(t, df = nu, ncp = 0, log = TRUE)
+    logTerm2 <- stats::dt(t, df = nu, ncp = -sqrt(nEff) * deltaS, log = TRUE) - stats::dt(t, df = nu, ncp = 0, log = TRUE)
 
     term1 <- if (is.infinite(logTerm1)) 0 else exp(logTerm1)
     term2 <- if (is.infinite(logTerm2)) 0 else exp(logTerm2)
 
-    result <- (term1+term2)/2
+    result <- (term1 + term2) / 2
   } else {
     result <- exp(
-      stats::dt(t, df=nu, ncp=sqrt(nEff)*deltaS, log=TRUE) -
-        stats::dt(t, df=nu, ncp=0, log=TRUE))
+      stats::dt(t, df = nu, ncp = sqrt(nEff) * deltaS, log = TRUE) -
+        stats::dt(t, df = nu, ncp = 0, log = TRUE)
+    )
   }
 
   if (result < 0) {
@@ -490,40 +525,47 @@ safeTTestStatTDensity <- function(t, parameter, nu, nEff,
 #' # Examples taken from stats::t.test
 #'
 #' # Test without a designObj is not ideal
-#' safeTTest(1:10, y = c(7:20))      # e = 70.454 > 20
+#' safeTTest(1:10, y = c(7:20)) # e = 70.454 > 20
 #'
 #' # See ?designSafeT for more info
-#' designObj <- designSafeT(deltaMin=0.6, alpha=0.05,
-#'                          alternative="twoSided",
-#'                          testType="twoSample")
+#' designObj <- designSafeT(
+#'   deltaMin = 0.6, alpha = 0.05,
+#'   alternative = "twoSided",
+#'   testType = "twoSample"
+#' )
 #'
-#' safeTTest(1:10, y = c(7:20), designObj=designObj)
+#' safeTTest(1:10, y = c(7:20), designObj = designObj)
 #'
 #' # Mimicking the stats::t.test interface.
 #' # Standard calls use the camelCased version though
-#' safe.t.test(1:10, y = c(7:20), designObj=designObj)
+#' safe.t.test(1:10, y = c(7:20), designObj = designObj)
 #'
 #' ## Classical example: Student's sleep data
 #' plot(extra ~ group, data = sleep)
 #' ## Traditional interface
 #' with(sleep, safeTTest(extra[group == 1], extra[group == 2],
-#'                       designObj=designObj))
+#'   designObj = designObj
+#' ))
 #'
 #' ## Formula interface
-#' safeTTest(extra ~ group, data = sleep, designObj=designObj)
+#' safeTTest(extra ~ group, data = sleep, designObj = designObj)
 #'
 #' ## Formula interface to one-sample test
-#' designObj1 <- designSafeT(deltaMin=0.6, testType="oneSample")
+#' designObj1 <- designSafeT(deltaMin = 0.6, testType = "oneSample")
 #'
-#' safeTTest(extra ~ 1, data = sleep, designObj=designObj1)
+#' safeTTest(extra ~ 1, data = sleep, designObj = designObj1)
 #'
 #' ## Formula interface to paired test
 #' ## The sleep data are actually paired, so could have been in wide format:
-#' designObjPaired <- designSafeT(deltaMin=0.6, testType="paired")
-#' sleep2 <- reshape(sleep, direction = "wide",
-#'                   idvar = "ID", timevar = "group")
-#' safeTTest(Pair(extra.1, extra.2) ~ 1, data = sleep2,
-#'           designObj=designObjPaired)
+#' designObjPaired <- designSafeT(deltaMin = 0.6, testType = "paired")
+#' sleep2 <- reshape(sleep,
+#'   direction = "wide",
+#'   idvar = "ID", timevar = "group"
+#' )
+#' safeTTest(Pair(extra.1, extra.2) ~ 1,
+#'   data = sleep2,
+#'   designObj = designObjPaired
+#' )
 safeTTest <- function(x, ...) {
   UseMethod("safeTTest")
 }
@@ -531,10 +573,9 @@ safeTTest <- function(x, ...) {
 #' @describeIn safeTTest Default S3 method
 #' @export
 safeTTest.default <- function(
-    x, y=NULL, designObj=NULL, paired=FALSE,
-    varEqual=TRUE, ciValue=NULL,
-    maxRoot=10, sequential=NULL, ...) {
-
+    x, y = NULL, designObj = NULL, paired = FALSE,
+    varEqual = TRUE, ciValue = NULL,
+    maxRoot = 10, sequential = NULL, ...) {
   result <- constructSafeTestObj("T-Test")
 
   # Vars for sequential analysis
@@ -556,37 +597,48 @@ safeTTest.default <- function(
 
   ## Check: designObj ----
   if (is.null(designObj)) {
-    designObj <- designSafeT(0.5, "eType"="mom",
-                             "testType"=testType)
+    designObj <- designSafeT(0.5,
+      "eType" = "mom",
+      "testType" = testType
+    )
     designObj[["pilot"]] <- TRUE
 
-    warningMessage <- paste("No designObj given. Default test computed based",
-                            "on a non-local prior at +1/2 and -1/2.")
+    warningMessage <- paste(
+      "No designObj given. Default test computed based",
+      "on a non-local prior at +1/2 and -1/2."
+    )
     warning(warningMessage)
   }
 
-  if (designObj[["testName"]] != "T-Test")
-    warning("The provided design is not constructed for the t-test,",
-            "please use designSafeT() instead. The test results might be invalid.")
+  if (designObj[["testName"]] != "T-Test") {
+    warning(
+      "The provided design is not constructed for the t-test,",
+      "please use designSafeT() instead. The test results might be invalid."
+    )
+  }
 
-  if (designObj[["testType"]] != testType)
-    warning('The test type of designObj is "', designObj[["testType"]],
-            '", whereas the data correspond to a testType "', testType, '"')
+  if (designObj[["testType"]] != testType) {
+    warning(
+      'The test type of designObj is "', designObj[["testType"]],
+      '", whereas the data correspond to a testType "', testType, '"'
+    )
+  }
 
   ## Check: Data -----
   #
   if (is.null(y)) {
     ### One-sample -----
     #
-    if (isTRUE(paired))
+    if (isTRUE(paired)) {
       stop("Data error: Paired analysis requested without specifying the second variable")
+    }
 
     dataName <- deparse1(substitute(x))
     x <- x[!is.na(x)]
 
     n <- nEff <- n1 <- length(x)
     n2 <- NULL
-    nu <- n-1
+    nu <- n - 1
 
     meanObs <- estimate <- mean(x)
     sdObs <- stats::sd(x)
@@ -594,28 +646,31 @@ safeTTest.default <- function(
     names(estimate) <- "mean of x"
     names(n) <- "n1"
 
-    if (is.null(sequential))
+    if (is.null(sequential)) {
       sequential <- if (n1 <= 200) TRUE else FALSE
+    }
 
     if (sequential) {
-      tempN <- defineTTestN("lowN"=1, "highN"=n1,
-                            "testType"="oneSample")
+      tempN <- defineTTestN(
+        "lowN" = 1, "highN" = n1,
+        "testType" = "oneSample"
+      )
 
       nEffVec <- tempN[["nEff"]]
       n1Vec <- tempN[["n1"]]
       n2Vec <- tempN[["n2"]]
       nuVec <- tempN[["nu"]]
 
-      meanObsVec <- 1/nEffVec*cumsum(x)
-      sdObsVec <- sqrt(1/nuVec*(cumsum(x^2)-nEffVec*meanObsVec^2))
+      meanObsVec <- 1 / nEffVec * cumsum(x)
+      sdObsVec <- sqrt(1 / nuVec * (cumsum(x^2) - nEffVec * meanObsVec^2))
     }
   } else {
     dataName <- paste(deparse1(substitute(x)), "and", deparse1(substitute(y)))
 
-    if (isTRUE(paired))
-      xGoodIndeces <- yGoodIndeces  <-
+    if (isTRUE(paired)) {
+      xGoodIndeces <- yGoodIndeces <-
         stats::complete.cases(x, y)
-    else {
+    } else {
       yGoodIndeces <- !is.na(y)
       xGoodIndeces <- !is.na(x)
     }
@@ -629,48 +684,53 @@ safeTTest.default <- function(
     ### Paired ----
     #
     if (isTRUE(paired)) {
-      if (n1 != n2)
-        stop("Data error: Error in complete.cases(x, y): Paired analysis requested, ",
-             "but the two samples are not of the same size.")
+      if (n1 != n2) {
+        stop(
+          "Data error: Error in complete.cases(x, y): Paired analysis requested, ",
+          "but the two samples are not of the same size."
+        )
+      }
 
       nEff <- n1
-      nu <- n1-1
-      meanObs <- estimate <- mean(x-y)
-      sdObs <- stats::sd(x-y)
+      nu <- n1 - 1
+      meanObs <- estimate <- mean(x - y)
+      sdObs <- stats::sd(x - y)
       names(estimate) <- "mean of the differences"
 
-      if (is.null(sequential))
+      if (is.null(sequential)) {
         sequential <- if (n1 <= 200) TRUE else FALSE
+      }
 
       if (sequential) {
-        tempN <- defineTTestN("lowN"=1, "highN"=n1, testType="paired")
+        tempN <- defineTTestN("lowN" = 1, "highN" = n1, testType = "paired")
 
         nEffVec <- tempN[["nEff"]]
         n1Vec <- tempN[["n1"]]
         n2Vec <- tempN[["n2"]]
         nuVec <- tempN[["nu"]]
 
-        meanObsVec <- 1/nEffVec*cumsum(x-y)
-        sdObsVec <- sqrt(1/nuVec*(cumsum((x-y)^2)-nEffVec*meanObsVec^2))
+        meanObsVec <- 1 / nEffVec * cumsum(x - y)
+        sdObsVec <- sqrt(1 / nuVec * (cumsum((x - y)^2) - nEffVec * meanObsVec^2))
       }
     } else {
       ## Two-sample ----
-      nEff <- (1/n1+1/n2)^(-1)
-      nu <- n1+n2-2
+      nEff <- (1 / n1 + 1 / n2)^(-1)
+      nu <- n1 + n2 - 2
 
-      sPooledSquared <- ((n1-1)*stats::var(x)+(n2-1)*stats::var(y))/nu
+      sPooledSquared <- ((n1 - 1) * stats::var(x) + (n2 - 1) * stats::var(y)) / nu
 
       sdObs <- sqrt(sPooledSquared)
 
       estimate <- c(mean(x), mean(y))
       names(estimate) <- c("mean of x", "mean of y")
-      meanObs <- estimate[1]-estimate[2]
+      meanObs <- estimate[1] - estimate[2]
 
-      if (is.null(sequential))
+      if (is.null(sequential)) {
         sequential <- if (n1 <= 200) TRUE else FALSE
+      }
 
       if (sequential) {
-        tempN <- defineTTestN(1, n1, n2/n1, testType="twoSample")
+        tempN <- defineTTestN(1, n1, n2 / n1, testType = "twoSample")
 
         nEffVec <- tempN[["nEff"]]
         nuVec <- tempN[["nu"]]
@@ -679,13 +739,13 @@ safeTTest.default <- function(
         n1Vec <- tempN[["n1"]]
         n2Vec <- tempN[["n2"]]
 
-        xMeanObsRaw <- 1/(1:n1)*cumsum(x)
-        yMeanObsRaw <- 1/(1:n2)*cumsum(y)
+        xMeanObsRaw <- 1 / (1:n1) * cumsum(x)
+        yMeanObsRaw <- 1 / (1:n2) * cumsum(y)
 
-        xSumsOfSquaresRaw <- (cumsum(x^2)-(1:n1)*xMeanObsRaw^2)
-        ySumsOfSquaresRaw <- (cumsum(y^2)-(1:n2)*yMeanObsRaw^2)
+        xSumsOfSquaresRaw <- (cumsum(x^2) - (1:n1) * xMeanObsRaw^2)
+        ySumsOfSquaresRaw <- (cumsum(y^2) - (1:n2) * yMeanObsRaw^2)
 
-        if (n2/n1==1) {
+        if (n2 / n1 == 1) {
           xMeanObsVec <- xMeanObsRaw
           yMeanObsVec <- yMeanObsRaw
           xSumsOfSquaresVec <- xSumsOfSquaresRaw
@@ -707,9 +767,9 @@ safeTTest.default <- function(
           }
         }
 
-        sPooledSquaredVec <- (xSumsOfSquaresVec+ySumsOfSquaresVec)/nuVec
+        sPooledSquaredVec <- (xSumsOfSquaresVec + ySumsOfSquaresVec) / nuVec
 
-        meanObsVec <- xMeanObsVec-yMeanObsVec
+        meanObsVec <- xMeanObsVec - yMeanObsVec
         sdObsVec <- sqrt(sPooledSquaredVec)
       }
     }
@@ -722,59 +782,69 @@ safeTTest.default <- function(
   alternative <- designObj[["alternative"]]
   h0 <- designObj[["h0"]]
 
-  if (is.null(ciValue))
-    ciValue <- 1-alpha
+  if (is.null(ciValue)) {
+    ciValue <- 1 - alpha
+  }
 
-  if (ciValue < 0 || ciValue > 1)
+  if (ciValue < 0 || ciValue > 1) {
     stop("Can't make a confidence sequence with ciValue < 0 or ciValue > 1, or alpha < 0 or alpha > 1")
+  }
 
-  tStat <- tryOrFailWithNA(sqrt(nEff)*(meanObs - h0)/sdObs)
+  tStat <- tryOrFailWithNA(sqrt(nEff) * (meanObs - h0) / sdObs)
 
-  if (is.na(tStat))
+  if (is.na(tStat)) {
     stop("Data error: Could not compute the t-statistic")
+  }
 
   names(tStat) <- "t"
 
   ### Compute: eValue ----
   #
   testResult <- suppressWarnings(
-    safeTTestStat("t"=tStat, "parameter"=designObj[["parameter"]], "n1"=n1,
-                  "n2"=n2, "alternative"=alternative, "paired"=paired,
-                  "eType"=designObj[["eType"]])
+    safeTTestStat(
+      "t" = tStat, "parameter" = designObj[["parameter"]], "n1" = n1,
+      "n2" = n2, "alternative" = alternative, "paired" = paired,
+      "eType" = designObj[["eType"]]
+    )
   )
 
 
   ### Compute: confSeq ----
   #
   result[["confSeq"]] <- computeConfidenceIntervalT(
-    "meanObs"=meanObs, "sdObs"=sdObs,
-    "nEff"=nEff, "nu"=nu,
-    "parameter"=designObj[["parameter"]],
-    "eType"=designObj[["eType"]], "ciValue"=ciValue, "maxRoot"=maxRoot)
+    "meanObs" = meanObs, "sdObs" = sdObs,
+    "nEff" = nEff, "nu" = nu,
+    "parameter" = designObj[["parameter"]],
+    "eType" = designObj[["eType"]], "ciValue" = ciValue, "maxRoot" = maxRoot
+  )
 
   ## Compute: Sequential ----
   if (sequential) {
-    tStatVec <- sqrt(nEffVec)*(meanObsVec-h0)/sdObsVec
+    tStatVec <- sqrt(nEffVec) * (meanObsVec - h0) / sdObsVec
 
     mIter <- length(n1Vec)
 
     eValueVec <- numeric(mIter)
-    confSeqMatrix <- matrix(nrow=mIter, ncol=2)
+    confSeqMatrix <- matrix(nrow = mIter, ncol = 2)
 
     for (i in seq_along(n1Vec)) {
       brie <- suppressWarnings(
-        safeTTestStat("t"=tStatVec[i], "parameter"=designObj[["parameter"]],
-                      "n1"=n1Vec[i], "n2"=n2Vec[i], "alternative"=alternative,
-                      "paired"=paired, "eType"=designObj[["eType"]])
+        safeTTestStat(
+          "t" = tStatVec[i], "parameter" = designObj[["parameter"]],
+          "n1" = n1Vec[i], "n2" = n2Vec[i], "alternative" = alternative,
+          "paired" = paired, "eType" = designObj[["eType"]]
+        )
       )
 
       eValueVec[i] <- unname(brie[["eValue"]])
 
-      kaas <- computeConfidenceIntervalT("meanObs"=meanObsVec[i], "sdObs"=sdObsVec[i],
-                                         "nEff"=nEffVec[i], "nu"=nuVec[i],
-                                         "parameter"=designObj[["parameter"]],
-                                         "eType"=designObj[["eType"]], "ciValue"=ciValue,
-                                         "maxRoot"=maxRoot)
+      kaas <- computeConfidenceIntervalT(
+        "meanObs" = meanObsVec[i], "sdObs" = sdObsVec[i],
+        "nEff" = nEffVec[i], "nu" = nuVec[i],
+        "parameter" = designObj[["parameter"]],
+        "eType" = designObj[["eType"]], "ciValue" = ciValue,
+        "maxRoot" = maxRoot
+      )
 
       confSeqMatrix[i, ] <- kaas
     }
@@ -784,7 +854,7 @@ safeTTest.default <- function(
   #
   result[["statistic"]] <- tStat
   result[["estimate"]] <- estimate
-  result[["stderr"]] <- sdObs/sqrt(nEff)
+  result[["stderr"]] <- sdObs / sqrt(nEff)
   result[["dataName"]] <- dataName
   result[["designObj"]] <- designObj
   result[["testType"]] <- testType
@@ -810,22 +880,25 @@ safeTTest.default <- function(
 #'
 safeTTest.formula <- function(
     formula, data, subset, na.action, ...) {
-
-  if (missing(formula) || (length(formula) != 3L))
+  if (missing(formula) || (length(formula) != 3L)) {
     stop("'formula' missing or incorrect")
+  }
 
   wantTwoSample <- TRUE
 
-  if (length(attr(stats::terms(formula[-2L]), "term.labels")) != 1L)
-    if (formula[[3L]] == 1L)
+  if (length(attr(stats::terms(formula[-2L]), "term.labels")) != 1L) {
+    if (formula[[3L]] == 1L) {
       wantTwoSample <- FALSE
-  else
-    stop("'formula' missing or incorrect")
+    } else {
+      stop("'formula' missing or incorrect")
+    }
+  }
 
   matchedCall <- match.call(expand.dots = FALSE)
 
-  if (is.matrix(eval(matchedCall[["data"]], parent.frame())))
+  if (is.matrix(eval(matchedCall[["data"]], parent.frame()))) {
     matchedCall[["data"]] <- as.data.frame(data)
+  }
 
   # Note: Prepare calling stats::model.frame instead of safeTTest
   #
@@ -834,52 +907,66 @@ safeTTest.formula <- function(
 
   # Call: stats::model.frame
   #
-  modelFrame <- eval(matchedCall,
-                     parent.frame())
+  modelFrame <- eval(
+    matchedCall,
+    parent.frame()
+  )
 
   # Naming
   dataName <- paste(names(modelFrame),
-                    collapse=" by ")
+    collapse = " by "
+  )
 
   names(modelFrame) <- NULL
-  response <- attr(attr(modelFrame, "terms"),
-                   "response")
+  response <- attr(
+    attr(modelFrame, "terms"),
+    "response"
+  )
 
   if (isTRUE(wantTwoSample)) {
     groupingFactor <- factor(modelFrame[[-response]])
 
-    if (nlevels(groupingFactor) != 2L)
+    if (nlevels(groupingFactor) != 2L) {
       stop("grouping factor must have exactly 2 levels")
+    }
 
     dataList <- split(modelFrame[[response]], groupingFactor)
 
-    tResult <- safeTTest("x"=dataList[[1L]], "y"=dataList[[2L]], ...)
+    tResult <- safeTTest("x" = dataList[[1L]], "y" = dataList[[2L]], ...)
 
     if (length(tResult[["estimate"]]) == 2L) {
       names(tResult[["estimate"]]) <- paste("mean in group", levels(groupingFactor))
       names(tResult[["designObj"]][["h0"]]) <-
-        paste("true difference in means between",
-              paste("group", levels(groupingFactor), collapse = " and "))
+        paste(
+          "true difference in means between",
+          paste("group", levels(groupingFactor), collapse = " and ")
+        )
     }
   } else {
     respVar <- modelFrame[[response]]
 
     if (inherits(respVar, "Pair")) {
-      tResult <- safeTTest("x"=respVar[, 1L], "y"=respVar[, 2L],
-                           paired=TRUE, ...)
+      tResult <- safeTTest(
+        "x" = respVar[, 1L], "y" = respVar[, 2L],
+        paired = TRUE, ...
+      )
       firstVar <- substring(dataName,
-                            first=6,
-                            last=regexpr(",", dataName)-1)
+        first = 6,
+        last = regexpr(",", dataName) - 1
+      )
       secondVar <- substring(dataName,
-                             first=regexpr(",", dataName)+2,
-                             last=regexpr(")", dataName)-1)
+        first = regexpr(",", dataName) + 2,
+        last = regexpr(")", dataName) - 1
+      )
       names(tResult[["estimate"]]) <-
         paste("mean difference between", firstVar, "and", secondVar)
       names(tResult[["designObj"]][["h0"]]) <-
-        paste("true mean difference between",
-              paste(c(firstVar, secondVar), collapse = " and "))
+        paste(
+          "true mean difference between",
+          paste(c(firstVar, secondVar), collapse = " and ")
+        )
     } else {
-      tResult <- safeTTest("x"=respVar, "y"=NULL, ...)
+      tResult <- safeTTest("x" = respVar, "y" = NULL, ...)
     }
   }
 
@@ -890,11 +977,13 @@ safeTTest.formula <- function(
 
 #' @describeIn safeTTest Alias for safeTTest
 #' @export
-safe.t.test <- function(x, y=NULL, paired=FALSE, designObj=NULL, varEqual=TRUE,
-                        ciValue=NULL, ...) {
-  result <- safeTTest("x"=x, "y"=y, "designObj"=designObj,
-                      "paired"=paired, "varEqual"=varEqual,
-                      ...)
+safe.t.test <- function(x, y = NULL, paired = FALSE, designObj = NULL, varEqual = TRUE,
+                        ciValue = NULL, ...) {
+  result <- safeTTest(
+    "x" = x, "y" = y, "designObj" = designObj,
+    "paired" = paired, "varEqual" = varEqual,
+    ...
+  )
 
   argumentNames <- getArgs()
   xLabel <- extractNameFromArgs(argumentNames, "x")
@@ -925,74 +1014,81 @@ safe.t.test <- function(x, y=NULL, paired=FALSE, designObj=NULL, varEqual=TRUE,
 #' @export
 #'
 #' @examples
-#' computeConfidenceIntervalT(meanObs=0.3, sdObs=2, nEff=12, nu=11, parameter=0.4)
+#' computeConfidenceIntervalT(meanObs = 0.3, sdObs = 2, nEff = 12, nu = 11, parameter = 0.4)
 computeConfidenceIntervalT <- function(
     meanObs, sdObs, nEff, nu, parameter,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    alternative=c("twoSided", "greater", "less"),
-    ciValue=0.95, maxRoot=11) {
-
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    alternative = c("twoSided", "greater", "less"),
+    ciValue = 0.95, maxRoot = 11) {
   eType <- match.arg(eType)
   alternative <- match.arg(alternative)
 
   trivialConfInt <- switch(alternative,
-                           "twoSided"=c(-Inf, Inf),
-                           "greater"=c(0, Inf),
-                           "less"=c(-Inf, 0))
+    "twoSided" = c(-Inf, Inf),
+    "greater" = c(0, Inf),
+    "less" = c(-Inf, 0)
+  )
 
   g <- parameter
 
-  if (nu <= 1) return(trivialConfInt)
+  if (nu <= 1) {
+    return(trivialConfInt)
+  }
 
-  alpha <- 1-ciValue
+  alpha <- 1 - ciValue
 
-  numeratorW <- nu*(((1+nEff*g)/alpha^2)^(1/(nu+1))-1)
-  denominatorW <- 1-((1+nEff*g)/alpha^2)^(1/(nu+1))/(1+nEff*g)
+  numeratorW <- nu * (((1 + nEff * g) / alpha^2)^(1 / (nu + 1)) - 1)
+  denominatorW <- 1 - ((1 + nEff * g) / alpha^2)^(1 / (nu + 1)) / (1 + nEff * g)
 
-  W <- numeratorW/denominatorW
+  W <- numeratorW / denominatorW
 
-  if (eType=="eGauss" && alternative=="twoSided") {
-    if (W < 0) return(trivialConfInt)
+  if (eType == "eGauss" && alternative == "twoSided") {
+    if (W < 0) {
+      return(trivialConfInt)
+    }
 
-    width <- sdObs/sqrt(nEff)*sqrt(W)
+    width <- sdObs / sqrt(nEff) * sqrt(W)
   } else {
-
-    if (alternative=="twoSided") {
-      ciLogPenaltyFunc <- function(ciValue) 1/(1-ciValue)
+    if (alternative == "twoSided") {
+      ciLogPenaltyFunc <- function(ciValue) 1 / (1 - ciValue)
     } else if (alternative %in% c("greater", "less")) {
-      ciLogPenaltyFunc <- function(ciValue) 1/(2*(1-ciValue))
+      ciLogPenaltyFunc <- function(ciValue) 1 / (2 * (1 - ciValue))
     }
 
     targetFunction <- function(t) {
-      safeTTestStatNEffNu("t"=t, "nEff"=nEff, "nu"=nu, "parameter"=parameter,
-                          "eType"=eType)$eValue-ciLogPenaltyFunc(ciValue)
+      safeTTestStatNEffNu(
+        "t" = t, "nEff" = nEff, "nu" = nu, "parameter" = parameter,
+        "eType" = eType
+      )$eValue - ciLogPenaltyFunc(ciValue)
     }
 
     if (W > 0) {
-      lowerB <- max(sqrt(W)-5,0)
-      upperB <- max(sqrt(W)+5, 5)
+      lowerB <- max(sqrt(W) - 5, 0)
+      upperB <- max(sqrt(W) + 5, 5)
     } else {
       lowerB <- 0
       upperB <- maxRoot
-      maxRoot <- 2*maxRoot
+      maxRoot <- 2 * maxRoot
     }
 
     tempResult <- suppressWarnings(
       tryCatch(stats::uniroot(targetFunction, c(lowerB, upperB)),
-               error=identity)
+        error = identity
+      )
     )
 
     iterationN <- 1
 
-    while ( (inherits(tempResult, "simpleError") || is.null(tempResult)) && iterationN <= 15) {
-      iterationN <- iterationN+1
+    while ((inherits(tempResult, "simpleError") || is.null(tempResult)) && iterationN <= 15) {
+      iterationN <- iterationN + 1
 
       tempResult <- suppressWarnings(
         tryCatch(stats::uniroot(targetFunction, c(0, maxRoot)),
-                 error=identity)
+          error = identity
+        )
       )
 
-      maxRoot <- maxRoot*2
+      maxRoot <- maxRoot * 2
     }
 
     if (inherits(tempResult, "simpleError")) {
@@ -1000,17 +1096,17 @@ computeConfidenceIntervalT <- function(
       # stop("Can't compute the width of the interval")
     }
 
-    width <- sdObs/sqrt(nEff)*tempResult$root
+    width <- sdObs / sqrt(nEff) * tempResult$root
   }
 
 
-  if (alternative=="twoSided") {
+  if (alternative == "twoSided") {
     lowerCS <- meanObs - width
     upperCS <- meanObs + width
-  } else if (alternative=="greater") {
+  } else if (alternative == "greater") {
     lowerCS <- meanObs + width
     upperCS <- Inf
-  } else if (alternative=="less") {
+  } else if (alternative == "less") {
     lowerCS <- -Inf
     upperCS <- meanObs - width
   }
@@ -1043,40 +1139,46 @@ computeConfidenceIntervalT <- function(
 #'
 #' @examples
 #' designFreqT(0.5)
-designFreqT <- function(deltaMin, alpha=0.05, beta=0.2,
-                        alternative=c("twoSided", "greater", "less"),
-                        h0=0, testType=c("oneSample", "paired", "twoSample"), ...) {
+designFreqT <- function(deltaMin, alpha = 0.05, beta = 0.2,
+                        alternative = c("twoSided", "greater", "less"),
+                        h0 = 0, testType = c("oneSample", "paired", "twoSample"), ...) {
   stopifnot(alpha > 0, beta > 0, alpha < 1, beta < 1)
 
   testType <- match.arg(testType)
 
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
   alternative <- match.arg(alternative)
 
   alternativeFreq <- switch(alternative,
-                            "greater"="one.sided",
-                            "less"="one.sided",
-                            "twoSided"="two.sided")
+    "greater" = "one.sided",
+    "less" = "one.sided",
+    "twoSided" = "two.sided"
+  )
 
   testTypeFreq <- switch(testType,
-                         "twoSample"="two.sample",
-                         "oneSample"="one.sample",
-                         "paired"="paired")
+    "twoSample" = "two.sample",
+    "oneSample" = "one.sample",
+    "paired" = "paired"
+  )
 
-  tempResult <- stats::power.t.test("delta"=deltaMin, "power"=1-beta, "type"=testTypeFreq,
-                                    "alternative"=alternativeFreq)
+  tempResult <- stats::power.t.test(
+    "delta" = deltaMin, "power" = 1 - beta, "type" = testTypeFreq,
+    "alternative" = alternativeFreq
+  )
 
   n1Plan <- ceil(tempResult[["n"]])
   n2Plan <- NULL
 
-  if (testType!="oneSample") n2Plan <- n1Plan
+  if (testType != "oneSample") n2Plan <- n1Plan
 
   if (is.null(n2Plan)) {
     nPlan <- n1Plan
@@ -1086,8 +1188,10 @@ designFreqT <- function(deltaMin, alpha=0.05, beta=0.2,
     names(nPlan) <- c("n1Plan", "n2Plan")
   }
 
-  result <- list(nPlan=nPlan, "esMin"=deltaMin, "alpha"=alpha, "beta"=beta,
-                 "testType"=testType, "alternative"=alternative, "ratio"=1, "h0"=h0)
+  result <- list(
+    nPlan = nPlan, "esMin" = deltaMin, "alpha" = alpha, "beta" = beta,
+    "testType" = testType, "alternative" = alternative, "ratio" = 1, "h0" = h0
+  )
   class(result) <- "freqTDesign"
   return(result)
 }
@@ -1163,36 +1267,37 @@ designFreqT <- function(deltaMin, alpha=0.05, beta=0.2,
 #' @export
 #'
 #' @examples
-#' designObj <- designSafeT(deltaMin=0.8, alpha=0.03, alternative="greater")
+#' designObj <- designSafeT(deltaMin = 0.8, alpha = 0.03, alternative = "greater")
 #' designObj
 #'
 #' # "Scenario 1.a": Minimal clinically relevant standarised mean difference and tolerable type
 #' # II error also known. Goal: find nPlan.
-#' designObj <- designSafeT(deltaMin=0.8, alpha=0.03, beta=0.4, nSim=10, alternative="greater")
+#' designObj <- designSafeT(deltaMin = 0.8, alpha = 0.03, beta = 0.4, nSim = 10, alternative = "greater")
 #' designObj
 #'
 #' # "Scenario 2": Minimal clinically relevant standarised mean difference and nPlan known.
 #' # Goal: find the power, hence, the type II error of the procedure under optional stopping.
 #'
-#' designObj <- designSafeT(deltaMin=0.8, alpha=0.03, nPlan=16, nSim=10, alternative="greater")
+#' designObj <- designSafeT(deltaMin = 0.8, alpha = 0.03, nPlan = 16, nSim = 10, alternative = "greater")
 #' designObj
 designSafeT <- function(
-    deltaMin=NULL, beta=NULL, nPlan=NULL,
-    alpha=0.05, h0=0, alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    ratio=1, parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantSamplePaths=TRUE,
-    lowEsTrue=0.01, highEsTrue=3,
-    pb=TRUE, seed=NULL, nSim=1e3L, nBoot=nSim, ...) {
-
+    deltaMin = NULL, beta = NULL, nPlan = NULL,
+    alpha = 0.05, h0 = 0, alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    ratio = 1, parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantSamplePaths = TRUE,
+    lowEsTrue = 0.01, highEsTrue = 3,
+    pb = TRUE, seed = NULL, nSim = 1e3L, nBoot = nSim, ...) {
   stopifnot(alpha > 0, alpha < 1)
 
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -1203,25 +1308,29 @@ designSafeT <- function(
   result <- constructSafeDesignObj("T-Test")
 
   if (!is.null(parameter)) {
-    if (eType=="grow") {
+    if (eType == "grow") {
       parameter <- checkAndReturnsEsMinParameterSide(
-        "paramToCheck"=parameter, "esMinName"="deltaS",
-        "alternative"=alternative)
+        "paramToCheck" = parameter, "esMinName" = "deltaS",
+        "alternative" = alternative
+      )
     } else if (eType %in% "eGauss") {
       parameter <- checkAndReturnsEsMinParameterSide(
-        "paramToCheck"=parameter, "esMinName"="g",
-        "alternative"=alternative)
-    } else if (eType=="eCauchy") {
+        "paramToCheck" = parameter, "esMinName" = "g",
+        "alternative" = alternative
+      )
+    } else if (eType == "eCauchy") {
       parameter <- checkAndReturnsEsMinParameterSide(
-        "paramToCheck"=parameter, "esMinName"="kappaG",
-        "alternative"=alternative)
+        "paramToCheck" = parameter, "esMinName" = "kappaG",
+        "alternative" = alternative
+      )
     }
   }
 
   if (!is.null(deltaMin)) {
     deltaMin <- checkAndReturnsEsMinParameterSide(
-      "paramToCheck"=deltaMin, "esMinName"="deltaMin",
-      "alternative"=alternative)
+      "paramToCheck" = deltaMin, "esMinName" = "deltaMin",
+      "alternative" = alternative
+    )
   }
 
   designScenario <- NULL
@@ -1232,61 +1341,68 @@ designSafeT <- function(
     designScenario <- "1a"
 
     tempResult <- designSafeT1aWantNPlan(
-      "deltaMin"=deltaMin, "beta"=beta,
-      "alpha"=alpha, "alternative"=alternative,
-      "ratio"=ratio, "parameter"=parameter, testType=testType,
-      "eType"=eType, "wantSamplePaths"=wantSamplePaths,
-      "pb"=pb, "seed"=seed, "nSim"=nSim, "nBoot"=nBoot, ...)
+      "deltaMin" = deltaMin, "beta" = beta,
+      "alpha" = alpha, "alternative" = alternative,
+      "ratio" = ratio, "parameter" = parameter, testType = testType,
+      "eType" = eType, "wantSamplePaths" = wantSamplePaths,
+      "pb" = pb, "seed" = seed, "nSim" = nSim, "nBoot" = nBoot, ...
+    )
   } else if (!is.null(deltaMin) && is.null(beta) && is.null(nPlan)) {
     designScenario <- "1b"
 
     if (is.null(parameter)) {
       parameter <- switch(eType,
-                          "mom"=deltaMin^2/2,
-                          "eGauss"=deltaMin^2,
-                          "imom"=abs(deltaMin),
-                          "eCauchy"=abs(deltaMin),
-                          "grow"=deltaMin)
+        "mom" = deltaMin^2 / 2,
+        "eGauss" = deltaMin^2,
+        "imom" = abs(deltaMin),
+        "eCauchy" = abs(deltaMin),
+        "grow" = deltaMin
+      )
     }
 
-    tempResult <- list("parameter"=parameter, "esMin"=deltaMin)
+    tempResult <- list("parameter" = parameter, "esMin" = deltaMin)
   } else if (!is.null(deltaMin) && is.null(beta) && !is.null(nPlan)) {
     # scenario 2: given effect size and nPlan, calculate power and implied target
     designScenario <- "2"
 
     tempResult <- designSafeT2WantBeta(
-      "deltaMin"=deltaMin, "nPlan"=nPlan, "alpha"=alpha,
-      "alternative"=alternative, "testType"=testType,
-      "ratio"=ratio, "parameter"=parameter, "eType"=eType,
-      "wantSamplePaths"=wantSamplePaths,
-      "pb"=pb, "seed"=seed, "nSim"=nSim, "nBoot"=nBoot, ...)
+      "deltaMin" = deltaMin, "nPlan" = nPlan, "alpha" = alpha,
+      "alternative" = alternative, "testType" = testType,
+      "ratio" = ratio, "parameter" = parameter, "eType" = eType,
+      "wantSamplePaths" = wantSamplePaths,
+      "pb" = pb, "seed" = seed, "nSim" = nSim, "nBoot" = nBoot, ...
+    )
   } else if (is.null(deltaMin) && !is.null(beta) && !is.null(nPlan)) {
     designScenario <- "3"
 
     tempResult <- designSafeT3WantEsMin(
-      "beta"=beta, "nPlan"=nPlan, "alpha"=alpha,
-      "alternative"=alternative, "testType"=testType,
-      "parameter"=parameter, "eType"=eType,
-      "lowEsTrue"=lowEsTrue, "highEsTrue"=highEsTrue)
+      "beta" = beta, "nPlan" = nPlan, "alpha" = alpha,
+      "alternative" = alternative, "testType" = testType,
+      "parameter" = parameter, "eType" = eType,
+      "lowEsTrue" = lowEsTrue, "highEsTrue" = highEsTrue
+    )
   } else if (is.null(deltaMin) && is.null(beta) && !is.null(nPlan)) {
-    #scenario 3b: only nPlan known, find the parameter at which the confidence interval
+    # scenario 3b: only nPlan known, find the parameter at which the confidence interval
     # is the most narrow at nPlan
 
     designScenario <- "3b"
 
     tempResult <- designSafeT3bWantParameter(
-      "nPlan"=nPlan, "alpha"=alpha,
-      "alternative"=alternative, "testType"=testType,
-      "parameter"=parameter, "eType"=eType)
+      "nPlan" = nPlan, "alpha" = alpha,
+      "alternative" = alternative, "testType" = testType,
+      "parameter" = parameter, "eType" = eType
+    )
   }
 
   if (is.null(designScenario)) {
-    stop("Can't design: Please provide this function with either: \n",
-         "(1.a) non-null deltaMin, non-null beta and NULL nPlan, or \n",
-         "(1.b) non-null deltaMin, NULL beta, and NULL nPlan, or \n",
-         "(1.c) NULL deltaMin, NULL beta, non-null nPlan, or \n",
-         "(2) non-null deltaMin, NULL beta and non-null nPlan, or \n",
-         "(3) NULL deltaMin, non-null beta, and non-null nPlan.")
+    stop(
+      "Can't design: Please provide this function with either: \n",
+      "(1.a) non-null deltaMin, non-null beta and NULL nPlan, or \n",
+      "(1.b) non-null deltaMin, NULL beta, and NULL nPlan, or \n",
+      "(1.c) NULL deltaMin, NULL beta, non-null nPlan, or \n",
+      "(2) non-null deltaMin, NULL beta and non-null nPlan, or \n",
+      "(3) NULL deltaMin, non-null beta, and non-null nPlan."
+    )
   }
 
   # Fill and name ----
@@ -1302,11 +1418,13 @@ designSafeT <- function(
   ## Name esMin ----
   esMin <- result[["esMin"]]
 
-  if (is.na(esMin))
+  if (is.na(esMin)) {
     esMin <- NULL
+  }
 
-  if (!is.null(esMin))
+  if (!is.null(esMin)) {
     names(esMin) <- "standardised mean difference"
+  }
 
   result[["esMin"]] <- esMin
 
@@ -1328,12 +1446,13 @@ designSafeT <- function(
 
   if (!is.null(parameter) && is.null(names(parameter))) {
     names(parameter) <- switch(eType,
-                               "mom"="gMom",
-                               "eGauss"="g",
-                               "imom"="tau",
-                               "eCauchy"="kappaG",
-                               "grow"="deltaS",
-                               "bayarri"="kappaB")
+      "mom" = "gMom",
+      "eGauss" = "g",
+      "imom" = "tau",
+      "eCauchy" = "kappaG",
+      "grow" = "deltaS",
+      "bayarri" = "kappaB"
+    )
   }
 
   result[["parameter"]] <- parameter
@@ -1361,31 +1480,33 @@ designSafeT <- function(
 #' @export
 #'
 #' @examples
-#' designSafeT1aWantNPlan(deltaMin=0.9, beta=0.7, nSim=10)
+#' designSafeT1aWantNPlan(deltaMin = 0.9, beta = 0.7, nSim = 10)
 designSafeT1aWantNPlan <- function(
-    deltaMin, beta, alpha=0.05,
-    alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    ratio=1, parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantSamplePaths=TRUE,
-    pb=TRUE, seed=NULL, nSim=1e3L, nBoot=nSim, ...) {
-
+    deltaMin, beta, alpha = 0.05,
+    alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    ratio = 1, parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantSamplePaths = TRUE,
+    pb = TRUE, seed = NULL, nSim = 1e3L, nBoot = nSim, ...) {
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
   testType <- match.arg(testType)
 
   samplingResult <- computeNPlanSafeT(
-    "deltaTrue"=deltaMin, "beta"=beta, "alpha"=alpha,
-    "alternative"=alternative, "ratio"=ratio,
-    "parameter"=parameter, "testType"=testType, "eType"=eType,
-    "wantSamplePaths"=wantSamplePaths,
-    "pb"=pb, "seed"=seed, "nSim"=nSim, "nBoot"=nBoot)
+    "deltaTrue" = deltaMin, "beta" = beta, "alpha" = alpha,
+    "alternative" = alternative, "ratio" = ratio,
+    "parameter" = parameter, "testType" = testType, "eType" = eType,
+    "wantSamplePaths" = wantSamplePaths,
+    "pb" = pb, "seed" = seed, "nSim" = nSim, "nBoot" = nBoot
+  )
 
 
-  result <- designSafe1aHelper("samplingResult"=samplingResult,
-                               "esMin"=deltaMin, "beta"=beta,
-                               "ratio"=ratio, "testType"=testType)
+  result <- designSafe1aHelper(
+    "samplingResult" = samplingResult,
+    "esMin" = deltaMin, "beta" = beta,
+    "ratio" = ratio, "testType" = testType
+  )
   return(result)
 }
 
@@ -1399,34 +1520,36 @@ designSafeT1aWantNPlan <- function(
 #' @export
 #'
 #' @examples
-#' designSafeT2WantBeta(deltaMin=0.9, nPlan=7, nSim=10)
+#' designSafeT2WantBeta(deltaMin = 0.9, nPlan = 7, nSim = 10)
 designSafeT2WantBeta <- function(
     deltaMin, nPlan,
-    alpha=0.05, alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    ratio=1, parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantSamplePaths=TRUE,
-    pb=TRUE, seed=NULL, nSim=1e3L, nBoot=nSim, ...) {
-
+    alpha = 0.05, alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    ratio = 1, parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantSamplePaths = TRUE,
+    pb = TRUE, seed = NULL, nSim = 1e3L, nBoot = nSim, ...) {
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
   testType <- match.arg(testType)
 
-  ratio <- if (length(nPlan)==2) nPlan[2]/nPlan[1] else 1
+  ratio <- if (length(nPlan) == 2) nPlan[2] / nPlan[1] else 1
 
-  nPlan <- checkAndReturnsNPlan("nPlan"=nPlan, "ratio"=ratio, "testType"=testType)
+  nPlan <- checkAndReturnsNPlan("nPlan" = nPlan, "ratio" = ratio, "testType" = testType)
 
   samplingResult <- computeBetaSafeT(
-    "deltaTrue"=deltaMin, "nPlan"=nPlan, "alpha"=alpha,
-    "alternative"=alternative,
-    "testType"=testType, "parameter"=parameter,
-    "eType"=eType, "wantSamplePaths"=wantSamplePaths,
-    "seed"=seed, "nSim"=nSim, "nBoot"=nBoot, "pb"=pb)
+    "deltaTrue" = deltaMin, "nPlan" = nPlan, "alpha" = alpha,
+    "alternative" = alternative,
+    "testType" = testType, "parameter" = parameter,
+    "eType" = eType, "wantSamplePaths" = wantSamplePaths,
+    "seed" = seed, "nSim" = nSim, "nBoot" = nBoot, "pb" = pb
+  )
 
-  result <- designSafe2Helper("samplingResult"=samplingResult,
-                              "esMin"=deltaMin, "nPlan"=nPlan, "ratio"=ratio,
-                              "testType"=c("oneSample", "paired","twoSample"))
+  result <- designSafe2Helper(
+    "samplingResult" = samplingResult,
+    "esMin" = deltaMin, "nPlan" = nPlan, "ratio" = ratio,
+    "testType" = c("oneSample", "paired", "twoSample")
+  )
   return(result)
 }
 
@@ -1440,51 +1563,55 @@ designSafeT2WantBeta <- function(
 #' @export
 #'
 #' @examples
-#' designSafeT3WantEsMin(beta=0.7, nPlan=10)
+#' designSafeT3WantEsMin(beta = 0.7, nPlan = 10)
 designSafeT3WantEsMin <- function(
     beta, nPlan,
-    alpha=0.05, alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    lowEsTrue=0.01, highEsTrue=3, ...) {
-
+    alpha = 0.05, alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    lowEsTrue = 0.01, highEsTrue = 3, ...) {
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
   testType <- match.arg(testType)
 
-  ratio <- if (length(nPlan)==2) nPlan[2]/nPlan[1] else 1
+  ratio <- if (length(nPlan) == 2) nPlan[2] / nPlan[1] else 1
 
-  nPlan <- checkAndReturnsNPlan("nPlan"=nPlan, "ratio"=ratio, "testType"=testType)
+  nPlan <- checkAndReturnsNPlan("nPlan" = nPlan, "ratio" = ratio, "testType" = testType)
 
-  result <- list("parameter"=NULL, "esMin"=NULL,
-                 "nPlan"=nPlan, "beta"=beta, "ratio"=ratio,
-                 "note"=NULL)
+  result <- list(
+    "parameter" = NULL, "esMin" = NULL,
+    "nPlan" = nPlan, "beta" = beta, "ratio" = ratio,
+    "note" = NULL
+  )
 
   deltaMin <- tryOrFailWithNA(
     computeMinEsBatchSafeT(
-      "nPlan"=nPlan, "alpha"=alpha, "beta"=beta,
-      "alternative"=alternative, "testType"=testType,
-      "parameter"=parameter, "eType"=eType,
-      "lowEsTrue"=lowEsTrue, "highEsTrue"=highEsTrue)
+      "nPlan" = nPlan, "alpha" = alpha, "beta" = beta,
+      "alternative" = alternative, "testType" = testType,
+      "parameter" = parameter, "eType" = eType,
+      "lowEsTrue" = lowEsTrue, "highEsTrue" = highEsTrue
+    )
   )
 
   if (is.null(parameter)) {
     parameter <- switch(eType,
-                        "mom"=deltaMin^2/2,
-                        "eGauss"=deltaMin^2,
-                        "imom"=abs(deltaMin),
-                        "eCauchy"=abs(deltaMin),
-                        "grow"=deltaMin)
+      "mom" = deltaMin^2 / 2,
+      "eGauss" = deltaMin^2,
+      "imom" = abs(deltaMin),
+      "eCauchy" = abs(deltaMin),
+      "grow" = deltaMin
+    )
   }
 
   result[["parameter"]] <- parameter
   result[["esMin"]] <- deltaMin
 
-  if (is.na(deltaMin))
+  if (is.na(deltaMin)) {
     result[["note"]] <- "No deltaMin found for the provided beta and nPlan"
-  else
+  } else {
     result[["note"]] <- "The reported deltaMin is based on the batch analysis."
+  }
 
   return(result)
 }
@@ -1499,13 +1626,13 @@ designSafeT3WantEsMin <- function(
 #' @export
 #'
 #' @examples
-#' designSafeT1aWantNPlan(deltaMin=0.9, beta=0.7, nSim=10)
+#' designSafeT1aWantNPlan(deltaMin = 0.9, beta = 0.7, nSim = 10)
 designSafeT3bWantParameter <- function(
     nPlan,
-    alpha=0.05, alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    alpha = 0.05, alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
     ...) {
   # TODO(Alexander): Two-sample and imom don't play well
 
@@ -1517,69 +1644,78 @@ designSafeT3bWantParameter <- function(
   eType <- match.arg(eType)
   testType <- match.arg(testType)
 
-  ratio <- if (length(nPlan)==2) nPlan[2]/nPlan[1] else 1
-  nPlan <- checkAndReturnsNPlan("nPlan"=nPlan, "ratio"=ratio, "testType"=testType)
+  ratio <- if (length(nPlan) == 2) nPlan[2] / nPlan[1] else 1
+  nPlan <- checkAndReturnsNPlan("nPlan" = nPlan, "ratio" = ratio, "testType" = testType)
 
   n1 <- nPlan[1]
   n2 <- nPlan[2]
 
-  paired <- if (testType=="paired") TRUE else FALSE
+  paired <- if (testType == "paired") TRUE else FALSE
 
-  nEff <- if (is.null(n2) || is.na(n2) || paired==TRUE) n1 else (1/n1+1/n2)^(-1)
-  nu <- if (is.null(n2) || is.na(n2) || paired==TRUE) n1-1 else n1+n2-2
+  nEff <- if (is.null(n2) || is.na(n2) || paired == TRUE) n1 else (1 / n1 + 1 / n2)^(-1)
+  nu <- if (is.null(n2) || is.na(n2) || paired == TRUE) n1 - 1 else n1 + n2 - 2
 
-  if (nu <= 0)
+  if (nu <= 0) {
     stop(defaultErrorText)
+  }
 
-  result <- list("parameter"=NULL, "esMin"=NULL,
-                 "nPlan"=nPlan, "ratio"=ratio,
-                 "note"=NULL)
+  result <- list(
+    "parameter" = NULL, "esMin" = NULL,
+    "nPlan" = nPlan, "ratio" = ratio,
+    "note" = NULL
+  )
 
-  minG <- (alpha^(-2/nu)-1)/nEff
+  minG <- (alpha^(-2 / nu) - 1) / nEff
 
-  tempResult <- uniroot(function(g)tTestWidthDerivative(g, nEff=nEff, nu=nu, alpha=alpha),
-                        c(minG, max(exp(-log(alpha))*minG, 1e6)),
-                        tol=min(.Machine$double.eps^0.25, 1/nEff))
+  tempResult <- uniroot(function(g) tTestWidthDerivative(g, nEff = nEff, nu = nu, alpha = alpha),
+    c(minG, max(exp(-log(alpha)) * minG, 1e6)),
+    tol = min(.Machine$double.eps^0.25, 1 / nEff)
+  )
 
   gCandidate <- tempResult[["root"]]
   deltaMinCandidate <- sqrt(gCandidate)
 
-  if (eType=="eGauss") {
+  if (eType == "eGauss") {
     parameter <- gCandidate
     deltaMin <- deltaMinCandidate
   } else {
-    upperDelta <- if (eType %in% c("mom", "grow")) 2*deltaMinCandidate else max(2*deltaMinCandidate, 0.02)
+    upperDelta <- if (eType %in% c("mom", "grow")) 2 * deltaMinCandidate else max(2 * deltaMinCandidate, 0.02)
 
-    deltaDomain <- seq(deltaMinCandidate/4, upperDelta, length.out=1e3)
+    deltaDomain <- seq(deltaMinCandidate / 4, upperDelta, length.out = 1e3)
     ciWidths <- rep(Inf, length(deltaDomain))
 
-    parameterDomain <- if (eType=="mom") deltaDomain^2/2 else deltaDomain
+    parameterDomain <- if (eType == "mom") deltaDomain^2 / 2 else deltaDomain
 
     for (i in seq_along(ciWidths)) {
-      tempRes <- computeConfidenceIntervalT(meanObs=0, sdObs=1,
-                                            nEff=nEff, nu=nu,
-                                            parameter=parameterDomain[i],
-                                            eType=eType, ciValue=1-alpha,
-                                            alternative="twoSided")
+      tempRes <- computeConfidenceIntervalT(
+        meanObs = 0, sdObs = 1,
+        nEff = nEff, nu = nu,
+        parameter = parameterDomain[i],
+        eType = eType, ciValue = 1 - alpha,
+        alternative = "twoSided"
+      )
       ciWidths[i] <- tempRes[2]
     }
 
-    if (sum(is.infinite(ciWidths))==length(ciWidths))
+    if (sum(is.infinite(ciWidths)) == length(ciWidths)) {
       stop(defaultErrorText)
+    }
 
     minIndex <- which.min(ciWidths)
 
     deltaMin <- deltaDomain[minIndex]
     parameter <- parameterDomain[minIndex]
 
-    if (minIndex!=1 && is.infinite(ciWidths[minIndex-1])) {
+    if (minIndex != 1 && is.infinite(ciWidths[minIndex - 1])) {
       result[["note"]] <- "Unstable design based on alpha and nPlan alone."
-      warning("Unstable: The parameter corresponds to the smallest parameter value",
-              "for which the ci width can be calculated. Another eType might yield more stable designs.")
+      warning(
+        "Unstable: The parameter corresponds to the smallest parameter value",
+        "for which the ci width can be calculated. Another eType might yield more stable designs."
+      )
     }
   }
 
-  if (eType=="grow" && alternative=="less") {
+  if (eType == "grow" && alternative == "less") {
     parameter <- -parameter
     deltaMin <- -deltaMin
   }
@@ -1600,17 +1736,18 @@ designSafeT3bWantParameter <- function(
 #'
 #' @return a list which contains at least nPlan and the deltaS the parameter that defines the safe test
 computeNPlanBatchSafeT <- function(
-    deltaTrue, alpha=0.05, beta=0.2,
-    alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    parameter=NULL, ratio=1) {
-
+    deltaTrue, alpha = 0.05, beta = 0.2,
+    alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    parameter = NULL, ratio = 1) {
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -1618,25 +1755,27 @@ computeNPlanBatchSafeT <- function(
   testType <- match.arg(testType)
   eType <- match.arg(eType)
 
-  result <- list(nPlan=NULL, "parameter"=parameter)
+  result <- list(nPlan = NULL, "parameter" = parameter)
 
   n1Plan <- NULL
   n2Plan <- NULL
 
-  n1OverNEffRatio <- if (testType=="twoSample") (1+ratio)/ratio else 1
+  n1OverNEffRatio <- if (testType == "twoSample") (1 + ratio) / ratio else 1
 
   if (is.null(parameter)) {
     deltaTrue <- checkAndReturnsEsMinParameterSide(
-      "paramToCheck"=deltaTrue, "alternative"=alternative,
-      "esMinName"="deltaTrue")
+      "paramToCheck" = deltaTrue, "alternative" = alternative,
+      "esMinName" = "deltaTrue"
+    )
 
     parameter <- switch(eType,
-                        "mom"=deltaTrue^2/2,
-                        "eGauss"=deltaTrue^2,
-                        "imom"=abs(deltaTrue),
-                        "eCauchy"=abs(deltaTrue),
-                        "grow"=abs(deltaTrue),
-                        "bayarri"=0)
+      "mom" = deltaTrue^2 / 2,
+      "eGauss" = deltaTrue^2,
+      "imom" = abs(deltaTrue),
+      "eCauchy" = abs(deltaTrue),
+      "grow" = abs(deltaTrue),
+      "bayarri" = 0
+    )
   }
 
   deltaTrue <- abs(deltaTrue)
@@ -1645,56 +1784,61 @@ computeNPlanBatchSafeT <- function(
   # the candidate set of nEff
   qB <- stats::qnorm(beta)
 
-  nTemp <- exp(-2*log(deltaTrue))*
-    (2*qB^2 - 2*qB*sqrt(qB^2+2*log(1/alpha))
-     +2*log(1/alpha))
+  nTemp <- exp(-2 * log(deltaTrue)) *
+    (2 * qB^2 - 2 * qB * sqrt(qB^2 + 2 * log(1 / alpha))
+      + 2 * log(1 / alpha))
 
   tempAlternative <- switch(alternative,
-                            "twoSided"="twoSided",
-                            "greater"="greater",
-                            "less"="greater")
+    "twoSided" = "twoSided",
+    "greater" = "greater",
+    "less" = "greater"
+  )
 
-  if (testType=="twoSample") {
-    n1Func <- function(nEff) (1+ratio)/ratio*nEff
-    n2Func <- function(nEff) (1+ratio)*nEff
-    nuFunc <- function(nEff) (1+ratio)^2/ratio*nEff-2
+  if (testType == "twoSample") {
+    n1Func <- function(nEff) (1 + ratio) / ratio * nEff
+    n2Func <- function(nEff) (1 + ratio) * nEff
+    nuFunc <- function(nEff) (1 + ratio)^2 / ratio * nEff - 2
   } else if (testType %in% c("oneSample", "paired")) {
     n1Func <- function(nEff) nEff
     n2Func <- function(nEff) NULL
-    nuFunc <- function(nEff) nEff-1
+    nuFunc <- function(nEff) nEff - 1
   }
 
   targetFunction <- function(nEff) {
     safeTTestStat(
-      stats::qt("p"=beta, "df"=nuFunc(nEff), "ncp"=sqrt(nEff)*deltaTrue),
-      "n1"=n1Func(nEff), "n2"=n2Func(nEff), "parameter"=parameter, "alternative"=tempAlternative,
-      "eType"=eType)$eValue-1/alpha
+      stats::qt("p" = beta, "df" = nuFunc(nEff), "ncp" = sqrt(nEff) * deltaTrue),
+      "n1" = n1Func(nEff), "n2" = n2Func(nEff), "parameter" = parameter, "alternative" = tempAlternative,
+      "eType" = eType
+    )$eValue - 1 / alpha
   }
 
   tempResult <- suppressWarnings(
-    tryCatch(stats::uniroot(targetFunction, interval=c(nTemp/2, 2*nTemp)),
-             error=identity)
+    tryCatch(stats::uniroot(targetFunction, interval = c(nTemp / 2, 2 * nTemp)),
+      error = identity
+    )
   )
 
 
   if (inherits(tempResult, "simpleError")) {
     tempResult <- suppressWarnings(
-      tryCatch(stats::uniroot(targetFunction, interval=c(10*nTemp, 50*nTemp)),
-               error=identity)
+      tryCatch(stats::uniroot(targetFunction, interval = c(10 * nTemp, 50 * nTemp)),
+        error = identity
+      )
     )
 
-    if (eType=="bayarri") {
+    if (eType == "bayarri") {
       tempResult <- suppressWarnings(
-        tryCatch(stats::uniroot(targetFunction, interval=c(nTemp/2, 50*nTemp)),
-                 error=identity)
+        tryCatch(stats::uniroot(targetFunction, interval = c(nTemp / 2, 50 * nTemp)),
+          error = identity
+        )
       )
     }
-
   }
 
 
-  if (inherits(tempResult, "simpleError"))
+  if (inherits(tempResult, "simpleError")) {
     stop("Can't compute the batched planned sample size")
+  }
 
   nEff <- tempResult[["root"]]
 
@@ -1715,17 +1859,19 @@ computeNPlanBatchSafeT <- function(
     names(result[["nPlan"]]) <- c("n1Plan", "n2Plan")
   }
 
-  if (eType=="grow" && alternative=="less" && parameter > 0)
+  if (eType == "grow" && alternative == "less" && parameter > 0) {
     parameter <- -parameter
+  }
 
   names(parameter) <- switch(eType,
-                             "mom"="gMom",
-                             "eGauss"="g",
-                             "imom"="tau",
-                             "eCauchy"="kappaG",
-                             "grow"="deltaS",
-                             "bayarri"="kappaB",
-                             "lai"="")
+    "mom" = "gMom",
+    "eGauss" = "g",
+    "imom" = "tau",
+    "eCauchy" = "kappaG",
+    "grow" = "deltaS",
+    "bayarri" = "kappaB",
+    "lai" = ""
+  )
 
   result[["parameter"]] <- parameter
 
@@ -1743,18 +1889,19 @@ computeNPlanBatchSafeT <- function(
 #' @examples
 #' computeMinEsBatchSafeT(27)
 computeMinEsBatchSafeT <- function(
-    nPlan, alpha=0.05, beta=0.2,
-    alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    lowEsTrue=0.01, highEsTrue=3, ...) {
-
+    nPlan, alpha = 0.05, beta = 0.2,
+    alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    lowEsTrue = 0.01, highEsTrue = 3, ...) {
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -1762,56 +1909,60 @@ computeMinEsBatchSafeT <- function(
   eType <- match.arg(eType)
   testType <- match.arg(testType)
 
-  nEff <- computeNEff("n"=nPlan, "testType" = testType)
+  nEff <- computeNEff("n" = nPlan, "testType" = testType)
 
-  if (eType=="mom") {
-    paramFunc <- function(deltaTrue) deltaTrue^2/2
-  } else if (eType=="eGauss") {
+  if (eType == "mom") {
+    paramFunc <- function(deltaTrue) deltaTrue^2 / 2
+  } else if (eType == "eGauss") {
     paramFunc <- function(deltaTrue) deltaTrue^2
-  } else if (eType=="imom") {
+  } else if (eType == "imom") {
     paramFunc <- function(deltaTrue) abs(deltaTrue)
-  } else if (eType=="eCauchy") {
+  } else if (eType == "eCauchy") {
     paramFunc <- function(deltaTrue) abs(deltaTrue)
-  } else if (eType=="grow") {
+  } else if (eType == "grow") {
     paramFunc <- function(deltaTrue) deltaTrue
   }
 
-  ratio <- if (length(nPlan)==2) nPlan[2]/nPlan[1] else 1
+  ratio <- if (length(nPlan) == 2) nPlan[2] / nPlan[1] else 1
 
   tempAlternative <- switch(alternative,
-                            "twoSided"="twoSided",
-                            "greater"="greater",
-                            "less"="greater")
+    "twoSided" = "twoSided",
+    "greater" = "greater",
+    "less" = "greater"
+  )
 
   if (testType %in% c("oneSample", "paired")) {
     n1 <- nPlan[1]
     n2 <- NULL
-    nu <- n1-1
-  } else if (testType=="twoSample") {
+    nu <- n1 - 1
+  } else if (testType == "twoSample") {
     n1 <- nPlan[1]
     n2 <- nPlan[2]
-    nu <- n1+n2-2
+    nu <- n1 + n2 - 2
   }
 
   targetFunction <- function(deltaTrue) {
     safeTTestStat(
-      stats::qt("p"=beta, "df"=nu, "ncp"=sqrt(nEff)*deltaTrue),
-      "n1"=n1, "n2"=n2, "parameter"=paramFunc(deltaTrue),
-      "alternative"=tempAlternative, "eType"=eType)$eValue-1/alpha
+      stats::qt("p" = beta, "df" = nu, "ncp" = sqrt(nEff) * deltaTrue),
+      "n1" = n1, "n2" = n2, "parameter" = paramFunc(deltaTrue),
+      "alternative" = tempAlternative, "eType" = eType
+    )$eValue - 1 / alpha
   }
 
-  if (eType=="grow")  {
+  if (eType == "grow") {
     gaussResult <- computeMinEsBatchSafeT(
-      "nPlan"=nPlan, "alpha"=alpha, "beta"=beta, "alternative"=tempAlternative,
-      testType=testType, eType="eGauss")
+      "nPlan" = nPlan, "alpha" = alpha, "beta" = beta, "alternative" = tempAlternative,
+      testType = testType, eType = "eGauss"
+    )
   }
 
-  tempResult <- try(stats::uniroot(targetFunction, interval=c(lowEsTrue, highEsTrue)))
+  tempResult <- try(stats::uniroot(targetFunction, interval = c(lowEsTrue, highEsTrue)))
 
   result <- tempResult[["root"]]
 
-  if (alternative=="less")
+  if (alternative == "less") {
     result <- -result
+  }
 
   return(result)
 }
@@ -1835,26 +1986,29 @@ computeMinEsBatchSafeT <- function(
 #' @export
 #'
 #' @examples
-#' sampleStoppingTimesSafeT(0.7, nSim=10, nMax=20)
+#' sampleStoppingTimesSafeT(0.7, nSim = 10, nMax = 20)
 sampleStoppingTimesSafeT <- function(
-    deltaTrue, alpha=0.05,
+    deltaTrue, alpha = 0.05,
     alternative = c("twoSided", "less", "greater"),
-    testType=c("oneSample", "paired", "twoSample"),
-    ratio=1, parameter=NULL, lowN=3L, nMax=1e8L,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantEValuesAtNMax=FALSE,
-    wantSamplePaths=TRUE, wantSimData=FALSE,
-    pb=TRUE, seed=NULL, nSim=1e3L, ...) {
-
-  stopifnot(alpha > 0, alpha <= 1,
-            is.finite(nMax),
-            is.finite(deltaTrue))
+    testType = c("oneSample", "paired", "twoSample"),
+    ratio = 1, parameter = NULL, lowN = 3L, nMax = 1e8L,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantEValuesAtNMax = FALSE,
+    wantSamplePaths = TRUE, wantSimData = FALSE,
+    pb = TRUE, seed = NULL, nSim = 1e3L, ...) {
+  stopifnot(
+    alpha > 0, alpha <= 1,
+    is.finite(nMax),
+    is.finite(deltaTrue)
+  )
 
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -1863,100 +2017,111 @@ sampleStoppingTimesSafeT <- function(
   eType <- match.arg(eType)
 
   result <- constructSampleStoppingTimesList(
-    "nSim"=nSim, "nMax"=nMax,
-    "wantEValuesAtNMax"=wantEValuesAtNMax,
-    "wantSamplePaths"=wantSamplePaths)
+    "nSim" = nSim, "nMax" = nMax,
+    "wantEValuesAtNMax" = wantEValuesAtNMax,
+    "wantSamplePaths" = wantSamplePaths
+  )
 
   if (is.null(parameter)) {
     deltaTrue <- checkAndReturnsEsMinParameterSide(
-      "paramToCheck"=deltaTrue, "alternative"=alternative,
-      "esMinName"="deltaTrue")
+      "paramToCheck" = deltaTrue, "alternative" = alternative,
+      "esMinName" = "deltaTrue"
+    )
 
     parameter <- switch(eType,
-                        "mom"=deltaTrue^2/2,
-                        "eGauss"=deltaTrue^2,
-                        "imom"=abs(deltaTrue),
-                        "eCauchy"=abs(deltaTrue),
-                        "grow"=deltaTrue)
+      "mom" = deltaTrue^2 / 2,
+      "eGauss" = deltaTrue^2,
+      "imom" = abs(deltaTrue),
+      "eCauchy" = abs(deltaTrue),
+      "grow" = deltaTrue
+    )
   }
 
-  if (testType=="twoSample" && length(nMax)==1) {
-    nMax <- c(nMax, ceil(ratio*nMax))
+  if (testType == "twoSample" && length(nMax) == 1) {
+    nMax <- c(nMax, ceil(ratio * nMax))
     n1Max <- nMax[1]
     n2Max <- nMax[2]
-    ratio <- nMax[2]/nMax[1]
-  } else if (testType %in% c("paired", "oneSample")){
+    ratio <- nMax[2] / nMax[1]
+  } else if (testType %in% c("paired", "oneSample")) {
     n1Max <- nMax[1]
     n2Max <- NULL
     nMax <- n1Max
     ratio <- 1
   }
 
-  if (pb)
-    pbSafe <- utils::txtProgressBar(style=3, title="Safe test threshold crossing")
+  if (pb) {
+    pbSafe <- utils::txtProgressBar(style = 3, title = "Safe test threshold crossing")
+  }
 
-  tempN <- defineTTestN("lowN"=1, "highN"=nMax[1], "ratio"=ratio, "testType"=testType)
+  tempN <- defineTTestN("lowN" = 1, "highN" = nMax[1], "ratio" = ratio, "testType" = testType)
 
   n1Vector <- tempN[["n1"]]
   n2Vector <- tempN[["n2"]]
   nEffVector <- tempN[["nEff"]]
 
-  simData <- generateNormalData("nPlan"=nMax, "nSim"=nSim, "deltaTrue"=deltaTrue,
-                                "sigmaTrue"=1, "paired"=FALSE, "seed"=seed)
+  simData <- generateNormalData(
+    "nPlan" = nMax, "nSim" = nSim, "deltaTrue" = deltaTrue,
+    "sigmaTrue" = 1, "paired" = FALSE, "seed" = seed
+  )
 
   for (sim in seq_along(result[["stoppingTimes"]])) {
     if (testType %in% c("oneSample", "paired")) {
       x1 <- simData[["dataGroup1"]][sim, ]
-      x1BarVector <- 1/n1Vector*cumsum(x1)
+      x1BarVector <- 1 / n1Vector * cumsum(x1)
       x1SquareVector <- cumsum(x1^2)
-      sX1Vector <- sqrt(1/(n1Vector-1)*(x1SquareVector - n1Vector*x1BarVector^2))
+      sX1Vector <- sqrt(1 / (n1Vector - 1) * (x1SquareVector - n1Vector * x1BarVector^2))
 
-      badIndeces <- which(n1Vector-1 <= 0)
+      badIndeces <- which(n1Vector - 1 <= 0)
       sX1Vector[badIndeces] <- 1
 
-      tValues <- sqrt(nEffVector)*x1BarVector/sX1Vector
+      tValues <- sqrt(nEffVector) * x1BarVector / sX1Vector
     } else {
       x1 <- simData[["dataGroup1"]][sim, ]
-      x1BarVector <- 1/(n1Vector)*cumsum(x1)
+      x1BarVector <- 1 / (n1Vector) * cumsum(x1)
       x1BarVector <- x1BarVector[n1Vector]
       x1SquareVector <- cumsum(x1^2)[n1Vector]
 
       x2 <- simData[["dataGroup2"]][sim, ]
       x2CumSum <- cumsum(x2)[n2Vector]
-      x2BarVector <- 1/(n2Vector)*x2CumSum
+      x2BarVector <- 1 / (n2Vector) * x2CumSum
       x2SquareVector <- cumsum(x2^2)[n2Vector]
 
-      sPVector <- sqrt(1/(n1Vector+n2Vector-2)*
-                         (x1SquareVector-n1Vector*x1BarVector^2 + x2SquareVector - n2Vector*x2BarVector^2))
+      sPVector <- sqrt(1 / (n1Vector + n2Vector - 2) *
+        (x1SquareVector - n1Vector * x1BarVector^2 + x2SquareVector - n2Vector * x2BarVector^2))
 
-      badIndeces <- which(n1Vector+n2Vector-2 <= 0)
+      badIndeces <- which(n1Vector + n2Vector - 2 <= 0)
       sPVector[badIndeces] <- 1
 
-      tValues <- sqrt(nEffVector)*(x1BarVector-x2BarVector)/sPVector
+      tValues <- sqrt(nEffVector) * (x1BarVector - x2BarVector) / sPVector
     }
 
     if (wantEValuesAtNMax) {
-      tempResult <- safeTTestStat("t"=tValues[length(tValues)],
-                                  "parameter"=parameter,
-                                  "n1"=nMax[1], n2=nMax[2],
-                                  "alternative"=alternative, "eType"=eType)
+      tempResult <- safeTTestStat(
+        "t" = tValues[length(tValues)],
+        "parameter" = parameter,
+        "n1" = nMax[1], n2 = nMax[2],
+        "alternative" = alternative, "eType" = eType
+      )
       result[["eValuesAtNMax"]][sim] <- tempResult[["eValue"]]
     }
 
     for (j in seq_along(n1Vector)) {
       tempResult <- suppressWarnings(
-        safeTTestStat("t"=tValues[j], "parameter"=parameter,
-                      "n1"=n1Vector[j], "n2"=n2Vector[j],
-                      "alternative"=alternative,
-                      "eType"=eType)
+        safeTTestStat(
+          "t" = tValues[j], "parameter" = parameter,
+          "n1" = n1Vector[j], "n2" = n2Vector[j],
+          "alternative" = alternative,
+          "eType" = eType
+        )
       )
 
       evidenceNow <- tempResult[["eValue"]]
 
-      if (wantSamplePaths)
+      if (wantSamplePaths) {
         result[["samplePaths"]][sim, j] <- evidenceNow
+      }
 
-      if (evidenceNow > 1/alpha) {
+      if (evidenceNow > 1 / alpha) {
         result[["stoppingTimes"]][sim] <- n1Vector[j]
         result[["eValuesStopped"]][sim] <- evidenceNow
 
@@ -1977,20 +2142,23 @@ sampleStoppingTimesSafeT <- function(
       }
     }
 
-    if (pb)
-      utils::setTxtProgressBar(pbSafe, "value"=sim/nSim, "title"="Trials")
+    if (pb) {
+      utils::setTxtProgressBar(pbSafe, "value" = sim / nSim, "title" = "Trials")
+    }
   }
 
-  if (pb)
+  if (pb) {
     close(pbSafe)
+  }
 
 
   result[["parameter"]] <- parameter
   result[["n1Vector"]] <- n1Vector
   result[["ratio"]] <- ratio
 
-  if (isTRUE(wantSimData))
+  if (isTRUE(wantSimData)) {
     result[["simData"]] <- simData
+  }
 
   return(result)
 }
@@ -2007,21 +2175,22 @@ sampleStoppingTimesSafeT <- function(
 #' @export
 #'
 #' @examples
-#' computeBetaSafeT(deltaTrue=0.7, 27, nSim=10)
+#' computeBetaSafeT(deltaTrue = 0.7, 27, nSim = 10)
 computeBetaSafeT <- function(
-    deltaTrue, nPlan, alpha=0.05,
-    alternative=c("twoSided", "greater", "less"),
-    testType=c("oneSample", "paired", "twoSample"),
-    parameter=NULL,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantSamplePaths=TRUE,
-    pb=TRUE, seed=NULL, nSim=1e3L, nBoot=nSim, ...) {
-
+    deltaTrue, nPlan, alpha = 0.05,
+    alternative = c("twoSided", "greater", "less"),
+    testType = c("oneSample", "paired", "twoSample"),
+    parameter = NULL,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantSamplePaths = TRUE,
+    pb = TRUE, seed = NULL, nSim = 1e3L, nBoot = nSim, ...) {
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -2029,38 +2198,45 @@ computeBetaSafeT <- function(
   testType <- match.arg(testType)
   eType <- match.arg(eType)
 
-  ratio <- if (length(nPlan) == 2) nPlan[2]/nPlan[1] else 1
+  ratio <- if (length(nPlan) == 2) nPlan[2] / nPlan[1] else 1
 
-  if (testType=="twoSample" && length(nPlan)==1) {
+  if (testType == "twoSample" && length(nPlan) == 1) {
     nPlan <- c(nPlan, nPlan)
-    warning('testType=="twoSample" specified, but nPlan[2] not provided. nPlan[2] is set to ratio = ', ratio,
-            'times nPlan[1] = ', nPlan[2])
+    warning(
+      'testType=="twoSample" specified, but nPlan[2] not provided. nPlan[2] is set to ratio = ', ratio,
+      "times nPlan[1] = ", nPlan[2]
+    )
   }
 
   deltaTrue <- checkAndReturnsEsMinParameterSide(
-    "paramToCheck"=deltaTrue, "alternative"=alternative,
-    "esMinName"="deltaTrue")
+    "paramToCheck" = deltaTrue, "alternative" = alternative,
+    "esMinName" = "deltaTrue"
+  )
 
   if (is.null(parameter)) {
     parameter <- switch(eType,
-                        "mom"=deltaTrue^2/2,
-                        "eGauss"=deltaTrue^2,
-                        "imom"=abs(deltaTrue),
-                        "eCauchy"=abs(deltaTrue),
-                        "grow"=deltaTrue)
+      "mom" = deltaTrue^2 / 2,
+      "eGauss" = deltaTrue^2,
+      "imom" = abs(deltaTrue),
+      "eCauchy" = abs(deltaTrue),
+      "grow" = deltaTrue
+    )
   }
 
   samplingResult <- sampleStoppingTimesSafeT(
-    "deltaTrue"=deltaTrue, "alpha"=alpha,
-    "alternative" = alternative, "testType"=testType,
-    "ratio"=ratio, "parameter"=parameter, "nMax"=nPlan,
-    "eType"=eType,
-    "wantEValuesAtNMax"=TRUE, "wantSamplePaths"=wantSamplePaths,
-    "pb"=pb, "seed"=seed, "nSim"=nSim, ...)
+    "deltaTrue" = deltaTrue, "alpha" = alpha,
+    "alternative" = alternative, "testType" = testType,
+    "ratio" = ratio, "parameter" = parameter, "nMax" = nPlan,
+    "eType" = eType,
+    "wantEValuesAtNMax" = TRUE, "wantSamplePaths" = wantSamplePaths,
+    "pb" = pb, "seed" = seed, "nSim" = nSim, ...
+  )
 
-  result <- computeBetaBootstrapper(samplingResult=samplingResult,
-                                    parameter=parameter, nPlan=nPlan,
-                                    nBoot=nBoot)
+  result <- computeBetaBootstrapper(
+    samplingResult = samplingResult,
+    parameter = parameter, nPlan = nPlan,
+    nBoot = nBoot
+  )
 
   return(result)
 }
@@ -2078,21 +2254,22 @@ computeBetaSafeT <- function(
 #' @export
 #'
 #' @examples
-#' computeNPlanSafeT(0.7, 0.2, nSim=10)
+#' computeNPlanSafeT(0.7, 0.2, nSim = 10)
 computeNPlanSafeT <- function(
-    deltaTrue, beta=0.2, alpha=0.05,
+    deltaTrue, beta = 0.2, alpha = 0.05,
     alternative = c("twoSided", "less", "greater"),
-    testType=c("oneSample", "paired", "twoSample"),
-    ratio=1, parameter=NULL, nMax=1e8,
-    eType=c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
-    wantSamplePaths=TRUE,
-    pb=TRUE, seed=NULL, nSim=1e3L, nBoot=nSim, ...) {
-
+    testType = c("oneSample", "paired", "twoSample"),
+    ratio = 1, parameter = NULL, nMax = 1e8,
+    eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+    wantSamplePaths = TRUE,
+    pb = TRUE, seed = NULL, nSim = 1e3L, nBoot = nSim, ...) {
   # TODO(Alexander): Remove in v0.9.0
   #
-  if (length(alternative)==1 && alternative=="two.sided") {
-    warning('The option alternative="two.sided" is deprecated;',
-            'Please use alternative="twoSided" instead')
+  if (length(alternative) == 1 && alternative == "two.sided") {
+    warning(
+      'The option alternative="two.sided" is deprecated;',
+      'Please use alternative="twoSided" instead'
+    )
     alternative <- "twoSided"
   }
 
@@ -2101,28 +2278,33 @@ computeNPlanSafeT <- function(
   eType <- match.arg(eType)
 
   deltaTrue <- checkAndReturnsEsMinParameterSide(
-    "paramToCheck"=deltaTrue, "alternative"=alternative,
-    "esMinName"="deltaTrue")
+    "paramToCheck" = deltaTrue, "alternative" = alternative,
+    "esMinName" = "deltaTrue"
+  )
 
   tempObj <- computeNPlanBatchSafeT(
-    "deltaTrue"=deltaTrue, "alpha"=alpha, "beta"=beta,
-    "alternative"=alternative, "testType"=testType,
-    "parameter"=parameter, "ratio"=ratio, "eType"=eType)
+    "deltaTrue" = deltaTrue, "alpha" = alpha, "beta" = beta,
+    "alternative" = alternative, "testType" = testType,
+    "parameter" = parameter, "ratio" = ratio, "eType" = eType
+  )
 
   nPlanBatch <- tempObj[["nPlan"]]
   parameter <- tempObj[["parameter"]]
 
   samplingResult <- sampleStoppingTimesSafeT(
-    "deltaTrue"=deltaTrue, "alpha"=alpha,
-    "alternative" = alternative, "testType"=testType,
-    "ratio"=ratio, "parameter"=parameter, "nMax"=nPlanBatch,
-    "eType"=eType,
-    "wantSamplePaths"=wantSamplePaths,
-    "pb"=pb, "seed"=seed, "nSim"=nSim, ...)
+    "deltaTrue" = deltaTrue, "alpha" = alpha,
+    "alternative" = alternative, "testType" = testType,
+    "ratio" = ratio, "parameter" = parameter, "nMax" = nPlanBatch,
+    "eType" = eType,
+    "wantSamplePaths" = wantSamplePaths,
+    "pb" = pb, "seed" = seed, "nSim" = nSim, ...
+  )
 
-  result <- computeNPlanBootstrapper("samplingResult"=samplingResult,
-                                     "parameter"=parameter, "beta"=beta,
-                                     "nPlanBatch"=nPlanBatch, "nBoot"=nBoot)
+  result <- computeNPlanBootstrapper(
+    "samplingResult" = samplingResult,
+    "parameter" = parameter, "beta" = beta,
+    "nPlanBatch" = nPlanBatch, "nBoot" = nBoot
+  )
   return(result)
 }
 
@@ -2141,22 +2323,22 @@ computeNPlanSafeT <- function(
 #' @param highN integer largest sample size of the (first) sample. Default set to 100.
 #'
 #' @return Returns the sample sizes and degrees of freedom.
-defineTTestN <- function(lowN=3, highN=100, ratio=1,
-                         testType=c("oneSample", "paired", "twoSample")) {
+defineTTestN <- function(lowN = 3, highN = 100, ratio = 1,
+                         testType = c("oneSample", "paired", "twoSample")) {
   testType <- match.arg(testType)
 
   if (testType %in% c("twoSample")) {
     n1 <- lowN:highN
-    n2 <- ceil(ratio*n1)
-    nEff <- (1/n1+1/n2)^(-1)
-    nu <- n1+n2-2
+    n2 <- ceil(ratio * n1)
+    nEff <- (1 / n1 + 1 / n2)^(-1)
+    nu <- n1 + n2 - 2
   } else if (testType %in% c("oneSample", "paired")) {
     n1 <- lowN:highN
     n2 <- NULL
     nEff <- n1
-    nu <- nEff-1
+    nu <- nEff - 1
   }
-  result <- list("n1"=n1, "n2"=n2, "nEff"=nEff, "nu"=nu)
+  result <- list("n1" = n1, "n2" = n2, "nEff" = nEff, "nu" = nu)
   return(result)
 }
 
@@ -2186,47 +2368,49 @@ defineTTestN <- function(lowN=3, highN=100, ratio=1,
 #' @export
 #'
 #' @examples
-#' generateNormalData(20, 15, deltaTrue=0.3)
-generateNormalData <- function(nPlan, nSim=1000L,
-                               deltaTrue=NULL, muGlobal=0, sigmaTrue=1,
-                               paired=FALSE,
-                               seed=NULL, meanDiffTrue=NULL) {
+#' generateNormalData(20, 15, deltaTrue = 0.3)
+generateNormalData <- function(nPlan, nSim = 1000L,
+                               deltaTrue = NULL, muGlobal = 0, sigmaTrue = 1,
+                               paired = FALSE,
+                               seed = NULL, meanDiffTrue = NULL) {
   stopifnot(all(nPlan > 0))
 
-  if ((is.null(deltaTrue) && is.null(meanDiffTrue)) || !is.null(deltaTrue) && !is.null(meanDiffTrue))
+  if ((is.null(deltaTrue) && is.null(meanDiffTrue)) || !is.null(deltaTrue) && !is.null(meanDiffTrue)) {
     stop("Please provide either deltaTrue (T-test), or meanDiffTrue (Z-test).")
+  }
 
-  result <- list("dataGroup1"=NULL, "dataGroup2"=NULL)
+  result <- list("dataGroup1" = NULL, "dataGroup2" = NULL)
   set.seed(seed)
 
   # TODO(Alexander): vector("mode"="list", length=length(nPlan))
 
   n1Plan <- nPlan[1]
 
-  if (is.null(meanDiffTrue))
-    meanDiffTrue <- deltaTrue*sigmaTrue
+  if (is.null(meanDiffTrue)) {
+    meanDiffTrue <- deltaTrue * sigmaTrue
+  }
 
-  if (length(nPlan)==1) {
-    dataGroup1 <- stats::rnorm("n"=n1Plan*nSim, "mean"=meanDiffTrue, "sd"=sigmaTrue)
-    dataGroup1 <- matrix(dataGroup1, "ncol"=n1Plan, "nrow"=nSim)
+  if (length(nPlan) == 1) {
+    dataGroup1 <- stats::rnorm("n" = n1Plan * nSim, "mean" = meanDiffTrue, "sd" = sigmaTrue)
+    dataGroup1 <- matrix(dataGroup1, "ncol" = n1Plan, "nrow" = nSim)
     dataGroup2 <- NULL
   } else {
     n2Plan <- nPlan[2]
 
     if (paired) {
-      dataGroup1 <- stats::rnorm("n"=n1Plan*nSim, "mean"=muGlobal + meanDiffTrue/sqrt(2), "sd"=sigmaTrue)
-      dataGroup1 <- matrix(dataGroup1, "ncol"=n1Plan, "nrow"=nSim)
-      dataGroup2 <- stats::rnorm("n"=n2Plan*nSim, "mean"=muGlobal - meanDiffTrue/sqrt(2), "sd"=sigmaTrue)
-      dataGroup2 <- matrix(dataGroup2, "ncol"=n2Plan, "nrow"=nSim)
+      dataGroup1 <- stats::rnorm("n" = n1Plan * nSim, "mean" = muGlobal + meanDiffTrue / sqrt(2), "sd" = sigmaTrue)
+      dataGroup1 <- matrix(dataGroup1, "ncol" = n1Plan, "nrow" = nSim)
+      dataGroup2 <- stats::rnorm("n" = n2Plan * nSim, "mean" = muGlobal - meanDiffTrue / sqrt(2), "sd" = sigmaTrue)
+      dataGroup2 <- matrix(dataGroup2, "ncol" = n2Plan, "nrow" = nSim)
     } else {
-      dataGroup1 <- stats::rnorm("n"=n1Plan*nSim, "mean"=muGlobal + meanDiffTrue/2, "sd"=sigmaTrue)
-      dataGroup1 <- matrix(dataGroup1, "ncol"=n1Plan, "nrow"=nSim)
-      dataGroup2 <- stats::rnorm("n"=n2Plan*nSim, "mean"=muGlobal - meanDiffTrue/2, "sd"=sigmaTrue)
-      dataGroup2 <- matrix(dataGroup2, "ncol"=n2Plan, "nrow"=nSim)
+      dataGroup1 <- stats::rnorm("n" = n1Plan * nSim, "mean" = muGlobal + meanDiffTrue / 2, "sd" = sigmaTrue)
+      dataGroup1 <- matrix(dataGroup1, "ncol" = n1Plan, "nrow" = nSim)
+      dataGroup2 <- stats::rnorm("n" = n2Plan * nSim, "mean" = muGlobal - meanDiffTrue / 2, "sd" = sigmaTrue)
+      dataGroup2 <- matrix(dataGroup2, "ncol" = n2Plan, "nrow" = nSim)
     }
   }
 
-  return(list("dataGroup1"=dataGroup1, "dataGroup2"=dataGroup2))
+  return(list("dataGroup1" = dataGroup1, "dataGroup2" = dataGroup2))
 }
 
 # Workshop functions ---------
@@ -2268,15 +2452,14 @@ conjugateBfTStat <- function(
     # a0=4, g0=2,
     # a1=3.98, g1=0.5, a2=4.02, g2=0.1,
     # a0=4, g0=2,
-    a1=3.98, g1=0.03,
-    a2=4.02, g2=0.05,
-    a0=4, g0=2,
+    a1 = 3.98, g1 = 0.03,
+    a2 = 4.02, g2 = 0.05,
+    a0 = 4, g0 = 2,
     # a1=3.7, g1=0.1, a2=4.3, g2=0.3,
     # a0=4, g0=1e3,
-    aGamma=2, bGamma=1/2, log=FALSE) {
-
-  nu1 <- n1-1
-  nu2 <- n2-1
+    aGamma = 2, bGamma = 1 / 2, log = FALSE) {
+  nu1 <- n1 - 1
+  nu2 <- n2 - 1
 
   if (n1 <= 1) {
     sdObs1 <- 0
@@ -2288,18 +2471,19 @@ conjugateBfTStat <- function(
     nu2 <- 0
   }
 
-  ssTerm <- nu1*sdObs1^2+nu2*sdObs2^2+2*bGamma
-  nP <- n1+n2
+  ssTerm <- nu1 * sdObs1^2 + nu2 * sdObs2^2 + 2 * bGamma
+  nP <- n1 + n2
 
-  logBf10 <- 1/2*(log(1+g0*nP)-log(1+g1*n1)-log(1+g2*n2))+
-    (nP+2*aGamma)/2*
-    (log(n1*n2/nP*(x1-x2)^2+nP/(1+g0*nP)*(n1/nP*x1+n2/nP*x2-a0)^2+ssTerm) -
-       log(n1/(1+g1*n1)*(x1-a1)^2+n2/(1+g2*n2)*(x2-a2)^2+ssTerm))
+  logBf10 <- 1 / 2 * (log(1 + g0 * nP) - log(1 + g1 * n1) - log(1 + g2 * n2)) +
+    (nP + 2 * aGamma) / 2 *
+      (log(n1 * n2 / nP * (x1 - x2)^2 + nP / (1 + g0 * nP) * (n1 / nP * x1 + n2 / nP * x2 - a0)^2 + ssTerm) -
+        log(n1 / (1 + g1 * n1) * (x1 - a1)^2 + n2 / (1 + g2 * n2) * (x2 - a2)^2 + ssTerm))
 
-  if (isTRUE(log))
+  if (isTRUE(log)) {
     return(logBf10)
-  else
+  } else {
     return(exp(logBf10))
+  }
 }
 
 #' A "subjective" Bayes factor for the two-sample T-test
@@ -2337,19 +2521,18 @@ conjugateBfTStatOld <- function(
     x1, sdObs1, n1, x2, sdObs2, n2,
     # a1=3.98, g1=0.05, a2=4.02, g2=0.02,
     # a0=4, g0=2,
-    a1=3.98, g1=0.5, a2=4.02, g2=0.1,
-    a0=4, g0=2,
+    a1 = 3.98, g1 = 0.5, a2 = 4.02, g2 = 0.1,
+    a0 = 4, g0 = 2,
     # a1=3.7, g1=0.1, a2=4.3, g2=0.3,
     # a0=4, g0=1e3,
-    aGamma=2, bGamma=1/2, log=FALSE) {
-
-  nPlus <- n1+n2
-  q1 <- n1/nPlus
-  q2 <- n2/nPlus
+    aGamma = 2, bGamma = 1 / 2, log = FALSE) {
+  nPlus <- n1 + n2
+  q1 <- n1 / nPlus
+  q2 <- n2 / nPlus
   # nuCombined <- nCombined-1
-  xGlobal <- q1*x1+q2*x2
-  nu1 <- n1-1
-  nu2 <- n2-1
+  xGlobal <- q1 * x1 + q2 * x2
+  nu1 <- n1 - 1
+  nu2 <- n2 - 1
 
   if (n1 <= 1 && n2 <= 1) {
     sdObs1 <- 0
@@ -2358,18 +2541,19 @@ conjugateBfTStatOld <- function(
     nu2 <- 0
   }
 
-  ssTerm <- nu1*sdObs1^2+nu2*sdObs2^2+2*bGamma
+  ssTerm <- nu1 * sdObs1^2 + nu2 * sdObs2^2 + 2 * bGamma
 
-  logBf10 <- 1/2*(log(1+nPlus*g0)-log(1+n1*g1)-log(1+n2*g2)) +
-    (nPlus/2+bGamma)*(
-      log(ssTerm+nPlus/(1+nPlus*g0)*(q1*x1+q2*x2-a0)^2 +nPlus*q1*q2*(x1-x2)) -
-        log(ssTerm+n1/(1+n1*g1)*(x1-a1)^2+n1/(1+n2*g2)*(x2-a2)^2)
+  logBf10 <- 1 / 2 * (log(1 + nPlus * g0) - log(1 + n1 * g1) - log(1 + n2 * g2)) +
+    (nPlus / 2 + bGamma) * (
+      log(ssTerm + nPlus / (1 + nPlus * g0) * (q1 * x1 + q2 * x2 - a0)^2 + nPlus * q1 * q2 * (x1 - x2)) -
+        log(ssTerm + n1 / (1 + n1 * g1) * (x1 - a1)^2 + n1 / (1 + n2 * g2) * (x2 - a2)^2)
     )
 
-  if (isTRUE(log))
+  if (isTRUE(log)) {
     return(logBf10)
-  else
+  } else {
     return(exp(logBf10))
+  }
 }
 
 #   {
@@ -2420,22 +2604,22 @@ computeConjugateCredibleIntervalTwoSampleT <- function(
     x1, sdObs1, n1, x2, sdObs2, n2,
     # a1=3.98, g1=0.05, a2=4.02, g2=0.02,
     # a1=3.98, g1=0.5, a2=4.02, g2=0.1,
-    a1=3.98, g1=0.03,
-    a2=4.02, g2=0.05,
-    aGamma=2, bGamma=1/2, ciValue=0.95) {
-
+    a1 = 3.98, g1 = 0.03,
+    a2 = 4.02, g2 = 0.05,
+    aGamma = 2, bGamma = 1 / 2, ciValue = 0.95) {
   # posterior mean conditional on sigma
-  u <- (n1*g1*x1+a1)/(1+n1*g1)-(n2*g2*x2+a2)/(1+n2*g2)
-  nP <- n1+n2
+  u <- (n1 * g1 * x1 + a1) / (1 + n1 * g1) - (n2 * g2 * x2 + a2) / (1 + n2 * g2)
+  nP <- n1 + n2
 
   w <- sqrt(
-    (g1+g2+g1*g2*nP)/((1+g1*n1)*(1+g2*n2))*
-    (2*bGamma+(n1-1)*sdObs1^2+(n2-1)*sdObs2^2)/(nP+2*aGamma))
+    (g1 + g2 + g1 * g2 * nP) / ((1 + g1 * n1) * (1 + g2 * n2)) *
+      (2 * bGamma + (n1 - 1) * sdObs1^2 + (n2 - 1) * sdObs2^2) / (nP + 2 * aGamma)
+  )
 
-  rightQuantile <- abs(qt((1-ciValue)/2, df=nP+2*aGamma, ncp=0, lower.tail=TRUE))
+  rightQuantile <- abs(qt((1 - ciValue) / 2, df = nP + 2 * aGamma, ncp = 0, lower.tail = TRUE))
 
-  lowerCS <- u-w*rightQuantile
-  upperCS <- u+w*rightQuantile
+  lowerCS <- u - w * rightQuantile
+  upperCS <- u + w * rightQuantile
 
   return(unname(c(lowerCS, upperCS)))
 }
@@ -2450,6 +2634,6 @@ computeConjugateCredibleIntervalTwoSampleT <- function(
 #' @export
 #'
 #' @examples
-tTestWidthDerivative <- function(g, nEff, nu, alpha=0.05) {
-  nEff*nu*(alpha^(2/(nu+1))*(1+g*nEff)^(-1/(nu+1))*(1+g*nEff+nu)-1-nu)
+tTestWidthDerivative <- function(g, nEff, nu, alpha = 0.05) {
+  nEff * nu * (alpha^(2 / (nu + 1)) * (1 + g * nEff)^(-1 / (nu + 1)) * (1 + g * nEff + nu) - 1 - nu)
 }

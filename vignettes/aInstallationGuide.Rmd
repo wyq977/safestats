@@ -51,7 +51,7 @@ If this is successful then please skip the next subsection and continue with the
 Download the tar.gz file from [this dropbox link](https://www.dropbox.com/scl/fi/rh5x0todkjlcz5s7zpe5f/safestats_0.8.8.tar.gz?rlkey=rvybc4uhgclku0g3siu9vt1zz&dl=0) and save it to a folder that you can easily find. 
 
 ```{r eval=FALSE}
-install.packages(path_to_file, repos = NULL, type="source")
+install.packages(path_to_file, repos = NULL, type = "source")
 ```
 
 # 2. <a name = "firstExample">First example: Designing a safe z-test experiment</a>
@@ -84,30 +84,34 @@ Suppose a new educational programme was developed that claims to increase second
 
 ```{r}
 xDomain <- seq(80, 150)
-treatmentPopulation <- dnorm(xDomain, mean=122, sd=12)
-controlPopulation <- dnorm(xDomain, mean=112, sd=12)
+treatmentPopulation <- dnorm(xDomain, mean = 122, sd = 12)
+controlPopulation <- dnorm(xDomain, mean = 112, sd = 12)
 
-oldPar <- safestats::setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(xDomain, treatmentPopulation, type="l", lwd=2, col="red",
-     ylab="Density", xlab="IQ Scores")
-lines(xDomain, controlPopulation, type="l", lwd=2, col="blue")
-lines(c(122, 122), c(0, 1), lty=3)
-lines(c(112, 112), c(0, 1), lty=3)
+oldPar <- safestats::setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(xDomain, treatmentPopulation,
+  type = "l", lwd = 2, col = "red",
+  ylab = "Density", xlab = "IQ Scores"
+)
+lines(xDomain, controlPopulation, type = "l", lwd = 2, col = "blue")
+lines(c(122, 122), c(0, 1), lty = 3)
+lines(c(112, 112), c(0, 1), lty = 3)
 ```
 We can visualise the difference score, which according to the alternative will be centred at ten. 
 
 ```{r}
 xDomain <- seq(-20, 40)
 # variance of the sum X+(-Y) is the sum of the variances
-differencePopulationAlt <- dnorm(xDomain, mean=10, sd=sqrt(2)*12)
-differencePopulationNull <- dnorm(xDomain, mean=0, sd=sqrt(2)*12)
+differencePopulationAlt <- dnorm(xDomain, mean = 10, sd = sqrt(2) * 12)
+differencePopulationNull <- dnorm(xDomain, mean = 0, sd = sqrt(2) * 12)
 
-oldPar <- safestats::setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(xDomain, differencePopulationAlt, type="l", lwd=2,
-     col="black", ylab="Density", xlab="IQ Scores difference")
-lines(xDomain, differencePopulationNull, lwd=2, lty=2)
-lines(c(0, 0), c(0, 1), lwd=1, lty=3)
-lines(c(10, 10), c(0, 1), lwd=1, lty=3)
+oldPar <- safestats::setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(xDomain, differencePopulationAlt,
+  type = "l", lwd = 2,
+  col = "black", ylab = "Density", xlab = "IQ Scores difference"
+)
+lines(xDomain, differencePopulationNull, lwd = 2, lty = 2)
+lines(c(0, 0), c(0, 1), lwd = 1, lty = 3)
+lines(c(10, 10), c(0, 1), lwd = 1, lty = 3)
 ```
 The null hypothesis of no effect states that this difference is centred at zero instead, which is depicted as the broken curve. 
 
@@ -116,9 +120,11 @@ For the test we are going to perform we use the following design object:
 ```{r, eval=FALSE}
 library(safestats)
 sigmaTrue <- 12
-designObj <- designSafeZ(meanDiffMin=10,
-                         beta=0.2, sigma=sigmaTrue,
-                         testType="twoSample", seed=1)
+designObj <- designSafeZ(
+  meanDiffMin = 10,
+  beta = 0.2, sigma = sigmaTrue,
+  testType = "twoSample", seed = 1
+)
 designObj
 ```
 Now look at the output of this procedure (if necessary make the console window bigger). The output shows that the if we would want to test the null hypothesis of no effect sequentially, then we need to plan for about n1=n2=36 participants in the treatment and control group to detect a minimal clinically relevant mean difference of 10 with 80\% power. We provide further information on the planned sample size in the "Design" R Markdown document. 
@@ -127,14 +133,16 @@ One advantage of e-variables is that you can analyse the data as they come in. F
 
 ```{r, eval=FALSE}
 set.seed(2)
-treatmentGroup <- rnorm(36, mean=122, sd=sigmaTrue)
-controlGroup <- rnorm(36, mean=112, sd=sigmaTrue)
+treatmentGroup <- rnorm(36, mean = 122, sd = sigmaTrue)
+controlGroup <- rnorm(36, mean = 112, sd = sigmaTrue)
 
-resultObj <- safeZTest(x=treatmentGroup, y=controlGroup,
-                       designObj=designObj)
+resultObj <- safeZTest(
+  x = treatmentGroup, y = controlGroup,
+  designObj = designObj
+)
 resultObj
 
 plot(resultObj)
-plot(resultObj, wantConfSeqPlot=TRUE)
+plot(resultObj, wantConfSeqPlot = TRUE)
 ```
 The resultObj shows that we can reject the null, as the e-value is 93232, which is much larger than 1/alpha = 20, see the next R Markdown document on "Testing" for more information regarding this evidence threshold. The resultObj also shows an (anytime-valid) confidence interval (between 6.04 and 22.87) for the mean difference, which is relatively wide, but recall that the population standard deviation is 12, and it does cover the true mean difference of 10, see the R markdown document on "Anytime-valid confidence sequences" for further details.

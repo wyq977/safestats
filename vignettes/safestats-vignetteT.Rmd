@@ -84,17 +84,19 @@ With an acceptable type I error rate set at $\alpha=0.05$, a permissible type II
 ```{r}
 alpha <- 0.05
 beta <- 0.2
-deltaMin <- 12/(sqrt(2)*15)
+deltaMin <- 12 / (sqrt(2) * 15)
 sigma <- 15
 ```
 ```{r, echo = FALSE}
 load("safeVignetteData/safeTDesignObj.RData")
 ```
 ```{r, eval=FALSE}
-designObj <- designSafeT(deltaMin=deltaMin, alpha=alpha,
-                         beta=beta, sigma=sigma,
-                         alternative="greater", 
-                         testType="paired", seed=1, pb=FALSE)
+designObj <- designSafeT(
+  deltaMin = deltaMin, alpha = alpha,
+  beta = beta, sigma = sigma,
+  alternative = "greater",
+  testType = "paired", seed = 1, pb = FALSE
+)
 ```
 ```{r}
 designObj
@@ -106,10 +108,12 @@ The design object defines both the parameter gMom that will be used to compute t
 The following scenario involves a known minimal clinically relevant effect size, and a budget constraint such that we can at most invite, say, 30 participants for our study. The power of the test can then be explored with the following code:
 
 ```{r, eval = FALSE}
-designObj2 <- designSafeT(deltaMin=deltaMin, alpha=alpha,
-                          nPlan=c(30, 30), sigma=sigma,
-                          alternative="greater", 
-                          testType="paired", seed=1, pb=FALSE)
+designObj2 <- designSafeT(
+  deltaMin = deltaMin, alpha = alpha,
+  nPlan = c(30, 30), sigma = sigma,
+  alternative = "greater",
+  testType = "paired", seed = 1, pb = FALSE
+)
 ```
 ```{r, echo = FALSE}
 load("safeVignetteData/safeZDesignObj2.RData")
@@ -129,10 +133,12 @@ It is not always clear what the minimal clinically relevant effect size is, and 
 # Recall:
 # alpha <- 0.05
 # beta <- 0.2
-designObj3 <- designSafeT(nPlan=c(50, 50), 
-                          alpha=alpha, beta=beta,
-                          sigma=sigma, alternative="greater", 
-                          testType="paired")
+designObj3 <- designSafeT(
+  nPlan = c(50, 50),
+  alpha = alpha, beta = beta,
+  sigma = sigma, alternative = "greater",
+  testType = "paired"
+)
 designObj3
 ```
 This shows that if we have budget for an experiment with 50 paired samples, and we analyse the data once after $n=50$, then we are able to detect a true effect size of `r designObj3$esMin` with 80% chance. This `r designObj3$esMin`, however, is conservative, as when we monitor the e-value as the data come in, we will be able to detect even smaller effect sizes. If field experts believe that the true effect is smaller than `r designObj3$esMin`, then we can again prospective decide against conducting this experiment, or we can obtain more funds. 
@@ -153,17 +159,21 @@ We first show that the type I error is preserved for the batch analysis, that is
 
 ```{r}
 set.seed(1)
-preData <- rnorm(n=designObj$nPlan[1], mean=120, sd=15)
-postData <- rnorm(n=designObj$nPlan[2], mean=120, sd=15)
+preData <- rnorm(n = designObj$nPlan[1], mean = 120, sd = 15)
+postData <- rnorm(n = designObj$nPlan[2], mean = 120, sd = 15)
 # Thus, deltaTrue=0
-safeTTest(x=preData, y=postData, 
-          designObj=designObj, paired=TRUE)
+safeTTest(
+  x = preData, y = postData,
+  designObj = designObj, paired = TRUE
+)
 ```
 or equivalently with syntax closely resembling the standard t.test syntax:
 
 ```{r}
-safe.t.test(x=preData, y=postData, 
-            designObj=designObj, paired=TRUE)
+safe.t.test(
+  x = preData, y = postData,
+  designObj = designObj, paired = TRUE
+)
 ```
 The following code replicates this simulation a 1,000 times and shows that in only a few cases will the E-variable cross the boundary of $1/\alpha$ under the null:
 
@@ -177,14 +187,20 @@ load("safeVignetteData/eValuesTSimple.RData")
 nSim <- 1000
 
 set.seed(1)
-eValues <- replicate(n=nSim, expr={
-  preData <- rnorm(n=designObj$nPlan[1], mean=120,
-                   sd=15)
-  postData <- rnorm(n=designObj$nPlan[2], mean=120,
-                    sd=15)
-  safeTTest(x=preData, y=postData, 
-            designObj=designObj, paired=TRUE)$eValue}
-)
+eValues <- replicate(n = nSim, expr = {
+  preData <- rnorm(
+    n = designObj$nPlan[1], mean = 120,
+    sd = 15
+  )
+  postData <- rnorm(
+    n = designObj$nPlan[2], mean = 120,
+    sd = 15
+  )
+  safeTTest(
+    x = preData, y = postData,
+    designObj = designObj, paired = TRUE
+  )$eValue
+})
 ```
 ```{r}
 mean(eValues > 20)
@@ -210,35 +226,37 @@ muGlobal <- 120
 n1 <- designObj$nPlan[1]
 
 nullData <- generateNormalData(
-  designObj$nPlan, muGlobal=muGlobal,
-  nSim=nSim, deltaTrue=0, seed=1,
-  sigmaTrue=sigma)
+  designObj$nPlan,
+  muGlobal = muGlobal,
+  nSim = nSim, deltaTrue = 0, seed = 1,
+  sigmaTrue = sigma
+)
 
 # Used to vectorise the computations of the t-statistic
 n1Vector <- 1:n1
-nuVector <- n1Vector-1
+nuVector <- n1Vector - 1
 
-# Here we store all the t statistics across the 
+# Here we store all the t statistics across the
 # number of simulations (nSim) and time (n1)
-tMatrix <- matrix(nrow=nSim, ncol=n1)
+tMatrix <- matrix(nrow = nSim, ncol = n1)
 
 for (sim in 1:nSim) {
   dataGroup1 <- nullData$dataGroup1[sim, ]
   dataGroup2 <- nullData$dataGroup2[sim, ]
-  
-  differenceScore <- dataGroup1-dataGroup2
-  
+
+  differenceScore <- dataGroup1 - dataGroup2
+
   # Vector of mean differences
-  meanDiffVector <- 
-    1/n1Vector*cumsum(differenceScore)
-  
+  meanDiffVector <-
+    1 / n1Vector * cumsum(differenceScore)
+
   # Vector of standard deviations
   sdMeanDiff <- sqrt(
-    1/nuVector*(cumsum(differenceScore^2)-n1Vector*meanDiffVector^2)
+    1 / nuVector * (cumsum(differenceScore^2) - n1Vector * meanDiffVector^2)
   )
-  
-  tMatrix[sim, ] <- 
-    sqrt(n1Vector)*meanDiffVector/sdMeanDiff
+
+  tMatrix[sim, ] <-
+    sqrt(n1Vector) * meanDiffVector / sdMeanDiff
 }
 
 # The first t-value is undefined
@@ -248,48 +266,50 @@ tMatrix[, 1] <- 0
 For each data set a sequential analysis is run. We will see that we quickly exceed the tolerable type I error if we monitor the p-value as the data come in, and reject the null as soon as the p-value dips below $\alpha=0.05$. 
 
 ```{r}
-# Here we store all the p-values across the 
+# Here we store all the p-values across the
 # number of simulations (nSim) and time (n1)
-allPValues <- matrix(nrow=nSim, ncol=n1)
+allPValues <- matrix(nrow = nSim, ncol = n1)
 
-# Whenever this vector has a 1 it indicates that the simulate data 
+# Whenever this vector has a 1 it indicates that the simulate data
 # yielded a "significant" p-value, despite the data being generated under the null
-pValueUnderAlpha <- vector("integer", length=nSim)
+pValueUnderAlpha <- vector("integer", length = nSim)
 
 # This indicates the first time an experiment yielded a p-value < alpha=0.05
 # Default is Inf, which indicates that the p-value dip below alpha
-firstPassageTime <- rep(Inf, times=nSim)
+firstPassageTime <- rep(Inf, times = nSim)
 
 for (sim in 1:nSim) {
   tVector <- tMatrix[sim, ]
-  
+
   for (i in 2:n1) {
-    currentPValue <- 1-stats::pt(tVector[i], df=nuVector[i])
+    currentPValue <- 1 - stats::pt(tVector[i], df = nuVector[i])
     allPValues[sim, i] <- currentPValue
-    
-    if (currentPValue < alpha && 
-        pValueUnderAlpha[sim]!=1) {
+
+    if (currentPValue < alpha &&
+      pValueUnderAlpha[sim] != 1) {
       pValueUnderAlpha[sim] <- 1
       firstPassageTime[sim] <- i
       break()
     }
   }
 }
-  
+
 numberOfDippingExperimentsAtTimeN <- integer(n1)
 
 for (i in 1:n1) {
-  numberOfDippingExperimentsAtTimeN[i] <- 
+  numberOfDippingExperimentsAtTimeN[i] <-
     sum(firstPassageTime <= i)
 }
 
-pValueFalseRejects <- numberOfDippingExperimentsAtTimeN/nSim 
+pValueFalseRejects <- numberOfDippingExperimentsAtTimeN / nSim
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*pValueFalseRejects, type="l", xlab="n",
-     ylab="Type I error (%)", ylim=c(0, 25),
-     lwd=2, col=freqColours[1])
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * pValueFalseRejects,
+  type = "l", xlab = "n",
+  ylab = "Type I error (%)", ylim = c(0, 25),
+  lwd = 2, col = freqColours[1]
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
 ```
 After the second evaluation a total of `r pValueFalseRejects[3]*nSim` out of nSim=`r nSim` experiments yielded a significant p-value after the first or second observation, that is, `pValueFalseRejects[3]*100`, which is already larger than the tolerable 5%. This emphasises the point that the significant test $p < 0.05$ should be conducted once, and only once. 
 
@@ -302,39 +322,41 @@ load("safeVignetteData/eValueFalseRejectsTSimple.RData")
 load("safeVignetteData/eStoppedTSimple.RData")
 ```
 ```{r, eval=FALSE}
-# Here we store all the e-values across the 
+# Here we store all the e-values across the
 # number of simulations (nSim) and time (n1)
-eValues <- matrix(nrow=nSim, ncol=n1)
+eValues <- matrix(nrow = nSim, ncol = n1)
 
 # This indicates whether a simulation yielded e > 1/alpha
-eOver <- vector("integer", length=nSim)
+eOver <- vector("integer", length = nSim)
 
 # This indicates the first time an experiment yielded e > 1/alpha
 # Default is Inf, which indicates that the e didn't cross 1/alpha
-firstPassageTimeE <- rep(Inf, times=nSim)
+firstPassageTimeE <- rep(Inf, times = nSim)
 
-# This is the e-value at the end time, or whenever 
+# This is the e-value at the end time, or whenever
 # it exceeds the threshold of 1/alpha
 eStopped <- numeric(nSim)
 
 for (sim in 1:nSim) {
   tVector <- tMatrix[sim, ]
-  
+
   for (i in 1:n1) {
     currentEValue <- safeTTestStat(
-      tVector[i], parameter=designObj$parameter, 
-      n1=n1Vector[i], n2=n1Vector[i], 
-      paired=TRUE,  eType=designObj$eType)$eValue
-    
+      tVector[i],
+      parameter = designObj$parameter,
+      n1 = n1Vector[i], n2 = n1Vector[i],
+      paired = TRUE, eType = designObj$eType
+    )$eValue
+
     eValues[sim, i] <- currentEValue
-    
-    if (currentEValue > 1/alpha && eOver[sim]!=1) {
+
+    if (currentEValue > 1 / alpha && eOver[sim] != 1) {
       eOver[sim] <- 1
       firstPassageTimeE[sim] <- i
       eStopped[sim] <- currentEValue
     }
-    
-    if (i==n1 && eOver[sim]!=1) {
+
+    if (i == n1 && eOver[sim] != 1) {
       eStopped[sim] <- currentEValue
     }
   }
@@ -343,29 +365,35 @@ for (sim in 1:nSim) {
 trackCrossing <- integer(n1)
 
 for (i in 1:n1) {
-  trackCrossing[i] <- 
+  trackCrossing[i] <-
     sum(firstPassageTimeE <= i)
 }
 
-eValueFalseRejects <- trackCrossing/nSim 
+eValueFalseRejects <- trackCrossing / nSim
 ```
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*eValueFalseRejects, type="l", 
-     xlab="n", ylab="Type I error (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * eValueFalseRejects,
+  type = "l",
+  xlab = "n", ylab = "Type I error (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
 ```
 Note that optional stopping always increases the chance of observing a false detection. For the safe test this increased to `r eValueFalseRejects[n1]*100`%, which is still below the tolerable 5%. On the other hand, tracking the p-value and rejecting the null as soon it falls below $\alpha$ leads to `r pValueFalseRejects[n1]*100`%, which is well above 5%. 
 
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*pValueFalseRejects, type="l", xlab="n",
-     ylab="Type I error (%)",
-     lwd=2, col=freqColours[1], ylim=c(0, 25))
-lines(1:n1, 100*eValueFalseRejects, lwd=2,
-     col=eColours[1])
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * pValueFalseRejects,
+  type = "l", xlab = "n",
+  ylab = "Type I error (%)",
+  lwd = 2, col = freqColours[1], ylim = c(0, 25)
+)
+lines(1:n1, 100 * eValueFalseRejects,
+  lwd = 2,
+  col = eColours[1]
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
 ```
 
 ## Safe tests detect the effect early if it is present: deltaTrue equal to deltaMin
@@ -376,19 +404,21 @@ In this section we illustrate the operational characteristics of the safe t-test
 load("safeVignetteData/simDeltaTrueIsDeltaMin.RData")
 ```
 ```{r, eval = FALSE}
-simDeltaTrueIsDeltaMin <- 
+simDeltaTrueIsDeltaMin <-
   sampleStoppingTimesSafeT(
-    deltaTrue=deltaMin, alternative="greater", 
-    testType="paired", sigma=sigma, 
-    nMax=designObj$nPlan, seed=1,
-    parameter=designObj$parameter,nSim=nSim)
+    deltaTrue = deltaMin, alternative = "greater",
+    testType = "paired", sigma = sigma,
+    nMax = designObj$nPlan, seed = 1,
+    parameter = designObj$parameter, nSim = nSim
+  )
 ```
 ```{r}
 mean(
   simDeltaTrueIsDeltaMin$eValuesStopped >=
-    20)
+    20
+)
 
-# Or equivalently the type II error is 
+# Or equivalently the type II error is
 mean(simDeltaTrueIsDeltaMin$breakVector)
 ```
 The simulations confirm that there is an 80% chance of detecting the minimal clinically relevant effect if we run the test until the planned sample size. Typically, there is a discrepancy due to sampling error, which vanishes as the number of simulations increases. 
@@ -401,23 +431,26 @@ stoppingTimes <- simDeltaTrueIsDeltaMin$stoppingTimes
 mean(stoppingTimes)
 
 oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
-hist(stoppingTimes, 
-     breaks=min(stoppingTimes):max(stoppingTimes), 
-     xlim=c(0, designObj$nPlanBatch[1]),col=eColours[2],
-     border=eColours[1], lwd=2, main="")
+hist(stoppingTimes,
+  breaks = min(stoppingTimes):max(stoppingTimes),
+  xlim = c(0, designObj$nPlanBatch[1]), col = eColours[2],
+  border = eColours[1], lwd = 2, main = ""
+)
 ```
 The histogram shows the full distribution of the times at which the experiment is stopped. For instance, `r mean(stoppingTimes < n1/2)*nSim` out of the `r nSim` experiments stopped before half the planned sample size. In these cases we were lucky and the effect was detected early. The last bar collects all experiments that ran until the planned sample sizes, thus, also those that did not lead to a null rejection at n=`r designObj$nPlan[1]`. To see the distributions of stopping times of only the experiments where the null is rejected, we run the following code:
 
 ```{r}
 firstPassageTimeAltEqual <- stoppingTimes
 firstPassageTimeAltEqual[
-  which(simDeltaTrueIsDeltaMin$breakVector==1)] <- Inf
+  which(simDeltaTrueIsDeltaMin$breakVector == 1)
+] <- Inf
 
 oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
-hist(firstPassageTimeAltEqual, 
-     breaks=min(firstPassageTimeAltEqual):n1, 
-     xlim=c(0, n1),col=eColours[2],
-     border=eColours[1], lwd=2, main="")
+hist(firstPassageTimeAltEqual,
+  breaks = min(firstPassageTimeAltEqual):n1,
+  xlim = c(0, n1), col = eColours[2],
+  border = eColours[1], lwd = 2, main = ""
+)
 ```
 This can also be visualised as follows:
 
@@ -428,13 +461,15 @@ for (i in 1:n1) {
   trackCrossingAltEqual[i] <- sum(firstPassageTimeAltEqual <= i)
 }
 
-eReject <- trackCrossingAltEqual/nSim
+eReject <- trackCrossingAltEqual / nSim
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*eReject, type="l", 
-     xlab="n", ylab="Correct rejections (%)", lwd=2,
-     col=eColoursAlt[1], ylim=c(0, 80))
-lines(c(1, n1), c(80, 80), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * eReject,
+  type = "l",
+  xlab = "n", ylab = "Correct rejections (%)", lwd = 2,
+  col = eColoursAlt[1], ylim = c(0, 80)
+)
+lines(c(1, n1), c(80, 80), lwd = 2, lty = 2)
 ```
 Here the horizontal line represents the 80% targeted power, which is indeed reached at n=`r designObj$nPlan[1]` under optional stopping. 
 
@@ -446,40 +481,44 @@ What we believe is clinically minimally relevant might not match reality. One ad
 load("safeVignetteData/simDeltaTrueLargerDeltaMin.RData")
 ```
 ```{r, eval = FALSE}
-simDeltaTrueLargerDeltaMin <- 
+simDeltaTrueLargerDeltaMin <-
   sampleStoppingTimesSafeT(
-    deltaTrue=1.2*deltaMin, alternative="greater",
-    testType="paired", sigma=sigma, 
-    nMax=designObj$nPlan, seed=1,
-    parameter=designObj$parameter,nSim=nSim)
+    deltaTrue = 1.2 * deltaMin, alternative = "greater",
+    testType = "paired", sigma = sigma,
+    nMax = designObj$nPlan, seed = 1,
+    parameter = designObj$parameter, nSim = nSim
+  )
 ```
 ```{r}
 mean(
   simDeltaTrueLargerDeltaMin$eValuesStopped >=
-    20)
+    20
+)
 
-# Or equivalently the type II error is 
+# Or equivalently the type II error is
 mean(simDeltaTrueLargerDeltaMin$breakVector)
 ```
 With a larger true effect size, the power increased to `r (1-mean(simDeltaTrueLargerDeltaMin$breakVector))*100`%. More importantly, this increase is picked up earlier by the designed safe test, and optional stopping allows us to act on this. Note that the average stopping time is now decreased, from `r mean(simDeltaTrueIsDeltaMin$stoppingTimes)` to `r mean(simDeltaTrueLargerDeltaMin$stoppingTimes)`. This is apparent from the fact that the histogram of stopping times is now shifted to the left:
 
 ```{r}
-stoppingTimes <- 
+stoppingTimes <-
   simDeltaTrueLargerDeltaMin$stoppingTimes
 
 oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
-hist(stoppingTimes, 
-     breaks=min(stoppingTimes):max(stoppingTimes), 
-     xlim=c(0, designObj$nPlanBatch[1]),col=eColours[2],
-     border=eColours[1], lwd=2, main="")
+hist(stoppingTimes,
+  breaks = min(stoppingTimes):max(stoppingTimes),
+  xlim = c(0, designObj$nPlanBatch[1]), col = eColours[2],
+  border = eColours[1], lwd = 2, main = ""
+)
 ```
 Hence, this means that if the true effect is larger than what was planned for, the safe test will detect this larger effect earlier on, which results in a further increase of efficiency, as shown by the following plot. 
 
 ```{r}
-firstPassageTimeAltLarger <- 
+firstPassageTimeAltLarger <-
   simDeltaTrueLargerDeltaMin$stoppingTimes
 firstPassageTimeAltLarger[
-  which(simDeltaTrueLargerDeltaMin$breakVector==1)] <- Inf
+  which(simDeltaTrueLargerDeltaMin$breakVector == 1)
+] <- Inf
 
 trackCrossingAltLarger <- integer(n1)
 
@@ -487,13 +526,15 @@ for (i in 1:n1) {
   trackCrossingAltLarger[i] <- sum(firstPassageTimeAltLarger <= i)
 }
 
-eReject <- trackCrossingAltLarger/nSim
+eReject <- trackCrossingAltLarger / nSim
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*eReject, type="l", 
-     xlab="n", ylab="Correct rejections (%)", lwd=2,
-     col=eColoursAlt[1], ylim=c(0, 90))
-lines(c(1, n1), c(80, 80), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * eReject,
+  type = "l",
+  xlab = "n", ylab = "Correct rejections (%)", lwd = 2,
+  col = eColoursAlt[1], ylim = c(0, 90)
+)
+lines(c(1, n1), c(80, 80), lwd = 2, lty = 2)
 ```
 The plot visualises the increase in power for a true effect size larger than the minimal clinically relevant one. 
 
@@ -519,13 +560,13 @@ tAtN1 <- numeric(nSim)
 for (sim in 1:nSim) {
   dataGroup1 <- nullData$dataGroup1[sim, ]
   dataGroup2 <- nullData$dataGroup2[sim, ]
-  
-  meanDiff <- 
-    mean(dataGroup1-dataGroup2)
-  
-  sdMeanDiff <- sd(dataGroup1-dataGroup2)
-  
-  tAtN1[sim] <- sqrt(n1)*meanDiff/sdMeanDiff
+
+  meanDiff <-
+    mean(dataGroup1 - dataGroup2)
+
+  sdMeanDiff <- sd(dataGroup1 - dataGroup2)
+
+  tAtN1[sim] <- sqrt(n1) * meanDiff / sdMeanDiff
 }
 ```
 
@@ -535,7 +576,7 @@ The p-values after the first batch of data are computed as follows:
 pValuesBatch1 <- numeric(nSim)
 
 for (i in 1:nSim) {
-  pValuesBatch1[i] <- 1-stats::pt(tAtN1[i], df=n1-1)
+  pValuesBatch1[i] <- 1 - stats::pt(tAtN1[i], df = n1 - 1)
 }
 
 mean(pValuesBatch1 < alpha)
@@ -547,33 +588,39 @@ The following code continues only the non-significant `r round(mean(pValuesBatch
 
 ```{r}
 nullData2 <- generateNormalData(
-  designObj$nPlan, muGlobal=muGlobal,
-  nSim=nSim, deltaTrue=0, seed=2,
-  sigmaTrue=sigma)
+  designObj$nPlan,
+  muGlobal = muGlobal,
+  nSim = nSim, deltaTrue = 0, seed = 2,
+  sigmaTrue = sigma
+)
 
 tAtN2 <- numeric(nSim)
 
 for (sim in 1:nSim) {
-  dataGroup1 <- c(nullData$dataGroup1[sim, ], 
-                  nullData2$dataGroup1[sim, ])
-  dataGroup2 <- c(nullData$dataGroup2[sim, ], 
-                  nullData2$dataGroup2[sim, ])
-  
-  meanDiff <- mean(dataGroup1-dataGroup2)
-  sdMeanDiff <- sd(dataGroup1-dataGroup2)
-  
-  tAtN2[sim] <- sqrt(2*n1)*meanDiff/sdMeanDiff
+  dataGroup1 <- c(
+    nullData$dataGroup1[sim, ],
+    nullData2$dataGroup1[sim, ]
+  )
+  dataGroup2 <- c(
+    nullData$dataGroup2[sim, ],
+    nullData2$dataGroup2[sim, ]
+  )
+
+  meanDiff <- mean(dataGroup1 - dataGroup2)
+  sdMeanDiff <- sd(dataGroup1 - dataGroup2)
+
+  tAtN2[sim] <- sqrt(2 * n1) * meanDiff / sdMeanDiff
 }
 
 rejectedIndeces <- which(pValuesBatch1 < alpha)
 notRejectedIndeces <- which(pValuesBatch1 >= alpha)
 
 pValuesBatch2 <- numeric(nSim)
-pValuesBatch2[rejectedIndeces] <- 
+pValuesBatch2[rejectedIndeces] <-
   pValuesBatch1[rejectedIndeces]
 
 for (j in notRejectedIndeces) {
-  pValuesBatch2[j] <- 1-stats::pt(tAtN2[j], df=2*n1-1)
+  pValuesBatch2[j] <- 1 - stats::pt(tAtN2[j], df = 2 * n1 - 1)
 }
 
 mean(pValuesBatch2[notRejectedIndeces] < alpha)
@@ -584,13 +631,13 @@ By selectively extending the non-significant results of the first batch with a s
 The reason why p-values over-reject the null under optional stopping and optional continuation is due to p-values being uniformly distributed under the null. 
 
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-hist(pValuesBatch1, col=freqColours[1])
-abline(v=0.05)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+hist(pValuesBatch1, col = freqColours[1])
+abline(v = 0.05)
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-hist(pValuesBatch2[notRejectedIndeces], col=freqColours[2])
-abline(v=0.05)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+hist(pValuesBatch2[notRejectedIndeces], col = freqColours[2])
+abline(v = 0.05)
 ```
 As such, if the null holds true and the number of samples increases, then the p-value meanders between 0 and 1, thus, eventually crossing any fixed $\alpha$-level. This simulation reiterates the point that classical p-value tests only retain their type I error control if they are used once, and only once. 
 
@@ -600,75 +647,83 @@ In this section we provide more insight to what it means for e-variables to be a
 ```{r, eval=FALSE}
 # Additional data under the null
 nullData3 <- generateNormalData(
-  9*designObj$nPlan, muGlobal=muGlobal,
-  nSim=nSim, deltaTrue=0, seed=3,
-  sigmaTrue=sigma)
+  9 * designObj$nPlan,
+  muGlobal = muGlobal,
+  nSim = nSim, deltaTrue = 0, seed = 3,
+  sigmaTrue = sigma
+)
 
-# All the z statistics across the 
+# All the z statistics across the
 # number of simulations (nSim) and time (10*n1)
-tMatrixAll <- matrix(nrow=nSim, ncol=10*n1)
+tMatrixAll <- matrix(nrow = nSim, ncol = 10 * n1)
 
 # Used to vectorise the computations for the the z-statistic
-n1Vector <- 1:(10*n1)
-nuVector <- n1Vector-1
+n1Vector <- 1:(10 * n1)
+nuVector <- n1Vector - 1
 
 for (sim in 1:nSim) {
-  dataGroup1 <- c(nullData$dataGroup1[sim, ],
-                  nullData3$dataGroup1[sim, ])
-  dataGroup2 <- c(nullData$dataGroup2[sim, ],
-                  nullData3$dataGroup2[sim, ])
-  
-  differenceScore <- dataGroup1-dataGroup2
-  
-  meanDiffVector <- 
-    1/n1Vector*cumsum(differenceScore)
-  
+  dataGroup1 <- c(
+    nullData$dataGroup1[sim, ],
+    nullData3$dataGroup1[sim, ]
+  )
+  dataGroup2 <- c(
+    nullData$dataGroup2[sim, ],
+    nullData3$dataGroup2[sim, ]
+  )
+
+  differenceScore <- dataGroup1 - dataGroup2
+
+  meanDiffVector <-
+    1 / n1Vector * cumsum(differenceScore)
+
   # Vector of standard deviations
   sdMeanDiff <- sqrt(
-    1/nuVector*(cumsum(differenceScore^2)-n1Vector*meanDiffVector^2)
+    1 / nuVector * (cumsum(differenceScore^2) - n1Vector * meanDiffVector^2)
   )
-  
-  tMatrixAll[sim, ] <- 
-    sqrt(n1Vector)*meanDiffVector/sdMeanDiff
+
+  tMatrixAll[sim, ] <-
+    sqrt(n1Vector) * meanDiffVector / sdMeanDiff
 }
 
 tMatrixAll[, 1] <- 0
 
-# Here we store all the e-values across the 
+# Here we store all the e-values across the
 # number of simulations (nSim) and time (n1)
-allEValues <- matrix(nrow=nSim, ncol=10*n1)
+allEValues <- matrix(nrow = nSim, ncol = 10 * n1)
 allEValues[, 1:n1] <- eValues
 
 eOverOptioCont <- eOver
 
 for (sim in 1:nSim) {
   tVector <- tMatrixAll[sim, ]
-  
-  for (i in (n1+1):(10*n1)) {
+
+  for (i in (n1 + 1):(10 * n1)) {
     currentEValue <- safeTTestStat(
-      tVector[i], parameter=designObj$parameter, 
-      n1=n1Vector[i], n2=n1Vector[i], 
-      paired=TRUE,  sigma=sigma,
-      eType=designObj$eType)$eValue
-    
+      tVector[i],
+      parameter = designObj$parameter,
+      n1 = n1Vector[i], n2 = n1Vector[i],
+      paired = TRUE, sigma = sigma,
+      eType = designObj$eType
+    )$eValue
+
     allEValues[sim, i] <- currentEValue
-    
-    if (currentEValue > 1/alpha && eOverOptioCont[sim]!=1) {
+
+    if (currentEValue > 1 / alpha && eOverOptioCont[sim] != 1) {
       eOverOptioCont[sim] <- 1
       firstPassageTimeE[sim] <- i
     }
   }
 }
 
-trackCrossingOptioCont <- integer(10*n1)
+trackCrossingOptioCont <- integer(10 * n1)
 
-for (i in 1:(10*n1)) {
-  trackCrossingOptioCont[i] <- 
+for (i in 1:(10 * n1)) {
+  trackCrossingOptioCont[i] <-
     sum(firstPassageTimeE <= i)
 }
 
-eValueFalseRejects <- 
-  trackCrossingOptioCont/nSim 
+eValueFalseRejects <-
+  trackCrossingOptioCont / nSim
 ```
 ```{r, echo = FALSE}
 load("safeVignetteData/eValueFalseRejectsT.RData")
@@ -676,11 +731,13 @@ load("safeVignetteData/allEValuesTLarge.RData")
 ```
 
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(10*n1), 100*eValueFalseRejects, type="l", 
-     xlab="n", ylab="Type I error (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, 10*n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(10 * n1), 100 * eValueFalseRejects,
+  type = "l",
+  xlab = "n", ylab = "Type I error (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, 10 * n1), c(5, 5), lwd = 2, lty = 2)
 ```
 The original paper on e-values by [Grunwald, de Heide and Koolen](https://arxiv.org/abs/1906.07801) and [Howard, Ramdas, McAuliffe, and Sekhon]( https://doi.org/10.1214/20-AOS1991) provide mathematical proofs showing that the type I error will __never__ exceed the tolerable type I error rate. 
 
@@ -689,28 +746,34 @@ The simulations show that the sample size computed by the design function is ind
 Under the null, the behaviour of e-variables is very different to that of p-values, which meander between zero and one. In contrast, e-variables slowly drift to zero under the null. This is equivalent to drifting towards -infinity on the logarithmic scale. The following plot illustrates this slow drift to zero. 
 
 ```{r}
-lowerQuartileLogEValueNull <- numeric(10*n1)
-medianLogEValueNull <- numeric(10*n1)
-upperQuartileLogEValueNull <- numeric(10*n1)
+lowerQuartileLogEValueNull <- numeric(10 * n1)
+medianLogEValueNull <- numeric(10 * n1)
+upperQuartileLogEValueNull <- numeric(10 * n1)
 
-for (j in 1:(10*n1)) {
+for (j in 1:(10 * n1)) {
   brie <- quantile(log(allEValues[, j]))
   lowerQuartileLogEValueNull[j] <- brie[2]
   medianLogEValueNull[j] <- brie[3]
   upperQuartileLogEValueNull[j] <- brie[4]
 }
 
-nDomain <- 1:(10*n1)
+nDomain <- 1:(10 * n1)
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(nDomain, medianLogEValueNull, col="black", lwd=2, 
-     ylim=c(-6, 3), type="l", xlab="n", 
-     ylab="log(eValues)")
-lines(nDomain, lowerQuartileLogEValueNull, col=eColours[1],
-      lwd=2, lty=1)
-lines(nDomain, upperQuartileLogEValueNull, col=eColours[1],
-      lwd=2, lty=1)
-lines(c(0, 10*n1), c(log(20), log(20)), lwd=2, col="grey", lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(nDomain, medianLogEValueNull,
+  col = "black", lwd = 2,
+  ylim = c(-6, 3), type = "l", xlab = "n",
+  ylab = "log(eValues)"
+)
+lines(nDomain, lowerQuartileLogEValueNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
+lines(nDomain, upperQuartileLogEValueNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
+lines(c(0, 10 * n1), c(log(20), log(20)), lwd = 2, col = "grey", lty = 2)
 ```
 The black curve depicts the median of the e-variable and the blue curves represent the 25% and 75% percentile of the e-variable distribution under the null. The horizontal grey line depicts $\log(1/\alpha) \approx 3$ for $\alpha=0.05$. The plot shows that under the null it gets increasingly hard for e-variables to cross the threshold of $\log(1/\alpha)$ as the sample size increase. This also illustrates why the e-variable's marginal increase in type I error slowly diminishes. 
 
@@ -720,36 +783,38 @@ The slow drift of the sampling distribution of e-values to smaller values is rep
 ```{r, eval=FALSE}
 # Data under the alternative
 altData <- generateNormalData(
-  10*designObj$nPlan, muGlobal=muGlobal,
-  nSim=nSim, deltaTrue=0.5, seed=2,
-  sigmaTrue=sigma)
+  10 * designObj$nPlan,
+  muGlobal = muGlobal,
+  nSim = nSim, deltaTrue = 0.5, seed = 2,
+  sigmaTrue = sigma
+)
 
-# All the z statistics across the 
+# All the z statistics across the
 # number of simulations (nSim) and time (10*n1)
-tMatrixAllAlt <- matrix(nrow=nSim, ncol=10*n1)
+tMatrixAllAlt <- matrix(nrow = nSim, ncol = 10 * n1)
 
 # Used to vectorise the computations for the z-statistic
-n1Vector <- 1:(10*n1)
+n1Vector <- 1:(10 * n1)
 
 for (sim in 1:nSim) {
   dataGroup1 <- altData$dataGroup1[sim, ]
   dataGroup2 <- altData$dataGroup2[sim, ]
-  
-  meanDiffVector <- 
-    1/n1Vector*cumsum(dataGroup1-dataGroup2)
-  
+
+  meanDiffVector <-
+    1 / n1Vector * cumsum(dataGroup1 - dataGroup2)
+
   # The variance of the sum x + (-y) is the sum of the two variances
   # Thus, 2*sigma^2
-  sdMeanDiff <- sqrt(2)*sigma
-  
-  tMatrixAllAlt[sim, ] <- 
-    sqrt(n1Vector)*meanDiffVector/sdMeanDiff
+  sdMeanDiff <- sqrt(2) * sigma
+
+  tMatrixAllAlt[sim, ] <-
+    sqrt(n1Vector) * meanDiffVector / sdMeanDiff
 }
 
 
-# Here we store all the e-values across the 
+# Here we store all the e-values across the
 # number of simulations (nSim) and time (n1)
-allEValuesAlt <- matrix(nrow=nSim, ncol=10*n1)
+allEValuesAlt <- matrix(nrow = nSim, ncol = 10 * n1)
 
 eOverAlt <- integer(nSim)
 firstPassageTimeEAlt <- rep(Inf, nSim)
@@ -757,37 +822,39 @@ eStoppedAlt <- numeric(nSim)
 
 for (sim in 1:nSim) {
   tVector <- tMatrixAllAlt[sim, ]
-  
-  for (i in 1:(10*n1)) {
+
+  for (i in 1:(10 * n1)) {
     currentEValue <- safeZTestStat(
-      tVector[i], parameter=designObj$parameter, 
-      n1=n1Vector[i], n2=n1Vector[i], 
-      paired=TRUE,  sigma=sigma,
-      eType=designObj$eType)$eValue
-    
+      tVector[i],
+      parameter = designObj$parameter,
+      n1 = n1Vector[i], n2 = n1Vector[i],
+      paired = TRUE, sigma = sigma,
+      eType = designObj$eType
+    )$eValue
+
     allEValuesAlt[sim, i] <- currentEValue
-    
-    if (currentEValue > 1/alpha && eOverAlt[sim]!=1) {
+
+    if (currentEValue > 1 / alpha && eOverAlt[sim] != 1) {
       eOverAlt[sim] <- 1
       firstPassageTimeEAlt[sim] <- i
       eStoppedAlt[sim] <- currentEValue
     }
-    
-    if (i==n1 && eOverAlt[sim]!=1) {
+
+    if (i == n1 && eOverAlt[sim] != 1) {
       eStoppedAlt[sim] <- currentEValue
     }
   }
 }
 
-trackCrossingOptioCont <- integer(10*n1)
+trackCrossingOptioCont <- integer(10 * n1)
 
-for (i in 1:(10*n1)) {
-  trackCrossingOptioCont[i] <- 
+for (i in 1:(10 * n1)) {
+  trackCrossingOptioCont[i] <-
     sum(firstPassageTimeEAlt <= i)
 }
 
-eValueCorrectRejects <- 
-  trackCrossingOptioCont/nSim 
+eValueCorrectRejects <-
+  trackCrossingOptioCont / nSim
 ```
 
 ```{r, echo = FALSE}
@@ -796,45 +863,57 @@ load("safeVignetteData/eValueCorrectRejectsT.RData")
 ```
 
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(10*n1), 100*eValueCorrectRejects, type="l", 
-     xlab="n", ylab="Correct rejections (%)", lwd=2,
-     col=eColoursAlt[1])#, #ylim=c(0, 5))
-lines(c(1, 10*n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(10 * n1), 100 * eValueCorrectRejects,
+  type = "l",
+  xlab = "n", ylab = "Correct rejections (%)", lwd = 2,
+  col = eColoursAlt[1]
+) # , #ylim=c(0, 5))
+lines(c(1, 10 * n1), c(5, 5), lwd = 2, lty = 2)
 ```
 The plot illustrates that for the smaller deltaTrue, there is only `r eValueCorrectRejects[designObj$nPlan[1]]*100`% power to correctly reject the null at the planned sample size of nPlan=`r designObj$nPlan[1]`. Since it is not possible to over-reject the null with an e-variable under optional continuation, we can simply continue the study whenever the evidence seems convincing. Doing so thus allows effects to be detected even if they are smaller than anticipated. 
 
 The mentioned fast drift towards higher values is illustrated by the following plot:
 
 ```{r}
-lowerQuartileLogEValueAlt <- numeric(10*n1)
-medianLogEValueAlt <- numeric(10*n1)
-upperQuartileLogEValueAlt <- numeric(10*n1)
+lowerQuartileLogEValueAlt <- numeric(10 * n1)
+medianLogEValueAlt <- numeric(10 * n1)
+upperQuartileLogEValueAlt <- numeric(10 * n1)
 
-for (j in 1:(10*n1)) {
+for (j in 1:(10 * n1)) {
   brie <- quantile(log(allEValuesAlt[, j]))
   lowerQuartileLogEValueAlt[j] <- brie[2]
   medianLogEValueAlt[j] <- brie[3]
   upperQuartileLogEValueAlt[j] <- brie[4]
 }
 
-nDomain <- 1:(10*n1)
+nDomain <- 1:(10 * n1)
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(nDomain, medianLogEValueAlt, col="red", lwd=2, 
-     ylim=c(-6, 15), type="l", xlab="n", 
-     ylab="log(eValues)")
-lines(c(0, 10*n1), c(log(20), log(20)), lwd=2, col="grey", lty=2)
-lines(nDomain, lowerQuartileLogEValueAlt, col=eColoursAlt[1],
-      lwd=2, lty=1)
-lines(nDomain, upperQuartileLogEValueAlt, col=eColoursAlt[1],
-      lwd=2, lty=1)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(nDomain, medianLogEValueAlt,
+  col = "red", lwd = 2,
+  ylim = c(-6, 15), type = "l", xlab = "n",
+  ylab = "log(eValues)"
+)
+lines(c(0, 10 * n1), c(log(20), log(20)), lwd = 2, col = "grey", lty = 2)
+lines(nDomain, lowerQuartileLogEValueAlt,
+  col = eColoursAlt[1],
+  lwd = 2, lty = 1
+)
+lines(nDomain, upperQuartileLogEValueAlt,
+  col = eColoursAlt[1],
+  lwd = 2, lty = 1
+)
 
-lines(nDomain, medianLogEValueNull, col="black", lwd=2)
-lines(nDomain, lowerQuartileLogEValueNull, col=eColours[1],
-      lwd=2, lty=1)
-lines(nDomain, upperQuartileLogEValueNull, col=eColours[1],
-      lwd=2, lty=1)
+lines(nDomain, medianLogEValueNull, col = "black", lwd = 2)
+lines(nDomain, lowerQuartileLogEValueNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
+lines(nDomain, upperQuartileLogEValueNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
 ```
 The red curve depicts the median of the e-variable and the brown curves represent the 25% and 75% percentile of the e-variable distribution under the alternative. The horizontal grey line depicts $\log(1/\alpha) \approx 3$ for $\alpha=0.05$. The plot shows that under the alternative it gets  increasingly easier for e-variables to cross the threshold of $\log(1/\alpha)$ as the sample size increases. 
 
@@ -848,12 +927,14 @@ As in the original study the data are generated under the null, but we assume th
 
 ```{r, eval=FALSE}
 rep2 <- selectivelyContinueZOrTTestData(
-  designObj, n1New=2*n1, testName="T-Test",
-  muGlobal=90, sigma=6, deltaTrue=0, nSim=nSim,
-  eValuesOld=eValues, eOverOld=eOver, 
-  trackCrossingOld=trackCrossing, 
-  firstPassageTimeOld=firstPassageTimeE,
-  eStoppedOld=eStopped, seed=2)
+  designObj,
+  n1New = 2 * n1, testName = "T-Test",
+  muGlobal = 90, sigma = 6, deltaTrue = 0, nSim = nSim,
+  eValuesOld = eValues, eOverOld = eOver,
+  trackCrossingOld = trackCrossing,
+  firstPassageTimeOld = firstPassageTimeE,
+  eStoppedOld = eStopped, seed = 2
+)
 ```
 ```{r, echo = FALSE}
 load("safeVignetteData/allEValuesAltT.RData")
@@ -864,11 +945,13 @@ load("safeVignetteData/rep4T.RData")
 load("safeVignetteData/repAltT.RData")
 ```
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(3*n1), 100*rep2$trackCrossing/nSim, type="l", 
-     xlab="n", ylab="Type I error (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, 3*n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(3 * n1), 100 * rep2$trackCrossing / nSim,
+  type = "l",
+  xlab = "n", ylab = "Type I error (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, 3 * n1), c(5, 5), lwd = 2, lty = 2)
 
 rep2$extraRejections
 ```
@@ -878,19 +961,23 @@ Let's consider another selective replication round with a planned sample size ab
 
 ```{r, eval=FALSE}
 rep3 <- selectivelyContinueZOrTTestData(
-  designObj, n1New=ceiling(0.48*n1), testName="T-Test",
-  muGlobal=100, sigma=8, deltaTrue=0, nSim=1000,
-  eValuesOld=rep2$eValues, eOverOld=rep2$eOver, 
-  trackCrossingOld=rep2$trackCrossing, 
-  firstPassageTimeOld=rep2$firstPassageTime,
-  eStoppedOld=rep2$eStopped, seed=3)
+  designObj,
+  n1New = ceiling(0.48 * n1), testName = "T-Test",
+  muGlobal = 100, sigma = 8, deltaTrue = 0, nSim = 1000,
+  eValuesOld = rep2$eValues, eOverOld = rep2$eOver,
+  trackCrossingOld = rep2$trackCrossing,
+  firstPassageTimeOld = rep2$firstPassageTime,
+  eStoppedOld = rep2$eStopped, seed = 3
+)
 ```
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(length(rep3$trackCrossing)), 100*rep3$trackCrossing/nSim, type="l", 
-     xlab="n", ylab="Type I error (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, length(rep3$trackCrossing)), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(length(rep3$trackCrossing)), 100 * rep3$trackCrossing / nSim,
+  type = "l",
+  xlab = "n", ylab = "Type I error (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, length(rep3$trackCrossing)), c(5, 5), lwd = 2, lty = 2)
 
 rep3$extraRejections
 ```
@@ -900,19 +987,23 @@ A fourth replication round with
 
 ```{r, eval=FALSE}
 rep4 <- selectivelyContinueZOrTTestData(
-  designObj, n1New=ceiling(3.5*n1), testName="T-Test",
-  muGlobal=150, sigma=19, deltaTrue=0, nSim=1000,
-  eValuesOld=rep3$eValues, eOverOld=rep3$eOver, 
-  trackCrossingOld=rep3$trackCrossing, 
-  firstPassageTimeOld=rep3$firstPassageTime,
-  eStoppedOld=rep3$eStopped, seed=4)
+  designObj,
+  n1New = ceiling(3.5 * n1), testName = "T-Test",
+  muGlobal = 150, sigma = 19, deltaTrue = 0, nSim = 1000,
+  eValuesOld = rep3$eValues, eOverOld = rep3$eOver,
+  trackCrossingOld = rep3$trackCrossing,
+  firstPassageTimeOld = rep3$firstPassageTime,
+  eStoppedOld = rep3$eStopped, seed = 4
+)
 ```
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(length(rep4$trackCrossing)), 100*rep4$trackCrossing/nSim, type="l", 
-     xlab="n", ylab="Type I error (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, length(rep4$trackCrossing)), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(length(rep4$trackCrossing)), 100 * rep4$trackCrossing / nSim,
+  type = "l",
+  xlab = "n", ylab = "Type I error (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, length(rep4$trackCrossing)), c(5, 5), lwd = 2, lty = 2)
 
 rep4$extraRejections
 ```
@@ -925,9 +1016,9 @@ lowerQuartileLogEValueMetaNull <- numeric(totalN)
 medianLogEValueMetaNull <- numeric(totalN)
 upperQuartileLogEValueMetaNull <- numeric(totalN)
 
-for (i in 1:totalN)  {
+for (i in 1:totalN) {
   brie <- quantile(log(rep4$eValues[, i]))
-  
+
   lowerQuartileLogEValueMetaNull[i] <- brie[2]
   medianLogEValueMetaNull[i] <- brie[3]
   upperQuartileLogEValueMetaNull[i] <- brie[4]
@@ -935,18 +1026,24 @@ for (i in 1:totalN)  {
 
 yMin <- floor(min(lowerQuartileLogEValueMetaNull))
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:totalN, medianLogEValueMetaNull, col="black", lwd=2, 
-     ylim=c(yMin, 3), type="l", xlab="n", 
-     ylab="log(eValues)")
-lines(1:totalN, lowerQuartileLogEValueMetaNull, col=eColours[1],
-      lwd=2, lty=1)
-lines(1:totalN, upperQuartileLogEValueMetaNull, col=eColours[1],
-      lwd=2, lty=1)
-lines(c(0, totalN), c(log(20), log(20)), lwd=2, col="grey", lty=2)
-lines(c(n1, n1), c(yMin, 3), lty=2, col="lightgrey")
-lines(c(3*n1, 3*n1), c(yMin, 3), lty=2, col="lightgrey")
-lines(c(3.5*n1, 3.5*n1), c(yMin, 3), lty=2, col="lightgrey")
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:totalN, medianLogEValueMetaNull,
+  col = "black", lwd = 2,
+  ylim = c(yMin, 3), type = "l", xlab = "n",
+  ylab = "log(eValues)"
+)
+lines(1:totalN, lowerQuartileLogEValueMetaNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
+lines(1:totalN, upperQuartileLogEValueMetaNull,
+  col = eColours[1],
+  lwd = 2, lty = 1
+)
+lines(c(0, totalN), c(log(20), log(20)), lwd = 2, col = "grey", lty = 2)
+lines(c(n1, n1), c(yMin, 3), lty = 2, col = "lightgrey")
+lines(c(3 * n1, 3 * n1), c(yMin, 3), lty = 2, col = "lightgrey")
+lines(c(3.5 * n1, 3.5 * n1), c(yMin, 3), lty = 2, col = "lightgrey")
 ```
 The vertical lines indicate where a follow-up study was initiated. 
 
@@ -955,21 +1052,25 @@ As original experiments we now take the e-values from the optional stopping simu
 
 ```{r, eval=FALSE}
 repAlt <- selectivelyContinueZOrTTestData(
-  designObj, n1New=ceiling(2*n1), testName="T-Test",
-  muGlobal=145, sigma=15, deltaTrue=deltaMin, nSim=1000,
-  eValuesOld=simDeltaTrueIsDeltaMin$samplePaths, 
-  eOverOld=!simDeltaTrueIsDeltaMin$breakVector, 
-  trackCrossingOld=trackCrossingAltEqual, 
-  firstPassageTimeOld=firstPassageTimeAltEqual,
-  eStoppedOld=simDeltaTrueIsDeltaMin$eValuesStopped, seed=6)
+  designObj,
+  n1New = ceiling(2 * n1), testName = "T-Test",
+  muGlobal = 145, sigma = 15, deltaTrue = deltaMin, nSim = 1000,
+  eValuesOld = simDeltaTrueIsDeltaMin$samplePaths,
+  eOverOld = !simDeltaTrueIsDeltaMin$breakVector,
+  trackCrossingOld = trackCrossingAltEqual,
+  firstPassageTimeOld = firstPassageTimeAltEqual,
+  eStoppedOld = simDeltaTrueIsDeltaMin$eValuesStopped, seed = 6
+)
 ```
 ```{r}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:(length(repAlt$trackCrossing)), 100*repAlt$trackCrossing/nSim, type="l", 
-     xlab="n", ylab="Correct rejections (%)", lwd=2,
-     col=eColoursAlt[1], ylim=c(0, 100))
-lines(c(1, length(repAlt$trackCrossing)), c(80, 80), lwd=2, lty=2)
-lines(c(n1, n1), c(0, 100), lty=2, col="lightgrey")
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:(length(repAlt$trackCrossing)), 100 * repAlt$trackCrossing / nSim,
+  type = "l",
+  xlab = "n", ylab = "Correct rejections (%)", lwd = 2,
+  col = eColoursAlt[1], ylim = c(0, 100)
+)
+lines(c(1, length(repAlt$trackCrossing)), c(80, 80), lwd = 2, lty = 2)
+lines(c(n1, n1), c(0, 100), lty = 2, col = "lightgrey")
 ```
 The vertical grey line is drawn at the nPlan of the original study at which we correctly reject the null with `r mean(simDeltaTrueIsDeltaMin$eValuesStopped>1/alpha)*100`% power. On the right of this grey line we see that the number of correct rejections further increases by combining the original e-values with e-values from replication attempts with different nuisance parameters. 
 
@@ -1088,7 +1189,7 @@ As with the t-test, we might know the minimal clinically relevant effect size up
 For detecting this difference with a power of at least 80%, while testing at significance level 0.05, we would need:
 
 ```{r }
-#safeDesignProportions$n.star
+# safeDesignProportions$n.star
 ```
 
 patients. 
@@ -1097,7 +1198,7 @@ A safe test could now be performed with this design object; for this, some mock 
 
 ```{r }
 # sampleExample <- as.table(matrix(c(10, safeDesignProportions[["na"]]-10, 40,
-#                                    safeDesignProportions[["nb"]]-40), 
+#                                    safeDesignProportions[["nb"]]-40),
 #                                  byrow=TRUE, nrow=2))
 # colnames(sampleExample) <- c(0, 1)
 # sampleExample
@@ -1106,7 +1207,7 @@ A safe test could now be performed with this design object; for this, some mock 
 Performing the safe test:
 
 ```{r }
-#safeTwoProportionsTest(x = sampleExample, testDesign = safeDesignProportions)
+# safeTwoProportionsTest(x = sampleExample, testDesign = safeDesignProportions)
 ```
 
 ### Case (II): Minimal clinically relevant effect size unknown, but maximum number of samples known.
@@ -1115,7 +1216,7 @@ We might not have enough resources to fund our study to detect the minimal diffe
 ```{r }
 # plotResult <- plotSafeTwoProportionsSampleSizeProfile(alpha=0.05,
 #                                                       beta=0.20,
-#                                                       highN=200, 
+#                                                       highN=200,
 #                                                       maxN=100,
 #                                                       numberForSeed=5222)
 ```
@@ -1130,23 +1231,23 @@ As with the safe t-test, the safe test for two proportions can be used in the op
 
 ```{r }
 # set.seed(5224)
-# 
-# optionalStoppingTrueMeanIsDesign <- 
+#
+# optionalStoppingTrueMeanIsDesign <-
 #   simulateSpreadSampleSizeTwoProportions(
 #     safeDesign=safeDesignProportions, M=1000,
 #     parametersDataGeneratingDistribution=c(0.3, 0.6))
-# 
+#
 # plotHistogramDistributionStoppingTimes(
-#   optionalStoppingTrueMeanIsDesign, 
-#   nPlan=safeDesignProportions[["n.star"]], 
+#   optionalStoppingTrueMeanIsDesign,
+#   nPlan=safeDesignProportions[["n.star"]],
 #   deltaTrue = 0.3)
 ```
 
 We designed the safe test such that we had a minimal power of 0.8, would the data truly come from a distribution with an absolute difference of 0.3 between the proportions of cured patients in the groups. Has this power been achieved?
 
 ```{r }
-#power achieved:
-#mean(optionalStoppingTrueMeanIsDesign$rejected == 1)
+# power achieved:
+# mean(optionalStoppingTrueMeanIsDesign$rejected == 1)
 ```
 
 #### True effect size larger than the minimal clinically relevant effect size
@@ -1154,12 +1255,12 @@ We have designed the safe test for a minimal clinically relevant effect size, bu
 
 ```{r }
 # set.seed(5224)
-# 
-# optionalStoppingTrueDifferenceBig <- 
+#
+# optionalStoppingTrueDifferenceBig <-
 #   simulateSpreadSampleSizeTwoProportions(
-#     safeDesign=safeDesignProportions, M=1000, 
+#     safeDesign=safeDesignProportions, M=1000,
 #     parametersDataGeneratingDistribution = c(0.2, 0.9))
-# 
+#
 # plotHistogramDistributionStoppingTimes(
 #   optionalStoppingTrueDifferenceBig, nPlan=safeDesignProportions[["n.star"]],
 #   deltaTrue = 0.7)
@@ -1168,8 +1269,8 @@ We have designed the safe test for a minimal clinically relevant effect size, bu
 We would stop, on average, even earlier! The power of the experiment also increases:
 
 ```{r }
-#power achieved:
-#mean(optionalStoppingTrueDifferenceBig$rejected == 1)
+# power achieved:
+# mean(optionalStoppingTrueDifferenceBig$rejected == 1)
 ```
 
 #### Data under the null: True effect size is zero, thus, much smaller than the minimal clinically relevant effect size
@@ -1177,15 +1278,15 @@ We can also illustrate what would happen under optional stopping, when our *null
 
 ```{r }
 # set.seed(5224)
-# 
-# optionalStoppingTrueMeanNull <- 
+#
+# optionalStoppingTrueMeanNull <-
 #   simulateSpreadSampleSizeTwoProportions(
-#     safeDesign=safeDesignProportions, M=1000, 
+#     safeDesign=safeDesignProportions, M=1000,
 #     parametersDataGeneratingDistribution = c(0.5, 0.5))
-# 
+#
 # plotHistogramDistributionStoppingTimes(
-#   optionalStoppingTrueMeanNull, 
-#   nPlan=safeDesignProportions[["n.star"]], 
+#   optionalStoppingTrueMeanNull,
+#   nPlan=safeDesignProportions[["n.star"]],
 #   deltaTrue = 0)
 ```
 
@@ -1193,7 +1294,7 @@ The type I error rate has stayed below 0.05:
 
 ```{r }
 # The rate of false null rejections remained under alpha=0.05
-#mean(optionalStoppingTrueMeanNull$rejected == 1)
+# mean(optionalStoppingTrueMeanNull$rejected == 1)
 ```
 
 #### Classical test "Fisher's exact test" under the null with optional stopping
@@ -1201,11 +1302,11 @@ Optional stopping, however, causes Fisher's exact test to over-reject the null. 
 
 ```{r }
 # set.seed(5224)
-# 
+#
 # fisher_result <- simulateFisherSpreadSampleSizeOptionalStopping(
-#   deltaDesign=0.5, alpha=0.05, nDesign=safeDesignProportions$n.star, 
+#   deltaDesign=0.5, alpha=0.05, nDesign=safeDesignProportions$n.star,
 #   power=0.8, M=100, parametersDataGeneratingDistribution=c(0.5, 0.5))
-# 
+#
 # mean(fisher_result$rejected == 1)
 ```
 Thus, 20% which is four times as much as promised. 
@@ -1227,10 +1328,10 @@ We are now going to zoom in on two of the optional stopping simulations we carri
 # yMax <- max(trueHist[["counts"]], nullHist[["counts"]])
 # graphics::par(cex.main=1.5, mar=c(5, 6, 4, 4)+0.1, mgp=c(3.5, 1, 0), cex.lab=1.5,
 #               font.lab=2, cex.axis=1.3, bty="n", las=1)
-# graphics::plot(nullHist, xlim = c(0, max(eValuesNotRejected, eValuesNotRejectedNull)), 
-#                freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values", 
+# graphics::plot(nullHist, xlim = c(0, max(eValuesNotRejected, eValuesNotRejectedNull)),
+#                freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
 #                main = "Histogram of e-values where null not rejected")
-# graphics::plot(trueHist, add = TRUE, freq = FALSE, col = "red", density = 20, 
+# graphics::plot(trueHist, add = TRUE, freq = FALSE, col = "red", density = 20,
 #                angle = -45)
 # graphics::legend(x = "topright", legend = c("True delta: null", "True delta: design"), fill = c("blue", "red"))
 ```
@@ -1240,33 +1341,33 @@ It can be observed that, when the true difference between the groups equals our 
 Based on this plot we could for example conclude that studies that yielded a final e-value between 10 and 20 look promising; under the null hypothesis, such high e-values were not observed in the spread plot! What would happen if we followed these studies up with a small extra study with 40 participants, and combined the resulting e-values? How many of the initially futile experiments will now lead to rejection of the null hypothesis?
 
 ```{r optionalContinuation2x2}
-# continueIndex <- which(optionalStoppingTrueMeanIsDesign$s_values < 20 & 
+# continueIndex <- which(optionalStoppingTrueMeanIsDesign$s_values < 20 &
 #                          optionalStoppingTrueMeanIsDesign$s_values > 10)
-# 
+#
 # interestingEValues <-
 #   optionalStoppingTrueMeanIsDesign$s_values[continueIndex]
-# 
-# newEValues <- 
+#
+# newEValues <-
 #   simulateOptionalContinuationTwoProportions(
-#     interestingEValues, nFollowUp=40, 
+#     interestingEValues, nFollowUp=40,
 #     parametersDataGeneratingDistribution=c(0.3, 0.6))
-# 
+#
 # mean(newEValues>=20)
 ```
 
 What happens when we apply this optional continuation when the data are truly generated under the null hypothesis? (note that we relax our bound of initial 'interesting' e-values here to 1, otherwise there would be no e-values to continue with)
 
 ```{r optionalContinuation2x2Null}
-# continueIndex <- optionalStoppingTrueMeanNull$s_values < 20 & 
+# continueIndex <- optionalStoppingTrueMeanNull$s_values < 20 &
 #   optionalStoppingTrueMeanNull$s_values > 1
-# 
+#
 # interestingEValues <-optionalStoppingTrueMeanNull$s_values[continueIndex]
-# 
-# newEValues <- 
+#
+# newEValues <-
 #   simulateOptionalContinuationTwoProportions(
-#     interestingEValues, nFollowUp=40, 
+#     interestingEValues, nFollowUp=40,
 #     parametersDataGeneratingDistribution=c(0.5, 0.5))
-# 
+#
 # mean(newEValues>=20)
 ```
 We still keep our type-I error probability guarantee.
@@ -1278,7 +1379,7 @@ Some short examples with code snippets for other testing scenarios are illustrat
 Safe tests for two proportions can also be designed for one-sided testing. For the case when one hypothesizes that the population mean of group "a" is higher than the population mean of group "b":
 
 ```{r }
-# safeDesignProportionsOneSided <- 
+# safeDesignProportionsOneSided <-
 #   designSafeTwoProportions(deltaMin=0.5, alternative="greater",
 #                            numberForSeed = 291202)
 ```
@@ -1286,11 +1387,11 @@ Safe tests for two proportions can also be designed for one-sided testing. For t
 We can now simulate data that fit our hypothesis (more 1s observed in group "a" than in "b"):
 
 ```{r }
-# sampleExampleGreater <- 
+# sampleExampleGreater <-
 #   as.table(matrix(c(5, safeDesignProportionsOneSided[["na"]]-5, 19,
-#                     safeDesignProportionsOneSided[["nb"]]-19), 
+#                     safeDesignProportionsOneSided[["nb"]]-19),
 #                   byrow=TRUE, nrow=2))
-# 
+#
 # colnames(sampleExampleGreater) <- c(0,1)
 # sampleExampleGreater
 ```
@@ -1298,18 +1399,18 @@ We can now simulate data that fit our hypothesis (more 1s observed in group "a" 
 This yields a high e-value:
 
 ```{r }
-# safeTwoProportionsTest(x=sampleExampleGreater, 
+# safeTwoProportionsTest(x=sampleExampleGreater,
 #                        testDesign=safeDesignProportionsOneSided)
 ```
 
 But if we now observe the opposite, more 1s in group "b" than in "a", the e-value will be low;
 
 ```{r }
-# sampleExampleLesser <- 
+# sampleExampleLesser <-
 #   as.table(matrix(c(safeDesignProportionsOneSided[["na"]]-5, 5,
-#                     safeDesignProportionsOneSided[["nb"]]-19, 19), 
+#                     safeDesignProportionsOneSided[["nb"]]-19, 19),
 #                   byrow=TRUE, nrow=2))
-# 
+#
 # colnames(sampleExampleGreater) <- colnames(sampleExampleLesser) <- c(0,1)
 # sampleExampleLesser
 ```
@@ -1323,7 +1424,7 @@ But if we now observe the opposite, more 1s in group "b" than in "a", the e-valu
 When a balanced design is not possible, a safe test of two proportions for unequal sample sizes can be designed as well; the final ratio between the sample sizes one is going to collect has to be known for this.
 
 ```{r }
-# safeDesignProportionsImbalanced <- 
+# safeDesignProportionsImbalanced <-
 #   designSafeTwoProportions(deltaMin=0.3, alpha=0.05, beta=0.20, lowN=120,
 #                            sampleSizeRatio=2)
 # safeDesignProportionsImbalanced

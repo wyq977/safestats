@@ -58,11 +58,11 @@ sigmaTrue <- 12
 alpha <- 0.05
 
 muGlobal <- 112
-  
+
 set.seed(2)
-dataGroup1 <- rnorm(n1, mean=muGlobal, sd=sigmaTrue)
+dataGroup1 <- rnorm(n1, mean = muGlobal, sd = sigmaTrue)
 set.seed(3)
-dataGroup2 <- rnorm(n2, mean=muGlobal, sd=sigmaTrue)
+dataGroup2 <- rnorm(n2, mean = muGlobal, sd = sigmaTrue)
 ```
 
 Note that the data are indeed generated from the null as the difference between the two population means is zero. The variable muGlobal can take on any value under the null, and is referred to as a nuisance parameter. In this case both the null and the alternative hypothesis/model are composite. 
@@ -101,21 +101,21 @@ The sequential use of a p-value entails computing a p-value after each observati
 
 ```{r, eval=FALSE}
 # # PSEUDO CODE
-# # 
+# #
 # #     THIS CODE DOES NOT RUN
-# # 
+# #
 # # Initiate
 # n <- 1
 # pValue <- 1
-# 
+#
 # while (pValue > alpha) {
 #   pValue <- computePValueZTest(x=x[1:n], y=y[1:n])
-#   
+#
 #   if (pValue < alpha) {
 #     "Reject the null"
 #     stop()
 #   } else {
-#     "Increase sample size and test again 
+#     "Increase sample size and test again
 #           at the start the start of the while loop"
 #     n <- n + 1
 #   }
@@ -126,20 +126,23 @@ The sequential use of a p-value entails computing a p-value after each observati
 We demonstrate this procedure for a single data set of n1=n2=100 samples, and we compute the p-value a 100 times, each time after an observation from each group has been completed.
 
 ```{r, eval=FALSE}
-pValueVector <- vector("numeric", length=n1)
+pValueVector <- vector("numeric", length = n1)
 
 for (i in 1:n1) {
-  pValueVector[i] <- pValueZTest(x=dataGroup1[1:i],
-                                 y=dataGroup2[1:i],
-                                 sigma=sigmaTrue)$pValue
+  pValueVector[i] <- pValueZTest(
+    x = dataGroup1[1:i],
+    y = dataGroup2[1:i],
+    sigma = sigmaTrue
+  )$pValue
 }
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-
-plot(1:n1, pValueVector, type="l", lwd=2, xlab="n",
-     ylab="p-value",
-     col=freqColours[1])
-abline(h=0.05, lty=2, lwd=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, pValueVector,
+  type = "l", lwd = 2, xlab = "n",
+  ylab = "p-value",
+  col = freqColours[1]
+)
+abline(h = 0.05, lty = 2, lwd = 2)
 ```
 Using p < alpha = 0.05 as a stopping rule and an indication of there being an effect leads to the experiment to be stopped early in favour of the presence of an effect, despite the data being sampled under the null. 
 
@@ -155,38 +158,40 @@ The following code stores a 1,000 times 100 p-values:
 ```{r, eval=FALSE}
 mIter <- 1000
 
-allData <- generateNormalData(c(n1, n2), muGlobal=muGlobal,
-                              nSim=mIter,
-                              meanDiffTrue=0, seed=1,
-                              sigmaTrue=sigmaTrue)
-allPValues <- matrix(nrow=mIter, ncol=n1)
+allData <- generateNormalData(c(n1, n2),
+  muGlobal = muGlobal,
+  nSim = mIter,
+  meanDiffTrue = 0, seed = 1,
+  sigmaTrue = sigmaTrue
+)
+allPValues <- matrix(nrow = mIter, ncol = n1)
 
 # This indicates whether a simulation yielded a "significant" p-value
-pValueUnderAlpha <- vector("integer", length=mIter)
+pValueUnderAlpha <- vector("integer", length = mIter)
 
 # This indicates the first time an experiment yielded a "significant" p-value
 # Default is Inf, which indicates that the p-value didn't dip below alpha
-firstPassageTime <- rep(Inf, times=mIter)
+firstPassageTime <- rep(Inf, times = mIter)
 
 # Used to vectorise the computations for the the z-statistic
 n1Vector <- 1:n1
 n2Vector <- 1:n2
-nEffVector <- (1/n1Vector+1/n2Vector)^(-1)
+nEffVector <- (1 / n1Vector + 1 / n2Vector)^(-1)
 
 
 for (sim in 1:mIter) {
   dataGroup1 <- allData$dataGroup1[sim, ]
   dataGroup2 <- allData$dataGroup2[sim, ]
-  
-  x1BarVector <- 1/n1Vector*cumsum(dataGroup1)
-  x2BarVector <- 1/n2Vector*cumsum(dataGroup2)
-  zVector <- sqrt(nEffVector)*(x1BarVector - x2BarVector)/sigmaTrue
-  
+
+  x1BarVector <- 1 / n1Vector * cumsum(dataGroup1)
+  x2BarVector <- 1 / n2Vector * cumsum(dataGroup2)
+  zVector <- sqrt(nEffVector) * (x1BarVector - x2BarVector) / sigmaTrue
+
   for (i in 1:n1) {
     currentPValue <- pValueFromZStat(zVector[i])
     allPValues[sim, i] <- currentPValue
-    
-    if (currentPValue < alpha && pValueUnderAlpha[sim]!=1) {
+
+    if (currentPValue < alpha && pValueUnderAlpha[sim] != 1) {
       pValueUnderAlpha[sim] <- 1
       firstPassageTime[sim] <- i
     }
@@ -203,13 +208,15 @@ for (i in 1:n1) {
   numberOfDippingExperimentsAtTimeN[i] <- sum(firstPassageTime <= i)
 }
 
-pValueFalseRejects <-numberOfDippingExperimentsAtTimeN/mIter 
+pValueFalseRejects <- numberOfDippingExperimentsAtTimeN / mIter
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*pValueFalseRejects, type="l", xlab="n",
-     ylab="False positive rate (%)",
-     lwd=2, col=freqColours[1])
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * pValueFalseRejects,
+  type = "l", xlab = "n",
+  ylab = "False positive rate (%)",
+  lwd = 2, col = freqColours[1]
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
 ```
 The reason why the type I error over-inflates is due to classical p-value methods being developed for fixed designs. For these designs, we have to pre-experimentally set the sample size at which the data collection is both stopped and analysed. Deviating from this plan with multiple looks at the data results in an over-inflation of the type I error. This plot also shows that "all alpha is spent" upon the first look, where the procedure already yielded the tolerable type I error. In other words, the use of classical p-values confines researchers to analysing the data once, and only once. 
 
@@ -220,9 +227,11 @@ For the e-variable demonstration we rely on the `safeZTest` function from the sa
 To run `safeZTest` a design object needs to be created. For the problem at hand we provided the design object with a minimal clinically relevant effect size, say, a mean difference of 10 (the claimed increase in IQ score). The following code creates such a design object. 
 
 ```{r, eval=FALSE}
-designObj <- designSafeZ(meanDiffMin=10,
-                         testType="twoSample",
-                         sigma=sigmaTrue)
+designObj <- designSafeZ(
+  meanDiffMin = 10,
+  testType = "twoSample",
+  sigma = sigmaTrue
+)
 designObj
 ```
 ## Sequential analysis
@@ -230,22 +239,22 @@ The sequential use of e-variables entails computing an e-value after each observ
 
 ```{r, eval=FALSE}
 # # PSEUDO CODE
-# # 
+# #
 # #     THIS CODE DOES NOT RUN
-# # 
+# #
 # # Initiate
 # n <- 1
 # eValue <- 1
-# 
+#
 # while (eValue < 1/alpha) {
 #   eValue <- safeZTest(x=x[1:n], y=y[1:n],
 #                       designObj=designObj)
-#   
+#
 #   if (eValue > 1/alpha) {
 #     "Reject the null"
 #     stop()
 #   } else {
-#     "Increase sample size and test again 
+#     "Increase sample size and test again
 #           at the start of the while loop"
 #     n <- n + 1
 #   }
@@ -257,11 +266,11 @@ We demonstrate this procedure for a single data set of n1=n2=100 samples, and we
 ```{r, eval=FALSE}
 # Single sample path data set as in the p-value example
 set.seed(2)
-dataGroup1 <- rnorm(n1, mean=muGlobal, sd=sigmaTrue)
+dataGroup1 <- rnorm(n1, mean = muGlobal, sd = sigmaTrue)
 set.seed(3)
-dataGroup2 <- rnorm(n2, mean=muGlobal, sd=sigmaTrue)
+dataGroup2 <- rnorm(n2, mean = muGlobal, sd = sigmaTrue)
 
-result <- safeZTest(dataGroup1, dataGroup2, designObj=designObj)
+result <- safeZTest(dataGroup1, dataGroup2, designObj = designObj)
 plot(result)
 ```
 This sample path does not exceed the evidence threshold of 20, and fewer than 5\% of the experiments will, even if we increase the sample size indefinitely. 
@@ -277,40 +286,42 @@ The following code stores 1,000 times 100 e-values:
 mIter <- 1000
 
 allData <- generateNormalData(c(n1, n2),
-                              muGlobal=muGlobal,
-                              nSim=mIter,
-                              meanDiffTrue=0, seed=1, sigmaTrue=sigmaTrue)
-allEValues <- matrix(nrow=mIter, ncol=n1)
+  muGlobal = muGlobal,
+  nSim = mIter,
+  meanDiffTrue = 0, seed = 1, sigmaTrue = sigmaTrue
+)
+allEValues <- matrix(nrow = mIter, ncol = n1)
 
 # This indicates whether a simulation yielded e > 1/alpha
-eValueOver <- vector("integer", length=mIter)
+eValueOver <- vector("integer", length = mIter)
 
 # This indicates the first time an experiment yielded e > 1/alpha
 # Default is Inf, which indicates that the e didn't cross 1/alpha
-firstPassageTime <- rep(Inf, times=mIter)
+firstPassageTime <- rep(Inf, times = mIter)
 
 # Used to vectorise the computations for the the z-statistic
 n1Vector <- 1:n1
 n2Vector <- 1:n2
-nEffVector <- (1/n1Vector+1/n2Vector)^(-1)
+nEffVector <- (1 / n1Vector + 1 / n2Vector)^(-1)
 
 for (sim in 1:mIter) {
   dataGroup1 <- allData$dataGroup1[sim, ]
   dataGroup2 <- allData$dataGroup2[sim, ]
-  
-  x1BarVector <- 1/n1Vector*cumsum(dataGroup1)
-  x2BarVector <- 1/n2Vector*cumsum(dataGroup2)
-  zVector <- sqrt(nEffVector)*(x1BarVector - x2BarVector)/sigmaTrue
-  
+
+  x1BarVector <- 1 / n1Vector * cumsum(dataGroup1)
+  x2BarVector <- 1 / n2Vector * cumsum(dataGroup2)
+  zVector <- sqrt(nEffVector) * (x1BarVector - x2BarVector) / sigmaTrue
+
   for (i in 1:n1) {
-    currentEValue <- safeZTestStat(zVector[i], 
-                                   parameter=designObj$parameter, 
-                                   n1=n1Vector[i], n2=n2Vector[i], 
-                                   sigma=sigmaTrue, eType=designObj$eType)$eValue
-    
+    currentEValue <- safeZTestStat(zVector[i],
+      parameter = designObj$parameter,
+      n1 = n1Vector[i], n2 = n2Vector[i],
+      sigma = sigmaTrue, eType = designObj$eType
+    )$eValue
+
     allEValues[sim, i] <- currentEValue
-    
-    if (currentEValue > 1/alpha && eValueOver[sim]!=1) {
+
+    if (currentEValue > 1 / alpha && eValueOver[sim] != 1) {
       eValueOver[sim] <- 1
       firstPassageTime[sim] <- i
     }
@@ -327,13 +338,15 @@ for (i in 1:n1) {
   numberOfCrossingExperimentsAtTimeN[i] <- sum(firstPassageTime <= i)
 }
 
-eValueFalseRejects <- numberOfCrossingExperimentsAtTimeN/mIter 
+eValueFalseRejects <- numberOfCrossingExperimentsAtTimeN / mIter
 
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*eValueFalseRejects, type="l", 
-     xlab="n", ylab="False positive rate (%)", lwd=2,
-     col=eColours[1], ylim=c(0, 5))
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * eValueFalseRejects,
+  type = "l",
+  xlab = "n", ylab = "False positive rate (%)", lwd = 2,
+  col = eColours[1], ylim = c(0, 5)
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
 ```
 Hence, after n1=n2=100 observations, that is, looks at the data, we falsely reject 36 out of the 1,000 times the null (3.6\%). This is still below the tolerable alpha level of 5\%. 
 
@@ -345,13 +358,17 @@ Secondly, type I error control holds for any (hyper) parameter gMom that was set
 The following plot summarises the false rejections rates of the two procedures after n1=n2=100 observations/looks: In (Ikea) yellow the sequential p-value procedure resulting in a type I error of 38.4\%, and in blue the e-value procedure resulting in a type I error of 3.6\%: 
 
 ```{r, eval=FALSE}
-oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes();
-plot(1:n1, 100*pValueFalseRejects, type="l", xlab="n", 
-     ylab="False positive rate (%)", 
-     bty="n", lwd=2, ylim=c(0, 40), col=freqColours[1])
-lines(c(1, n1), c(5, 5), lwd=2, lty=2)
-lines(1:n1, 100*eValueFalseRejects, col=eColours[1], 
-      lwd=2)
+oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
+plot(1:n1, 100 * pValueFalseRejects,
+  type = "l", xlab = "n",
+  ylab = "False positive rate (%)",
+  bty = "n", lwd = 2, ylim = c(0, 40), col = freqColours[1]
+)
+lines(c(1, n1), c(5, 5), lwd = 2, lty = 2)
+lines(1:n1, 100 * eValueFalseRejects,
+  col = eColours[1],
+  lwd = 2
+)
 ```
 By simulating under the null, we showed that the sequential use of classical p-values can lead to early stopping at the high cost of drawing incorrect conclusions. 
 

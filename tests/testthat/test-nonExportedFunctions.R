@@ -2,35 +2,38 @@ test_that("checkAndReturnsEsMinParameterSide throws a warning", {
   ### Use in the design stage
   meanDiffMin <- 0.4
   paramChecked <- safestats:::checkAndReturnsEsMinParameterSide(meanDiffMin,
-                                                                esMin="meanDiffMin",
-                                                                alternative="twoSided")
+    esMin = "meanDiffMin",
+    alternative = "twoSided"
+  )
   # Returns absolute value of meanDiffMin
   paramChecked
 
-  expect_equal("object"=paramChecked, "expected"=0.4)
+  expect_equal("object" = paramChecked, "expected" = 0.4)
 
   # Invokes warnings
   paramChecked <- safestats:::checkAndReturnsEsMinParameterSide(meanDiffMin,
-                                                                esMin="meanDiffMin",
-                                                                alternative="greater")
+    esMin = "meanDiffMin",
+    alternative = "greater"
+  )
   paramChecked == meanDiffMin
   #
   # ### Use in the execution stage
   phiS <- -0.3
   expect_warning(safestats:::checkAndReturnsEsMinParameterSide(phiS,
-                                                               alternative="greater"))
+    alternative = "greater"
+  ))
 })
 
 test_that("checkAndReturnsNPlan throws a warning", {
-  expect_warning(safestats:::checkAndReturnsNPlan(nPlan=5, testType="twoSample"))
+  expect_warning(safestats:::checkAndReturnsNPlan(nPlan = 5, testType = "twoSample"))
 })
 
 test_that("tryOrFailWithNA returns correct value", {
   result <- safestats:::tryOrFailWithNA(integrate(exp, -Inf, Inf)[["value"]], NA)
-  expect_equal("object"=result, "expected"=NA)
+  expect_equal("object" = result, "expected" = NA)
 
   result <- safestats:::tryOrFailWithNA(integrate(exp, 0, 3)[["value"]], NA)
-  expect_equal("object"=result, "expected"=19.085537)
+  expect_equal("object" = result, "expected" = 19.085537)
 })
 
 test_that("getArgs returns the arguments correctly", {
@@ -38,10 +41,10 @@ test_that("getArgs returns the arguments correctly", {
     safestats:::getArgs()
   }
 
-  result <- foo(x="3", y=df)
+  result <- foo(x = "3", y = df)
 
-  expect_equal(object=result$x, expected="3")
-  expect_equal(object=class(result$y), expected="name")
+  expect_equal(object = result$x, expected = "3")
+  expect_equal(object = class(result$y), expected = "name")
 })
 
 test_that("extractNameFromArgs returns the arguments correctly", {
@@ -49,10 +52,10 @@ test_that("extractNameFromArgs returns the arguments correctly", {
     safestats:::getArgs()
   }
 
-  result <- foo(x="3", y=df)
+  result <- foo(x = "3", y = df)
 
-  expect_equal(object=result$x, expected="3")
-  expect_equal(object=class(result$y), expected="name")
+  expect_equal(object = result$x, expected = "3")
+  expect_equal(object = class(result$y), expected = "name")
 })
 
 test_that("extractNameFromArgs returns the arguments correctly", {
@@ -60,30 +63,30 @@ test_that("extractNameFromArgs returns the arguments correctly", {
     safestats:::getArgs()
   }
 
-  bar <- foo(x="3", y=rnorm(10))
+  bar <- foo(x = "3", y = rnorm(10))
   result <- safestats:::extractNameFromArgs(bar, "y")
-  expect_equal(object=result, expected="rnorm(10)")
+  expect_equal(object = result, expected = "rnorm(10)")
 })
 
 test_that("getNameTestType returns the correct name", {
   result <- safestats:::getNameTestType("oneSample", "T-Test")
-  expect_equal(object=result, expected="Safe One Sample T-Test")
+  expect_equal(object = result, expected = "Safe One Sample T-Test")
 })
 
 test_that("getNameAlternative returns the correct alternative", {
-  result <- safestats:::getNameAlternative("twoSided", testType="oneSample")
-  expect_equal(object=result, expected="true mean not equal to 0")
+  result <- safestats:::getNameAlternative("twoSided", testType = "oneSample")
+  expect_equal(object = result, expected = "true mean not equal to 0")
 })
 
 test_that("computeNPlanBatchSafeT returns the correct batch sample size", {
-  result <- safestats:::computeNPlanBatchSafeT(0.4, eType="grow")
+  result <- safestats:::computeNPlanBatchSafeT(0.4, eType = "grow")
   nPlan <- 88
   names(nPlan) <- "n1Plan"
   parameter <- 0.4
   names(parameter) <- "deltaS"
 
-  expectedResult <- list(nPlan=nPlan, parameter=parameter)
-  expect_equal(object=result, expected=expectedResult)
+  expectedResult <- list(nPlan = nPlan, parameter = parameter)
+  expect_equal(object = result, expected = expectedResult)
 })
 
 test_that("computeEsMinSafeT throws an error", {
@@ -92,12 +95,12 @@ test_that("computeEsMinSafeT throws an error", {
 
 test_that("defineTTestN returns correct list", {
   result <- safestats:::defineTTestN()
-  expectedResult <- list(n1=3:100, n2=NULL, nEff=3:100, nu=2:99)
-  expect_equal(object=result, expected=expectedResult)
+  expectedResult <- list(n1 = 3:100, n2 = NULL, nEff = 3:100, nu = 2:99)
+  expect_equal(object = result, expected = expectedResult)
 })
 
 test_that("computeNPlanBatchSafeZ returns correct list", {
-  result <- safestats:::computeNPlanBatchSafeZ(0.4, eType="grow")
+  result <- safestats:::computeNPlanBatchSafeZ(0.4, eType = "grow")
 
   nPlan <- 85
   parameter <- 0.4
@@ -105,11 +108,11 @@ test_that("computeNPlanBatchSafeZ returns correct list", {
   names(nPlan) <- "n1Plan"
   names(parameter) <- "phiS"
 
-  expectedResult <- list(nPlan=nPlan, parameter=parameter)
+  expectedResult <- list(nPlan = nPlan, parameter = parameter)
 
-  expect_equal(object=result, expected=expectedResult)
+  expect_equal(object = result, expected = expectedResult)
 
-  result <- safestats:::computeNPlanBatchSafeZ(0.4, eType="eGauss")
+  result <- safestats:::computeNPlanBatchSafeZ(0.4, eType = "eGauss")
 
   nPlan <- 96
   parameter <- 0.4^2
@@ -117,28 +120,28 @@ test_that("computeNPlanBatchSafeZ returns correct list", {
   names(nPlan) <- "n1Plan"
   names(parameter) <- "g"
 
-  expectedResult <- list(nPlan=nPlan, parameter=parameter)
+  expectedResult <- list(nPlan = nPlan, parameter = parameter)
 
-  expect_equal(object=result, expected=expectedResult)
+  expect_equal(object = result, expected = expectedResult)
 })
 
 
 test_that("computeBetaBatchSafeZ returns correct batch beta", {
-  result <- safestats:::computeBetaBatchSafeZ(meanDiffTrue=0.9, nPlan=12, eType="grow")
+  result <- safestats:::computeBetaBatchSafeZ(meanDiffTrue = 0.9, nPlan = 12, eType = "grow")
   expectedResult <- 0.35359335
-  expect_equal(object=result, expected=expectedResult)
+  expect_equal(object = result, expected = expectedResult)
 })
 
 
 test_that("computeMinEsBatchSafeZ returns correct batch minEs", {
-  result <- safestats:::computeMinEsBatchSafeZ(nPlan=78, eType="grow")
+  result <- safestats:::computeMinEsBatchSafeZ(nPlan = 78, eType = "grow")
   expectedResult <- 0.4172752
-  expect_equal(object=result, expected=expectedResult, tolerance=1e-3)
+  expect_equal(object = result, expected = expectedResult, tolerance = 1e-3)
 })
 
 
 test_that("computeNEff returns correct effective sample size", {
-  result <- safestats:::computeNEff(c(3, 4), testType="twoSample")
+  result <- safestats:::computeNEff(c(3, 4), testType = "twoSample")
   expectedResult <- 1.7142857
-  expect_equal(object=result, expected=expectedResult)
+  expect_equal(object = result, expected = expectedResult)
 })

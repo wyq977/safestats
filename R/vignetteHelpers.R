@@ -21,65 +21,68 @@
 #' @return a list with the new e-values amongst other
 #' @export
 selectivelyContinueZOrTTestData <- function(
-    designObj, deltaTrue=NULL, testName=c("Z-Test", "T-Test"),
-    n1New, muGlobal, sigma, meanDiffTrue=NULL, nSim=1e3L,
+    designObj, deltaTrue = NULL, testName = c("Z-Test", "T-Test"),
+    n1New, muGlobal, sigma, meanDiffTrue = NULL, nSim = 1e3L,
     eValuesOld, eOverOld,
     trackCrossingOld, firstPassageTimeOld,
-    eStoppedOld, seed=NULL) {
-
+    eStoppedOld, seed = NULL) {
   n1Old <- length(trackCrossingOld)
   testName <- match.arg(testName)
   alpha <- designObj[["alpha"]]
 
-  if (testName=="Z-Test")
+  if (testName == "Z-Test") {
     deltaTrue <- NULL
+  }
 
-  if (testName=="T-Test")
+  if (testName == "T-Test") {
     meanDiffTrue <- NULL
+  }
 
   someData <- generateNormalData(
-    c(n1New, n1New), muGlobal=muGlobal,
-    nSim=nSim, seed=seed,
-    meanDiffTrue=meanDiffTrue, deltaTrue=deltaTrue,
-    sigmaTrue=sigma)
+    c(n1New, n1New),
+    muGlobal = muGlobal,
+    nSim = nSim, seed = seed,
+    meanDiffTrue = meanDiffTrue, deltaTrue = deltaTrue,
+    sigmaTrue = sigma
+  )
 
-  statMatrix <- matrix(nrow=nSim, ncol=n1New)
+  statMatrix <- matrix(nrow = nSim, ncol = n1New)
 
   n1Vector <- 1:n1New
-  nuVector <- n1Vector-1
+  nuVector <- n1Vector - 1
 
-  rejectedIndex <- which(eOverOld==1)
-  notRejectedIndex <- which(eOverOld==0)
+  rejectedIndex <- which(eOverOld == 1)
+  notRejectedIndex <- which(eOverOld == 0)
 
   for (sim in notRejectedIndex) {
     dataGroup1 <- someData$dataGroup1[sim, ]
     dataGroup2 <- someData$dataGroup2[sim, ]
 
-    differenceScore <- dataGroup1-dataGroup2
+    differenceScore <- dataGroup1 - dataGroup2
 
-    meanDiffVector <- 1/n1Vector*cumsum(differenceScore)
+    meanDiffVector <- 1 / n1Vector * cumsum(differenceScore)
 
-    if (testName=="Z-Test") {
+    if (testName == "Z-Test") {
       # The variance of the sum x + (-y) is the sum of the two variances
       # Thus, 2*sigma^2
-      sdMeanDiff <- sqrt(2)*sigma
-    } else if (testName=="T-Test") {
+      sdMeanDiff <- sqrt(2) * sigma
+    } else if (testName == "T-Test") {
       sdMeanDiff <- sqrt(
-        1/nuVector*(cumsum(differenceScore^2)-n1Vector*meanDiffVector^2)
+        1 / nuVector * (cumsum(differenceScore^2) - n1Vector * meanDiffVector^2)
       )
     }
 
     statMatrix[sim, ] <-
-      sqrt(n1Vector)*meanDiffVector/sdMeanDiff
+      sqrt(n1Vector) * meanDiffVector / sdMeanDiff
   }
 
-  if (testName=="T-Test") {
+  if (testName == "T-Test") {
     statMatrix[, 1] <- 0
   }
 
   # Here we store all the e-values across the
   # number of simulations (nSim) and time (n1)
-  eValuesNew <- matrix(nrow=nSim, ncol=n1New)
+  eValuesNew <- matrix(nrow = nSim, ncol = n1New)
   eValuesNew[rejectedIndex, ] <- eStoppedOld[rejectedIndex]
 
   # This indicates whether a simulation yielded e > 1/alpha
@@ -106,55 +109,61 @@ selectivelyContinueZOrTTestData <- function(
       # 1/alpha = 20
       #
 
-      if (testName=="Z-Test") {
+      if (testName == "Z-Test") {
         currentEValue <- safeZTestStat(
-          statVector[i], parameter=designObj[["parameter"]],
-          n1=n1Vector[i], n2=n1Vector[i],
-          paired=TRUE,  sigma=sigma, alternative="greater",
-          eType=designObj$eType)$eValue * eStoppedOld[sim]
-      } else if (testName=="T-Test") {
+          statVector[i],
+          parameter = designObj[["parameter"]],
+          n1 = n1Vector[i], n2 = n1Vector[i],
+          paired = TRUE, sigma = sigma, alternative = "greater",
+          eType = designObj$eType
+        )$eValue * eStoppedOld[sim]
+      } else if (testName == "T-Test") {
         currentEValue <- safeTTestStat(
-          statVector[i], parameter=designObj[["parameter"]],
-          n1=n1Vector[i], n2=n1Vector[i],
-          paired=TRUE,  sigma=sigma, alternative="greater",
-          eType=designObj$eType)$eValue * eStoppedOld[sim]
+          statVector[i],
+          parameter = designObj[["parameter"]],
+          n1 = n1Vector[i], n2 = n1Vector[i],
+          paired = TRUE, sigma = sigma, alternative = "greater",
+          eType = designObj$eType
+        )$eValue * eStoppedOld[sim]
       }
 
       eValuesNew[sim, i] <- currentEValue
 
-      if (currentEValue > 1/alpha && eOverNew[sim]!=1) {
+      if (currentEValue > 1 / alpha && eOverNew[sim] != 1) {
         eOverNew[sim] <- 1
-        firstPassageTime[sim] <- i+n1Old
+        firstPassageTime[sim] <- i + n1Old
         eStopped[sim] <- currentEValue
 
         eValuesNew[sim, i:n1New] <- currentEValue
       }
 
-      if (i==n1New && eOverNew[sim]!=1) {
+      if (i == n1New && eOverNew[sim] != 1) {
         eStopped[sim] <- currentEValue
       }
     }
   }
 
-  trackCrossing <- integer(n1Old+n1New)
+  trackCrossing <- integer(n1Old + n1New)
 
   # Again we carry over the previous 3% type I error, that is,
   # 15 number of false rejections along
   trackCrossing[1:n1Old] <- trackCrossingOld
 
-  for (i in (n1Old+1):(n1Old+n1New)) {
+  for (i in (n1Old + 1):(n1Old + n1New)) {
     trackCrossing[i] <-
       sum(firstPassageTime <= i)
   }
 
-  eRejects <- trackCrossing/nSim
+  eRejects <- trackCrossing / nSim
 
   eValues <- cbind(eValuesOld, eValuesNew)
-  result <- list("eValues"=eValues, "eOver"=eOverNew,
-                 "extraRejections"=sum(eOverNew)-sum(eOverOld),
-                 "trackCrossing"=trackCrossing,
-                 "firstPassageTime"=firstPassageTime,
-                 "eStopped"=eStopped, "eRejects"=eRejects)
+  result <- list(
+    "eValues" = eValues, "eOver" = eOverNew,
+    "extraRejections" = sum(eOverNew) - sum(eOverOld),
+    "trackCrossing" = trackCrossing,
+    "firstPassageTime" = firstPassageTime,
+    "eStopped" = eStopped, "eRejects" = eRejects
+  )
 
   return(result)
 }
@@ -175,27 +184,29 @@ selectivelyContinueZOrTTestData <- function(
 #' @return a histogram object, and called for its side-effect to plot the histogram.
 #'
 #' @export
-plotHistogramDistributionStoppingTimes <- function(safeSim, nPlan, deltaTrue, showOnlyNRejected=FALSE, nBin=25L, ...) {
-  if(showOnlyNRejected) {
+plotHistogramDistributionStoppingTimes <- function(safeSim, nPlan, deltaTrue, showOnlyNRejected = FALSE, nBin = 25L, ...) {
+  if (showOnlyNRejected) {
     dataToPlot <- safeSim[["allRejectedN"]]
   } else {
     dataToPlot <- safeSim[["allN"]]
   }
 
-  nStep <- floor(nPlan/nBin)
+  nStep <- floor(nPlan / nBin)
 
-  if (nStep == 0)
+  if (nStep == 0) {
     nStep <- 1
+  }
 
-  maxLength <- ceiling(nPlan/nStep)
+  maxLength <- ceiling(nPlan / nStep)
 
-  mainTitle <- bquote(~"Spread of stopping times when true delta " == .(round(deltaTrue,2)))
+  mainTitle <- bquote(~ "Spread of stopping times when true delta " == .(round(deltaTrue, 2)))
   oldPar <- setSafeStatsPlotOptionsAndReturnOldOnes()
   on.exit(graphics::par(oldPar))
   graphics::hist(dataToPlot,
-                 breaks = nStep*seq.int(maxLength),
-                 xlim = c(0, max(safeSim[["allN"]])),
-                 xlab = "stopping time (n collected)",
-                 main = mainTitle,
-                 col = "lightgrey", ...)
+    breaks = nStep * seq.int(maxLength),
+    xlim = c(0, max(safeSim[["allN"]])),
+    xlab = "stopping time (n collected)",
+    main = mainTitle,
+    col = "lightgrey", ...
+  )
 }
