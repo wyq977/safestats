@@ -7,22 +7,34 @@ likelihoodBernoulli <- function(n, x, theta) {
 # TODO: update priors with none restrictions in k x 2 settings
 # TODO: change Beta dist. parameters
 # TODO: default two-sided tests only
-# TODO: na, nb as vectors of length(ya)
 #
 #' Calculate e-value for 2 x 2 contingency table
 #' @export
 EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
                         na = 1, nb = 1, esType = c("logOddsRatio", "difference", "none"),
                         esMin = NULL, alpha = 0.05, prior = NULL) {
-  # TODO: take prior beta coefficients
-  betaA1 <- betaA2 <- betaB1 <- betaB2 <- 0.18
+
+  if (is.null(prior)) {
+    # print("Using the default parameters (alpha = beta = 0.18) for Beta distribution...")
+    betaA1 <- betaA2 <- betaB1 <- betaB2 <- 0.18
+  } else {
+    # unpack the prior values
+    betaA1 <- prior[["betaA1"]]
+    betaA2 <- prior[["betaA2"]]
+    betaB1 <- prior[["betaB1"]]
+    betaB2 <- prior[["betaB2"]]
+  }
+
   eVal <- 1
 
   # case 1: No restriction on prior --------------------------------------------
   if (esType == "none") {
     if (!is.null(esMin)) {
       stop("There should be no minimum difference in this case!")
+    } else if (length(ya) != length(yb)) {
+      stop("The numer of samples in group A and group B must be equal!")
     }
+
     # init vector
     totalSuccessA <- cumsum(ya)
     totalSuccessB <- cumsum(yb)
@@ -31,29 +43,53 @@ EValTwoProp <- function(ya, yb, alternative = c("twoSided", "greater", "less"),
     totalFailA <- groupSizeVecA - totalSuccessA
     totalFailB <- groupSizeVecB - totalSuccessB
 
+    # # naive approach
+    # thetaA <- thetaB <- theta0 <- 0.5
+    #
+    # for (i in seq_along(ya)) {
+    #   newE <- safestats:::calculateETwoProportions(
+    #     na1 = ya[i],
+    #     na = na,
+    #     nb1 = yb[i],
+    #     nb = nb,
+    #     thetaA = thetaA,
+    #     thetaB = thetaB,
+    #     theta0 = theta0
+    #   )
+    #
+    #   eVal <- eVal * newE
+    #
+    #   thetaA <- safestats:::bernoulliMLTwoProportions(totalSuccessA[i], totalFailA[i], betaA1, betaA2)
+    #
+    #   thetaB <- safestats:::bernoulliMLTwoProportions(totalSuccessB[i], totalFailB[i], betaB1, betaB2)
+    #
+    #   theta0 <- (na * thetaA + nb * thetaB) / (na + nb)
+    # }
 
-    # FIXME: same as before during initalization
-    thetaA <- thetaB <- theta0 <- 0.5
+    # vectorized approach
+    thetaA <- thetaB <- theta0 <- rep(0.5, length(ya))
 
-    for (i in seq_along(ya)) {
-      newE <- safestats:::calculateETwoProportions(
-        na1 = ya[i],
-        na = na,
-        nb1 = yb[i],
-        nb = nb,
-        thetaA = thetaA,
-        thetaB = thetaB,
-        theta0 = theta0
-      )
+    # vectorize operation except 1st
+    theta <- safestats:::updateETwoProportions(
+      totalSuccessA[-length(totalSuccessA)], totalFailA[-length(totalFailA)],
+      totalSuccessB[-length(totalSuccessB)], totalFailB[-length(totalFailB)],
+      na, nb,
+      betaA1, betaA2,
+      betaB1, betaB2
+    )
 
-      eVal <- eVal * newE
+    # assign values to all elements except 1st
+    thetaA[-1] <- theta$thetaA
+    thetaB[-1] <- theta$thetaB
+    theta0[-1] <- theta$theta0
 
-      thetaA <- safestats:::bernoulliMLTwoProportions(totalSuccessA[i], totalFailA[i], betaA1, betaA2)
+    eValVec <- safestats:::calculateETwoProportions(
+      na1 = ya, na = na, nb1 = yb, nb = nb,
+      thetaA = thetaA, thetaB = thetaB, theta0 = theta0
+    )
 
-      thetaB <- safestats:::bernoulliMLTwoProportions(totalSuccessB[i], totalFailB[i], betaB1, betaB2)
+    eVal <- prod(eValVec)
 
-      theta0 <- (na * thetaA + nb * thetaB) / (na + nb)
-    }
   } else if (esType == "difference" || esType == "logOddsRatio") {
     # case 2/3: restrict difference on (0, 1)^2 para. space --------------------
     # they all used Bayensian updating in each timesteps between blocks
