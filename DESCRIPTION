@@ -1,13 +1,15 @@
 Package: safestats
 Type: Package
 Title: Safe Anytime-Valid Inference
-Version: 0.8.7
+Version: 0.8.8
 Authors@R: c(
-  person("Rosanne", "Turner", email = "rosanne.turner@cwi.nl",
-  role = "aut"),
   person("Alexander", "Ly", email = "a.ly@jasp-stats.org",
   role = c("cre", "aut")),
-  person("Muriel Felipe", "Perez-Ortiz", email = "Muriel.Perez@cwi.nl",
+  person("Rosanne", "Turner", email = "rosanne.turner@cwi.nl",
+  role = "aut"),
+  person("Muriel Felipe", "Perez-Ortiz", email = "m.f.perez.ortiz@tue.nl",
+  role = c("ctb")),
+  person("Udo", "Boehm", email = "udo.boehm@cwi.nl",
   role = c("ctb")),
   person("Judith", "ter Schure", email = "Judith.ter.Schure@cwi.nl",
   role = c("ctb")),
@@ -31,23 +33,24 @@ License: LGPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 Depends:
-  R (>= 3.6)
+  R (>= 4.2)
 Imports:
   stats (>= 3.6),
+  lamW (>= 2.2.1),
   hypergeo (>= 1.2-13),
   survival (>= 3.2-13),
   BiasedUrn (>= 1.07),
   boot (>= 1.3-28),
   dplyr (>= 1.0.6),
   purrr (>= 0.3.5),
-  rlang (>= 1.0.6)
+  rlang (>= 1.0.6),
+  graphics (>= 4.2.2)
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown,
-    graphics
+    rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-RoxygenNote: 7.2.2
+RoxygenNote: 7.3.2
 Language: en-GB
 Config/testthat/edition: 3

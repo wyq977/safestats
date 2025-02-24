@@ -8,19 +8,22 @@ designSafeLogrank(
   hrMin = NULL,
   beta = NULL,
   nEvents = NULL,
+  alpha = 0.05,
   h0 = 1,
   alternative = c("twoSided", "greater", "less"),
-  alpha = 0.05,
-  ratio = 1,
-  exact = TRUE,
-  tol = 1e-05,
   m0 = 50000L,
   m1 = 50000L,
-  nSim = 1000L,
-  nBoot = 10000L,
+  testType = c("exactLogrank", "gaussianLogrank"),
+  ratio = 1,
+  exact = TRUE,
   parameter = NULL,
+  eType = c("mom", "eGauss", "imom", "eCauchy", "grow"),
+  wantSamplePaths = TRUE,
   groupSizePerTimeFunction = returnOne,
   pb = TRUE,
+  seed = NULL,
+  nSim = 1000L,
+  nBoot = nSim,
   ...
 )
 }
@@ -33,6 +36,9 @@ and "phiS". Note that 1-beta defines the power.}
 
 \item{nEvents}{numeric > 0, targetted number of events.}
 
+\item{alpha}{numeric in (0, 1) that specifies the tolerable type I error control --independent on n-- that the
+designed test has to adhere to. Note that it also defines the rejection rule e10 > 1/alpha.}
+
 \item{h0}{numeric > 0, represents the null hypothesis, default h0=1.}
 
 \item{alternative}{a character string specifying the alternative hypothesis, which must be one of
@@ -44,8 +50,11 @@ lambda2 < lambda1, that is, the hazard of group 2 (i.e., treatment) is less than
 hence, the treatment is beneficial. If alternative = "greater", then the null hypothesis is compared to theta > 1,
 thus, lambda2 > lambda1, hence, harm.}
 
-\item{alpha}{numeric in (0, 1) that specifies the tolerable type I error control --independent on n-- that the
-designed test has to adhere to. Note that it also defines the rejection rule e10 > 1/alpha.}
+\item{m0}{Number of subjects in the control group 0/1 at the beginning of the trial, i.e., nPlan[1].}
+
+\item{m1}{Number of subjects in the treatment group 1/2 at the beginning of the trial, i.e., nPlan[2].}
+
+\item{testType}{either one of "oneSample", "paired", "twoSample".}
 
 \item{ratio}{numeric > 0 representing the randomisation ratio of condition 2 (Treatment) over condition 1 (Placebo),
 thus, m1/m0. Note that m1 and m0 are not used to specify ratio. Ratio is only used when \code{zApprox=TRUE}, which
@@ -54,26 +63,28 @@ ignores m1 and m0.}
 \item{exact}{a logical indicating whether the design should be based on the exact safe logrank test based on the
 hypergeometric likelihood. Default is \code{TRUE}, if \code{FALSE} then the design is based on a  safe z-test.}
 
-\item{tol}{a number that defines the stepsizes between the lowParam and highParam.}
-
-\item{m0}{Number of subjects in the control group 0/1 at the beginning of the trial, i.e., nPlan[1].}
-
-\item{m1}{Number of subjects in the treatment group 1/2 at the beginning of the trial, i.e., nPlan[2].}
-
-\item{nSim}{integer > 0, the number of simulations needed to compute power or the number of events for the exact
-safe logrank test under continuous monitoring}
-
-\item{nBoot}{integer > 0 representing the number of bootstrap samples to assess the accuracy of the approximation of
-power or nEvents for the exact safe logrank test under continuous monitoring}
-
 \item{parameter}{Numeric > 0, represents the safe tests defining thetaS. Default NULL so it's decided by the
 algorithm, typically, this equals hrMin, which corresponds to the GROW choice.}
+
+\item{eType}{character one of "eCauchy", "eGauss", "grow". "eCauchy" yields e-values based on
+a Cauchy mixture, "eGauss" based on a Gaussian/normal mixture, and "grow" based on a mixture of
+two point masses at the minimal clinically relevant effect size.}
+
+\item{wantSamplePaths}{logical, if \code{TRUE} then also outputs the sample paths.}
 
 \item{groupSizePerTimeFunction}{A function without parameters and integer output. This function provides the number
 of events at each time step. For instance, if \code{rpois(1, 7)} leads to a random number of events at each time
 step.}
 
 \item{pb}{logical, if \code{TRUE}, then show progress bar.}
+
+\item{seed}{integer, seed number.}
+
+\item{nSim}{integer > 0, the number of simulations needed to compute power or the number of events for the exact
+safe logrank test under continuous monitoring}
+
+\item{nBoot}{integer > 0 representing the number of bootstrap samples to assess the accuracy of the approximation of
+power or nEvents for the exact safe logrank test under continuous monitoring}
 
 \item{...}{further arguments to be passed to or from methods.}
 }
@@ -106,7 +117,7 @@ approximation to sampling distribution of the logrank test derived by Schoenfeld
 }
 \examples{
 designSafeLogrank(hrMin=0.7)
-designSafeLogrank(hrMin=0.7, zApprox=TRUE)
+designSafeLogrank(hrMin=0.7, exact=FALSE)
 designSafeLogrank(hrMin=0.7, beta=0.3, nSim=10)
 designSafeLogrank(hrMin=0.7, nEvents=190, nSim=10)
 }

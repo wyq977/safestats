@@ -1,10 +1,9 @@
 ---
-title: 'Safe Tests and Confidence Intervals for Tests of Two Proportions: Practical
-  Scenarios'
+title: 'Safe Tests and Confidence Intervals for Tests of Two Proportions: Practical Scenarios'
 author: "Rosanne Turner, Alexander Ly and Peter Grünwald"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{contingency-tables-vignette}
+  %\VignetteIndexEntry{Safe Tests and Confidence Intervals for Tests of Two Proportions: Practical Scenarios}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -33,8 +32,8 @@ Before we can start an experiment, to be able to do optional stopping with safe 
 The safe tests functions expect numeric vectors giving the number of successes per block as arguments. An example of observed data in the correct format for the package with 10 blocks with $n_a = n_b = 1$ could be:
 
 ```{r}
-ya <- c(1,1,1,1,1,1,0,1,1,1)
-yb <- c(0,0,1,0,1,0,0,0,0,0)
+ya <- c(1, 1, 1, 1, 1, 1, 0, 1, 1, 1)
+yb <- c(0, 0, 1, 0, 1, 0, 0, 0, 0, 0)
 ```
 
 ### Case (I): Designing experiments with the minimal clinically relevant effect size known
@@ -56,8 +55,8 @@ load("safe2x2VignetteData/safe2x2DesignObject.Rdata")
 balancedSafeDesign <- designSafeTwoProportions(
   na = 1,
   nb = 1,
-  alpha = 0.05, #significance level for testing
-  beta = 1 - 0.8, #power 80% equals type II error (beta) of 0.2
+  alpha = 0.05, # significance level for testing
+  beta = 1 - 0.8, # power 80% equals type II error (beta) of 0.2
   delta = 0.3
 )
 ```
@@ -75,9 +74,11 @@ successProbabilityB <- 0.5
 ya <- rbinom(n = balancedSafeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityA)
 yb <- rbinom(n = balancedSafeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityB)
 
-graphics::plot(x = seq_along(ya), y = cumsum(ya), type = "p", ylim = c(0, max(c(sum(ya), sum(yb)))),
-     xlab = "block number", ylab = "# successes",
-     main = "Total # successes per group over time")
+graphics::plot(
+  x = seq_along(ya), y = cumsum(ya), type = "p", ylim = c(0, max(c(sum(ya), sum(yb)))),
+  xlab = "block number", ylab = "# successes",
+  main = "Total # successes per group over time"
+)
 graphics::points(x = seq_along(yb), y = cumsum(yb), type = "p", col = "grey")
 graphics::legend(x = "topleft", legend = c("A", "B"), col = c("black", "grey"), pch = 1)
 ```
@@ -111,22 +112,24 @@ We might not have enough resources to fund our study to detect the minimal diffe
 load("safe2x2VignetteData/safe2x2SimObject.Rdata")
 ```
 ```{r, eval = FALSE}
-#make the plot voor standard parameter settings
-standardPrior <- list(betaA1 = 0.18,
-                      betaA2 = 0.18,
-                      betaB1 = 0.18,
-                      betaB2 = 0.18)
-#set a seed for the simulations
+# make the plot voor standard parameter settings
+standardPrior <- list(
+  betaA1 = 0.18,
+  betaA2 = 0.18,
+  betaB1 = 0.18,
+  betaB2 = 0.18
+)
+# set a seed for the simulations
 set.seed(1082021)
-sampleSizePerMinimalDifference <- simulateTwoProportions(list(standard = standardPrior), 
-                                           alternativeRestriction = "none", 
-                                           alpha = 0.05, 
-                                           beta = 0.2, 
-                                           na = 1, 
-                                           nb = 1,
-                                           deltamin = 0.3, 
-                                           deltamax = 0.9
-                                         )
+sampleSizePerMinimalDifference <- simulateTwoProportions(list(standard = standardPrior),
+  alternativeRestriction = "none",
+  alpha = 0.05,
+  beta = 0.2,
+  na = 1,
+  nb = 1,
+  deltamin = 0.3,
+  deltamax = 0.9
+)
 ```
 ```{r, echo = FALSE}
 someIndex <- max(which(sampleSizePerMinimalDifference$simdata$worstCaseQuantile <= 50))
@@ -210,24 +213,26 @@ The test for two proportions "learns" from the data as it comes in during the op
 load("safe2x2VignetteData/safe2x2UnbalancedSimObject.Rdata")
 ```
 ```{r, eval = FALSE}
-#make the plot voor standard parameter settings
+# make the plot voor standard parameter settings
 standardPrior <- unbalancedSafeDesign[["betaPriorParameterValues"]]
-uniformLikePrior <- list(betaA1 = 2, # pretend we "have seen" 2 success and 
-                      betaA2 = 2,# 2 failure in group A before starting
-                      betaB1 = 1, # and 1 success and failure in group B 
-                      betaB2 = 1)
-#set a seed for the simulations
+uniformLikePrior <- list(
+  betaA1 = 2, # pretend we "have seen" 2 success and
+  betaA2 = 2, # 2 failure in group A before starting
+  betaB1 = 1, # and 1 success and failure in group B
+  betaB2 = 1
+)
+# set a seed for the simulations
 set.seed(1082021)
 sampleSizePerMinimalDifference <- simulateTwoProportions(
-   hyperparameterList = list(standard = standardPrior, uniform = uniformLikePrior), 
-   alternativeRestriction = "none", 
-   alpha = 0.05, 
-   beta = 0.2, 
-   na = 2, 
-   nb = 1,
-   deltamin = 0.3, 
-   deltamax = 0.9
-  )
+  hyperparameterList = list(standard = standardPrior, uniform = uniformLikePrior),
+  alternativeRestriction = "none",
+  alpha = 0.05,
+  beta = 0.2,
+  na = 2,
+  nb = 1,
+  deltamin = 0.3,
+  deltamax = 0.9
+)
 ```
 ```{r}
 graphics::plot(sampleSizePerMinimalDifference)
@@ -253,10 +258,10 @@ load("safe2x2VignetteData/safe2x2DiffRestrictedDesign.Rdata")
 differenceRestrictedSafeDesign <- designSafeTwoProportions(
   na = 1,
   nb = 1,
-  alpha = 0.05, #significance level for testing
-  beta = 1 - 0.8, #power 80% equals type II error (beta) of 0.2
+  alpha = 0.05, # significance level for testing
+  beta = 1 - 0.8, # power 80% equals type II error (beta) of 0.2
   delta = 0.3,
-  alternativeRestriction = "difference" #also available: logOddsRatio
+  alternativeRestriction = "difference" # also available: logOddsRatio
 )
 ```
 
@@ -272,19 +277,21 @@ In this section, we illustrate the concept of optional stopping under various sc
 #### True effect size equals minimal clinically relevant effect size
 In the figure below the spread of the stopping times among 1,000 simulated experiments is depicted, if the real effect size equals the minimal clinically relevant effect size as planned:
 ```{r}
-#set a seed for the simulations
+# set a seed for the simulations
 set.seed(1082021)
 optionalStoppingResult <- simulateOptionalStoppingScenarioTwoProportions(
-    safeDesign = balancedSafeDesign,
-    M = 1e3,
-    thetaA = 0.2,
-    thetaB = 0.5
+  safeDesign = balancedSafeDesign,
+  M = 1e3,
+  thetaA = 0.2,
+  thetaB = 0.5
 )
 ```
 ```{r}
-plotHistogramDistributionStoppingTimes(safeSim = optionalStoppingResult, 
-                                       nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
-                                       deltaTrue = 0.3)
+plotHistogramDistributionStoppingTimes(
+  safeSim = optionalStoppingResult,
+  nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
+  deltaTrue = 0.3
+)
 ```
 
 We designed the safe test such that we had a minimal power of 0.8, would the data truly come from a distribution with an absolute difference of 0.3 between the proportions of cured patients in the groups. Has this power been achieved?
@@ -295,7 +302,7 @@ optionalStoppingResult[["powerOptioStop"]]
 #### True effect size larger than the minimal clinically relevant effect size
 We have designed the safe test for a minimal clinically relevant effect size, but what would happen if the difference between the groups was even larger in reality, i.e., if the drug had an even bigger effect?
 ```{r}
-#set a seed for the simulations
+# set a seed for the simulations
 set.seed(1082021)
 optionalStoppingResultTrueDifferenceBigger <-
   simulateOptionalStoppingScenarioTwoProportions(
@@ -306,9 +313,11 @@ optionalStoppingResultTrueDifferenceBigger <-
   )
 ```
 ```{r}
-plotHistogramDistributionStoppingTimes(safeSim = optionalStoppingResultTrueDifferenceBigger, 
-                                       nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
-                                       deltaTrue = 0.5)
+plotHistogramDistributionStoppingTimes(
+  safeSim = optionalStoppingResultTrueDifferenceBigger,
+  nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
+  deltaTrue = 0.5
+)
 ```
 
 We would stop, on average, even earlier! The power of the experiment also increases:
@@ -319,17 +328,21 @@ optionalStoppingResultTrueDifferenceBigger[["powerOptioStop"]]
 #### Data under the null: True effect size is zero, thus, much smaller than the minimal clinically relevant effect size
 We can also illustrate what would happen under optional stopping, when our *null hypothesis* that there is no difference between the effect of the drug and the placebo is true:
 ```{r}
-#set a seed for the simulations
+# set a seed for the simulations
 set.seed(1082021)
-optionalStoppingResultTrueDifferenceNull <- simulateOptionalStoppingScenarioTwoProportions(safeDesign = balancedSafeDesign, 
-                                                    M = 1e3, 
-                                                    thetaA = 0.5, 
-                                                    thetaB = 0.5)
+optionalStoppingResultTrueDifferenceNull <- simulateOptionalStoppingScenarioTwoProportions(
+  safeDesign = balancedSafeDesign,
+  M = 1e3,
+  thetaA = 0.5,
+  thetaB = 0.5
+)
 ```
 ```{r}
-plotHistogramDistributionStoppingTimes(safeSim = optionalStoppingResultTrueDifferenceNull, 
-                                       nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
-                                       deltaTrue = 0)
+plotHistogramDistributionStoppingTimes(
+  safeSim = optionalStoppingResultTrueDifferenceNull,
+  nPlan = balancedSafeDesign[["nPlan"]]["nBlocksPlan"],
+  deltaTrue = 0
+)
 ```
 
 The type I error rate has stayed below 0.05, i.e., the percentage of rejected experiments is:
@@ -383,13 +396,19 @@ eValuesNotRejectedNull <-
 ```{r, echo = FALSE}
 trueHist <- graphics::hist(x = eValuesNotRejected, plot = FALSE)
 nullHist <- graphics::hist(x = eValuesNotRejectedNull, plot = FALSE)
-oldPar <- graphics::par(cex.main=1.5, mar=c(5, 6, 4, 4)+0.1, mgp=c(3.5, 1, 0), cex.lab=1.5,
-              font.lab=2, cex.axis=1.3, bty="n", las=1)
-graphics::plot(nullHist, xlim = c(0, max(eValuesNotRejected, eValuesNotRejectedNull)),
-               freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
-               main = "Histogram of e-values where null not rejected")
-graphics::plot(trueHist, add = TRUE, freq = FALSE, col = "red", density = 20,
-               angle = -45)
+oldPar <- graphics::par(
+  cex.main = 1.5, mar = c(5, 6, 4, 4) + 0.1, mgp = c(3.5, 1, 0), cex.lab = 1.5,
+  font.lab = 2, cex.axis = 1.3, bty = "n", las = 1
+)
+graphics::plot(nullHist,
+  xlim = c(0, max(eValuesNotRejected, eValuesNotRejectedNull)),
+  freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
+  main = "Histogram of e-values where null not rejected"
+)
+graphics::plot(trueHist,
+  add = TRUE, freq = FALSE, col = "red", density = 20,
+  angle = -45
+)
 graphics::legend(x = "topright", legend = c("True delta: null", "True delta: design"), fill = c("blue", "red"))
 par(oldPar)
 ```
@@ -400,24 +419,29 @@ Based on this plot we could for example conclude that studies that yielded a fin
 ```{r}
 promisingEValues <- eValuesNotRejected[eValuesNotRejected >= 10]
 followUpDesign <- designSafeTwoProportions(na = 1, nb = 1, nBlocksPlan = 30)
-followUpResults <- simulateOptionalStoppingScenarioTwoProportions(followUpDesign, 
-                                                                  M = length(promisingEValues), 
-                                                                  thetaA = 0.2, thetaB = 0.5)
+followUpResults <- simulateOptionalStoppingScenarioTwoProportions(followUpDesign,
+  M = length(promisingEValues),
+  thetaA = 0.2, thetaB = 0.5
+)
 newEValues <- followUpResults[["eValues"]] * promisingEValues
 ```
 ```{r, echo = FALSE, cache = FALSE}
 trueHist <- graphics::hist(x = newEValues, plot = FALSE)
-oldPar <- graphics::par(cex.main=1.5, mar=c(5, 6, 4, 4)+0.1, mgp=c(3.5, 1, 0), cex.lab=1.5,
-                        font.lab=2, cex.axis=1.3, bty="n", las=1)
-graphics::plot(trueHist, xlim = c(0, max(newEValues)),
-               freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
-               main = "Histogram of e-values after continuing data collection")
+oldPar <- graphics::par(
+  cex.main = 1.5, mar = c(5, 6, 4, 4) + 0.1, mgp = c(3.5, 1, 0), cex.lab = 1.5,
+  font.lab = 2, cex.axis = 1.3, bty = "n", las = 1
+)
+graphics::plot(trueHist,
+  xlim = c(0, max(newEValues)),
+  freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
+  main = "Histogram of e-values after continuing data collection"
+)
 par(oldPar)
 ```
 
 We now have rejected the null hypothesis in:
 ```{r, cache = FALSE}
-sum(newEValues >= 20)/length(promisingEValues)
+sum(newEValues >= 20) / length(promisingEValues)
 ```
 
 60% of the continued experiments.
@@ -427,9 +451,11 @@ What happens when we apply this optional continuation when the data are truly ge
 promisingEValuesNull <-
   eValuesNotRejectedNull[eValuesNotRejectedNull >= 1]
 followUpDesign <-
-  designSafeTwoProportions(na = 1,
-                           nb = 1,
-                           nBlocksPlan = 30)
+  designSafeTwoProportions(
+    na = 1,
+    nb = 1,
+    nBlocksPlan = 30
+  )
 followUpResults <-
   simulateOptionalStoppingScenarioTwoProportions(
     followUpDesign,
@@ -442,11 +468,15 @@ newEValuesNull <-
 ```
 ```{r, echo = FALSE, cache = FALSE}
 nullHist <- graphics::hist(x = newEValuesNull, plot = FALSE)
-oldPar <- graphics::par(cex.main=1.5, mar=c(5, 6, 4, 4)+0.1, mgp=c(3.5, 1, 0), cex.lab=1.5,
-                        font.lab=2, cex.axis=1.3, bty="n", las=1)
-graphics::plot(nullHist, xlim = c(0, max(newEValuesNull)),
-               freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
-               main = "Histogram of e-values after continuing data collection under the null")
+oldPar <- graphics::par(
+  cex.main = 1.5, mar = c(5, 6, 4, 4) + 0.1, mgp = c(3.5, 1, 0), cex.lab = 1.5,
+  font.lab = 2, cex.axis = 1.3, bty = "n", las = 1
+)
+graphics::plot(nullHist,
+  xlim = c(0, max(newEValuesNull)),
+  freq = FALSE, col = "blue", density = 20, angle = 45, xlab = "e-values",
+  main = "Histogram of e-values after continuing data collection under the null"
+)
 par(oldPar)
 ```
 
@@ -460,12 +490,14 @@ For the two-by-two contingency tables, we have developed confidence sequences fo
 #### Confidence sequence for difference between success rates
 Let us again use the example from above, where we wanted to compare probabilities of being cured for two groups of patients, one receiving a placebo and one a new treatment. However, now, we do not want to test *if* there exists a difference between the groups, but we want to generate an *estimate of that difference*. We again consider the setting where we plan to collect approximately 100 data blocks, i.e., 100 patients per group. We re-use the data generated in the previous experiment, with success probability 0.2 in the placebo group, and 0.5 in the treated group. The code below is used to iterate over the observed data blocks and store the confidence interval observed at each time point:
 ```{r, eval = FALSE}
-plotConfidenceSequenceTwoProportions(ya = ya,
-                                     yb = yb,
-                                     safeDesign = balancedSafeDesign, 
-                                     differenceMeasure = "difference",
-                                     precision = 100, 
-                                     trueDifference = 0.3)
+plotConfidenceSequenceTwoProportions(
+  ya = ya,
+  yb = yb,
+  safeDesign = balancedSafeDesign,
+  differenceMeasure = "difference",
+  precision = 100,
+  trueDifference = 0.3
+)
 ```
 ![](safe2x2VignetteData/safe2x2ConfidencePlot.png)
 
@@ -482,10 +514,12 @@ The code below can be used to check that our confidence sequence indeed offers t
 load("safe2x2VignetteData/safe2x2Coverage.Rdata")
 ```
 ```{r, eval = FALSE}
-coverageSimResult <- simulateCoverageDifferenceTwoProportions(successProbabilityA = 0.2,
-                                           trueDelta = 0.3,
-                                           safeDesign = balancedSafeDesign,
-                                           numberForSeed = 1082021)
+coverageSimResult <- simulateCoverageDifferenceTwoProportions(
+  successProbabilityA = 0.2,
+  trueDelta = 0.3,
+  safeDesign = balancedSafeDesign,
+  numberForSeed = 1082021
+)
 ```
 ```{r}
 print(coverageSimResult)
@@ -498,7 +532,7 @@ Due to the mathematical properties of this measure, for the log of the odds rati
 
 Let us again look at the example above, where the success probability in the treatment group was 0.5, and 0.2 in the placebo group. The true log odds ratio for this scenario is:
 ```{r}
-log(0.5/0.5 * 0.8/0.2)
+log(0.5 / 0.5 * 0.8 / 0.2)
 ```
 
 We can estimate a lower bound for the log of the odds ratio based on the data. We have to provide the interval to search over, and the precision to search with for this lower bound.
@@ -514,13 +548,15 @@ We can estimate a lower bound for the log of the odds ratio based on the data. W
 load("safe2x2VignetteData/safe2x2ConfidenceOdds.Rdata")
 ```
 ```{r, eval = FALSE}
-confidenceBoundOdds <- computeConfidenceBoundForLogOddsTwoProportions(ya = ya,
-                                           yb = yb, 
-                                           safeDesign = balancedSafeDesign,
-                                           bound = "lower", 
-                                           precision = 100, 
-                                           deltaStart = 0.001, 
-                                           deltaStop = 2)
+confidenceBoundOdds <- computeConfidenceBoundForLogOddsTwoProportions(
+  ya = ya,
+  yb = yb,
+  safeDesign = balancedSafeDesign,
+  bound = "lower",
+  precision = 100,
+  deltaStart = 0.001,
+  deltaStop = 2
+)
 ```
 ```{r}
 print(confidenceBoundOdds)
@@ -530,25 +566,29 @@ We see that the true log odds ratio lies above this lower bound, and that an odd
 
 When the user accidentally asks for the "wrong" type of bound to be calculated, for example, for an upper bound when the ML estimate of the logarithm of the odds ratio is positive, a warning message is displayed:
 ```{r}
-computeConfidenceBoundForLogOddsTwoProportions(ya = ya,
-                                           yb = yb, 
-                                           safeDesign = balancedSafeDesign,
-                                           bound = "upper", 
-                                           precision = 10, 
-                                           deltaStart = -0.01, 
-                                           deltaStop = -2)
+computeConfidenceBoundForLogOddsTwoProportions(
+  ya = ya,
+  yb = yb,
+  safeDesign = balancedSafeDesign,
+  bound = "upper",
+  precision = 10,
+  deltaStart = -0.01,
+  deltaStop = -2
+)
 ```
 
 As with the difference confidence sequence, we can visualize how the confidence sequence converges over the data blocks:
 ```{r, eval = FALSE}
-plotConfidenceSequenceTwoProportions(ya = ya,
-                                     yb = yb,
-                                     safeDesign = balancedSafeDesign, 
-                                     differenceMeasure = "odds",
-                                     precision = 100, 
-                                     trueDifference = log(0.5/0.5 * 0.8/0.2),
-                                     deltaStart = 0.001,
-                                     deltaStop = 2)
+plotConfidenceSequenceTwoProportions(
+  ya = ya,
+  yb = yb,
+  safeDesign = balancedSafeDesign,
+  differenceMeasure = "odds",
+  precision = 100,
+  trueDifference = log(0.5 / 0.5 * 0.8 / 0.2),
+  deltaStart = 0.001,
+  deltaStop = 2
+)
 ```
 ![](safe2x2VignetteData/safe2x2ConfidenceOdds.png)
 

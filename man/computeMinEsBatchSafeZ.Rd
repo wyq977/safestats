@@ -14,7 +14,10 @@ computeMinEsBatchSafeZ(
   alternative = c("twoSided", "greater", "less"),
   testType = c("oneSample", "paired", "twoSample"),
   parameter = NULL,
-  maxIter = 10
+  eType = c("mom", "eGauss", "imom", "eCauchy", "grow"),
+  lowEsTrue = 0.01,
+  highEsTrue = 0.002,
+  ...
 )
 }
 \arguments{
@@ -37,9 +40,28 @@ and "phiS". Note that 1-beta defines the power.}
 
 \item{testType}{either one of "oneSample", "paired", "twoSample".}
 
-\item{parameter}{optional test defining parameter. Default set to \code{NULL}.}
+\item{parameter}{optional numeric test defining parameter. Default set to \code{NULL}.
+For eType=="eCauchy" the numerator is a mixture with meanDiff/sigma mixed
+over a Cauchy distribution centred at zero and scale kappaG. For eType=="eGauss"
+the numerator is a mixture with meanDiff/sigma mixed over a Gaussian centred at
+zero and variance g. For eType=="grow" the safe test is a likelihood ratio of z distributions with in the
+denominator the likelihood with mean difference 0 and in the numerator an average
+likelihood defined by the likelihood at the parameter value phiS. For the two sided
+case 1/2 at -phiS and 1/2 phiS.}
 
-\item{maxIter}{maximum number of iterations in the optimisation process for two-sided designs}
+\item{eType}{character one of "eCauchy", "eGauss", "grow". "eCauchy" yields e-values based on
+a Cauchy mixture, "eGauss" based on a Gaussian/normal mixture, and "grow" based on a mixture of
+two point masses at the minimal clinically relevant effect size.}
+
+\item{lowEsTrue}{numeric, lower bound for the candidate set of the
+targeted minimal clinically relevant effect size.
+Design scenario 3: nPlan and beta given, goal find meanDiffMin}
+
+\item{highEsTrue}{numeric, upper bound for the candidate set of the
+targeted minimal clinically relevant effect size.
+Design scenario 3: nPlan and beta given, goal find meanDiffMin}
+
+\item{...}{further arguments to be passed to or from methods.}
 }
 \value{
 numeric > 0 that represents the minimal detectable mean difference
@@ -47,4 +69,7 @@ numeric > 0 that represents the minimal detectable mean difference
 \description{
 Computes the smallest mean difference that is detectable with chance 1-beta, for the provided
 sample size
+}
+\examples{
+computeMinEsBatchSafeZ(27)
 }

@@ -2,29 +2,30 @@
 % Please edit documentation in R/tTest.R
 \name{computeNPlanSafeT}
 \alias{computeNPlanSafeT}
-\title{Helper function: Computes the planned sample size of the safe t-test based on the
+\title{Helper function: Computes the planned sample size of the safe T-test based on the
 minimal clinical relevant standardised mean difference.}
 \usage{
 computeNPlanSafeT(
-  deltaMin,
+  deltaTrue,
   beta = 0.2,
   alpha = 0.05,
   alternative = c("twoSided", "less", "greater"),
   testType = c("oneSample", "paired", "twoSample"),
-  lowN = 3,
-  highN = 1e+06,
   ratio = 1,
-  nSim = 1000L,
-  nBoot = 1000L,
   parameter = NULL,
+  nMax = 1e+08,
+  eType = c("mom", "eGauss", "imom", "eCauchy", "grow", "lai", "bayarri"),
+  wantSamplePaths = TRUE,
   pb = TRUE,
-  nMax = 1e+06,
-  seed = NULL
+  seed = NULL,
+  nSim = 1000L,
+  nBoot = nSim,
+  ...
 )
 }
 \arguments{
-\item{deltaMin}{numeric that defines the minimal relevant standardised effect size, the smallest effect size that
-we would the experiment to be able to detect.}
+\item{deltaTrue}{numeric, the value of the true standardised effect size (test-relevant parameter).
+This argument is used by `designSafeT()` with `deltaTrue <- deltaMin`}
 
 \item{beta}{numeric in (0, 1) that specifies the tolerable type II error control necessary to calculate both
 the sample sizes and deltaS, which defines the test. Note that 1-beta defines the power.}
@@ -37,14 +38,30 @@ designed test has to adhere to. Note that it also defines the rejection rule e10
 
 \item{testType}{either one of "oneSample", "paired", "twoSample".}
 
-\item{lowN}{integer minimal sample size of the (first) sample when computing the power due to
-optional stopping. Default lowN is set 1.}
-
-\item{highN}{integer minimal sample size of the (first) sample when computing the power due to
-optional stopping. Default highN is set 1e6.}
-
 \item{ratio}{numeric > 0 representing the randomisation ratio of condition 2 over condition 1. If testType
 is not equal to "twoSample", or if nPlan is of length(1) then ratio=1.}
+
+\item{parameter}{optional numeric test defining parameter. Default set to \code{NULL}.
+For eType=="eCauchy" the numerator is a mixture with meanDiff/sigma mixed
+over a Cauchy distribution centred at zero and scale kappaG. For eType=="eGauss"
+the numerator is a mixture with meanDiff/sigma mixed over a Gaussian centred at
+zero and variance g. For eType=="grow" the safe test is a likelihood ratio of the
+non-central t-distributions with in the denominator the likelihood with non-centrality
+parameter set to 0, and in the numerator an average likelihood defined by the likelihood
+at the non-centrality parameter value deltaS. For the two sided
+case 1/2 at -deltaS and 1/2 deltaS.}
+
+\item{nMax}{integer > 0, maximum sample size of the (first) sample in each sample path.}
+
+\item{eType}{character one of "eCauchy", "eGauss", "grow". "eCauchy" yields e-values based on
+a Cauchy mixture, "eGauss" based on a Gaussian/normal mixture, and "grow" based on a mixture of
+two point masses at the minimal clinically relevant standardised effect size.}
+
+\item{wantSamplePaths}{logical, if \code{TRUE} then also outputs the sample paths.}
+
+\item{pb}{logical, if \code{TRUE}, then show progress bar.}
+
+\item{seed}{integer, seed number.}
 
 \item{nSim}{integer > 0, the number of simulations needed to compute power or the number of samples paths
 for the safe z test under continuous monitoring.}
@@ -53,19 +70,13 @@ for the safe z test under continuous monitoring.}
 approximation of the power, the number of samples for the safe z test under continuous monitoring,
 or for the computation of the logarithm of the implied target.}
 
-\item{parameter}{optional test defining parameter. Default set to \code{NULL}.}
-
-\item{pb}{logical, if \code{TRUE}, then show progress bar.}
-
-\item{nMax}{integer > 0, maximum sample size of the (first) sample in each sample path.}
-
-\item{seed}{integer, seed number.}
+\item{...}{further arguments to be passed to or from methods, but mainly to perform do.calls.}
 }
 \value{
-a list which contains at least nPlan and an adapted bootObject of class  \code{\link[boot]{boot}}.
+a list which contains at least nPlan and an adapted bootObject of class  \code{\link[boot]{boot}()}.
 }
 \description{
-Helper function: Computes the planned sample size of the safe t-test based on the
+Helper function: Computes the planned sample size of the safe T-test based on the
 minimal clinical relevant standardised mean difference.
 }
 \examples{

@@ -3,52 +3,63 @@
 \name{safeZTest}
 \alias{safeZTest}
 \alias{safe.z.test}
+\alias{safeZTest.default}
+\alias{safeZTest.formula}
 \title{Safe Z-Test}
 \usage{
-safeZTest(
+safeZTest(x, ...)
+
+\method{safeZTest}{default}(
   x,
   y = NULL,
   paired = FALSE,
   designObj = NULL,
-  pilot = FALSE,
   ciValue = NULL,
-  tol = 1e-05,
-  na.rm = FALSE,
+  maxRoot = 10,
+  sequential = NULL,
   ...
 )
 
-safe.z.test(
-  x,
-  y = NULL,
-  paired = FALSE,
-  designObj = NULL,
-  pilot = FALSE,
-  tol = 1e-05,
-  ...
-)
+\method{safeZTest}{formula}(formula, data, subset, na.action, ...)
+
+safe.z.test(x, y = NULL, paired = FALSE, designObj = NULL, ...)
 }
 \arguments{
 \item{x}{a (non-empty) numeric vector of data values.}
 
+\item{...}{further arguments to be passed to or from methods.}
+
 \item{y}{an optional (non-empty) numeric vector of data values.}
 
-\item{paired}{a logical indicating whether you want the paired z-test.}
+\item{paired}{a logical indicating whether you want the paired Z-test.}
 
 \item{designObj}{an object obtained from \code{\link{designSafeZ}()}, or \code{NULL}, when pilot is set to \code{TRUE}.}
 
-\item{pilot}{a logical indicating whether a pilot study is run. If \code{TRUE}, it is assumed that the number of
-samples is exactly as planned. The default null h0=1 is used, alpha=0.05, and alternative="twoSided" is used.
-To change these default values, please use \code{\link{designSafeZ}()}.}
-
 \item{ciValue}{numeric is the ciValue-level of the confidence sequence. Default ciValue=NULL, and ciValue = 1 - alpha}
 
-\item{tol}{numeric > 0, only used if pilot equals \code{TRUE}, as it then specifies the mesh used to find the test
-defining parameter to construct a pilot design object.}
+\item{maxRoot}{Used to bound the candidate set of width of the confidence interval,
+whenever eType="eCauchy"}
 
-\item{na.rm}{a logical value indicating whether \code{NA} values should be stripped before
-the computation proceeds.}
+\item{sequential}{a logical indicating whether a sequential
+analysis should be performed.}
 
-\item{...}{further arguments to be passed to or from methods.}
+\item{formula}{a formula of the form lhs ~ rhs where lhs
+is a numeric variable giving the data values and rhs
+either 1 for a one-sample or paired test or a factor
+with two levels giving the corresponding groups. If lhs
+is of class "Pair" and rhs is 1, a paired test is done}
+
+\item{data}{an optional matrix or data frame (or similar:
+see \code{\link[stats]{model.frame}()}) containing the variables in
+the formula. By default the variables are taken from
+environment(formula).}
+
+\item{subset}{an optional vector specifying a subset of
+observations to be used.}
+
+\item{na.action}{a function which indicates what should
+happen when the data contain \code{NA}s. Defaults to
+getOption("na.action").}
 }
 \value{
 Returns an object of class 'safeTest'. An object of class 'safeTest' is a list containing at least the
@@ -71,18 +82,69 @@ following components:
 }
 }
 \description{
-Safe one and two sample z-tests on vectors of data. The function is modelled after \code{\link[stats]{t.test}()}.
+Safe one and two sample Z-tests on vectors of data. The function is modelled after \code{\link[stats]{t.test}()}.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{safeZTest(default)}: Default S3 method
+
+\item \code{safeZTest(formula)}: S3 method for class 'formula'
+
+}}
+\section{Functions}{
+\itemize{
+\item \code{safe.z.test()}: Alias for safeZTest
+
+}}
 \examples{
 
-designObj <- designSafeZ(meanDiffMin=0.6, alpha=0.008,
-                         alternative="greater", testType="twoSample",
-                         ratio=1.2)
+# Examples taken from stats::t.test
 
-set.seed(1)
-x <- rnorm(100)
-y <- rnorm(100)
-safeZTest(x, y, designObj=designObj)      #
+# Test without a designObj is not ideal
+# Especially now sigma is totally off,
+# because this is a z-test instead of a
+# t-test.
+safeZTest(1:10, y = c(7:20))      # e = 70.454 > 20
 
-safeZTest(1:10, y = c(7:20), pilot=TRUE, alternative="less")      # s = 7.7543e+20 > 1/alpha
+
+# See ?designSafeZ for more info
+designObj <- designSafeZ(meanDiffMin=0.6, alpha=0.05,
+                         alternative="twoSided",
+                         testType="twoSample", sigma=3)
+
+safeZTest(1:10, y = c(7:20), designObj=designObj)
+
+# Mimicking the stats::t.test interface.
+# Standard calls use the camelCased version though
+safe.z.test(1:10, y = c(7:20), designObj=designObj)
+
+# Formulas versions
+#
+## Classical example: Student's sleep data
+plot(extra ~ group, data = sleep)
+## Traditional interface
+with(sleep, safeZTest(extra[group == 1], extra[group == 2],
+                      designObj=designObj))
+
+designObj <- designSafeZ(meanDiffMin=0.6, sigma=2,
+                         testType="twoSample")
+## Formula interface
+safeZTest(extra ~ group, data = sleep, designObj=designObj)
+
+## Formula interface to one-sample test
+designObj1 <- designSafeZ(meanDiffMin=0.6,
+                          testType="oneSample",
+                          sigma=2)
+
+safeZTest(extra ~ 1, data = sleep, designObj=designObj1)
+
+## Formula interface to paired test
+## The sleep data are actually paired, so could have been in wide format:
+designObjPaired <- designSafeZ(meanDiffMin=0.6,
+                               testType="paired",
+                               sigma=1.4)
+sleep2 <- reshape(sleep, direction = "wide",
+                  idvar = "ID", timevar = "group")
+safeZTest(Pair(extra.1, extra.2) ~ 1, data = sleep2,
+          designObj=designObjPaired)
 }

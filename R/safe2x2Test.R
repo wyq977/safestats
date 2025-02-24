@@ -1,4 +1,4 @@
-#EXPORT --------------------------------------------------------------------
+# EXPORT --------------------------------------------------------------------
 #' Designs a Safe Experiment to Test Two Proportions in Stream Data
 #'
 #' The design requires the number of observations one expects to collect in each group in each data block.
@@ -57,41 +57,49 @@
 #' @export
 #'
 #' @examples
-#' #plan for an experiment to detect minimal difference of 0.6 with a balanced design
+#' # plan for an experiment to detect minimal difference of 0.6 with a balanced design
 #' set.seed(3152021)
-#' designSafeTwoProportions(na = 1,
-#'                          nb = 1,
-#'                          alpha = 0.1,
-#'                          beta = 0.20,
-#'                          delta = 0.6,
-#'                          alternativeRestriction = "none",
-#'                          M = 75)
+#' designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   alpha = 0.1,
+#'   beta = 0.20,
+#'   delta = 0.6,
+#'   alternativeRestriction = "none",
+#'   M = 75
+#' )
 #'
-#' #safe analysis of a pilot: number of samples already known
-#' designSafeTwoProportions(na = 1,
-#'                           nb = 1,
-#'                           nBlocksPlan = 20,
-#'                           pilot = TRUE)
+#' # safe analysis of a pilot: number of samples already known
+#' designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 20,
+#'   pilot = TRUE
+#' )
 #'
-#' #specify own hyperparameters
+#' # specify own hyperparameters
 #' hyperParameterValues <- list(betaA1 = 10, betaA2 = 1, betaB1 = 1, betaB2 = 10)
-#' designSafeTwoProportions(na = 1,
-#'                          nb = 1,
-#'                          alpha = 0.1,
-#'                          beta = 0.20,
-#'                          delta = 0.6,
-#'                          hyperParameterValues = hyperParameterValues,
-#'                          alternativeRestriction = "none",
-#'                          M = 75)
+#' designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   alpha = 0.1,
+#'   beta = 0.20,
+#'   delta = 0.6,
+#'   hyperParameterValues = hyperParameterValues,
+#'   alternativeRestriction = "none",
+#'   M = 75
+#' )
 #'
-#' #restrict range of proportions for estimating nPlan in the control group
-#' designSafeTwoProportions(na = 1,
-#'                          nb = 1,
-#'                          beta = 0.20,
-#'                          delta = 0.3,
-#'                          alternativeRestriction = "none",
-#'                          M = 75,
-#'                          simThetaAMin = 0.1, simThetaAMax = 0.2)
+#' # restrict range of proportions for estimating nPlan in the control group
+#' designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   beta = 0.20,
+#'   delta = 0.3,
+#'   alternativeRestriction = "none",
+#'   M = 75,
+#'   simThetaAMin = 0.1, simThetaAMax = 0.2
+#' )
 #'
 designSafeTwoProportions <- function(na, nb,
                                      nBlocksPlan = NULL,
@@ -104,7 +112,7 @@ designSafeTwoProportions <- function(na, nb,
                                      previousSafeTestResult = NULL,
                                      M = 1e3,
                                      simThetaAMin = NULL,
-                                     simThetaAMax = NULL){
+                                     simThetaAMax = NULL) {
   alternativeRestriction <- match.arg(alternativeRestriction)
 
   if (alternativeRestriction %in% c("difference", "logOddsRatio") & !is.numeric(delta)) {
@@ -112,20 +120,22 @@ designSafeTwoProportions <- function(na, nb,
   }
 
   note <- NULL
-  #First, check for given hyperParameters or set them
+  # First, check for given hyperParameters or set them
   if (!is.null(previousSafeTestResult)) {
-    #use posterior for hyperparameter settings
+    # use posterior for hyperparameter settings
     hyperParameterValues <- previousSafeTestResult[["posteriorHyperParameters"]]
     priorValuesForPrint <- paste(hyperParameterValues, collapse = " ")
     note <- c(note, "Hyperparameters set according to posterior values from previous test result")
   } else if (is.null(hyperParameterValues)) {
-    #use the default
-    hyperParameterValues <- list(betaA1 = 0.18, betaB1 = (nb/na)*0.18,
-                        betaA2 = 0.18, betaB2 = (nb/na)*0.18)
+    # use the default
+    hyperParameterValues <- list(
+      betaA1 = 0.18, betaB1 = (nb / na) * 0.18,
+      betaA2 = 0.18, betaB2 = (nb / na) * 0.18
+    )
     priorValuesForPrint <- "standard, REGRET optimal"
     note <- c(note, "Optimality of hyperparameters only verified for equal group sizes (na = nb = 1)")
   } else {
-    #user provided manually: perform checks
+    # user provided manually: perform checks
     if (!all(c("betaA1", "betaA2", "betaB1", "betaB2") %in% names(hyperParameterValues))) {
       stop("Provide hyperparameters as a named list for betaA1, betaA2, betaB1 and betaB2, see help file.")
     }
@@ -140,87 +150,100 @@ designSafeTwoProportions <- function(na, nb,
   logImpliedTarget <- nPlanTwoSe <- betaTwoSe <- logImpliedTargetTwoSe <- NULL
 
   if (!is.null(simThetaAMin) & !is.null(simThetaAMax)) {
-    note <- c(note, paste0("Estimations and standard deviations calculated for worst case control event rate in range from ",
-                           simThetaAMin, " to ", simThetaAMax))
+    note <- c(note, paste0(
+      "Estimations and standard deviations calculated for worst case control event rate in range from ",
+      simThetaAMin, " to ", simThetaAMax
+    ))
   }
 
-  #Check each possible design scenario
+  # Check each possible design scenario
   if (is.null(nBlocksPlan) && (is.numeric(delta) && delta != 0) && !is.null(beta)) {
-    #scenario 1a: delta + power known, calculate nPlan
-    nSimulationResult <- simulateWorstCaseQuantileTwoProportions(delta = delta,
-                                                                 na = na, nb = nb,
-                                                                 priorValues = hyperParameterValues,
-                                                                 alternativeRestriction = alternativeRestriction,
-                                                                 alpha = alpha, beta = beta, M = M,
-                                                                 thetaAMin = simThetaAMin, thetaAMax = simThetaAMax)
+    # scenario 1a: delta + power known, calculate nPlan
+    nSimulationResult <- simulateWorstCaseQuantileTwoProportions(
+      delta = delta,
+      na = na, nb = nb,
+      priorValues = hyperParameterValues,
+      alternativeRestriction = alternativeRestriction,
+      alpha = alpha, beta = beta, M = M,
+      thetaAMin = simThetaAMin, thetaAMax = simThetaAMax
+    )
     nBlocksPlan <- nSimulationResult[["worstCaseQuantile"]]
     nPlanTwoSe <- c(0, 0, nSimulationResult[["worstCaseQuantileTwoSe"]])
   } else if (!is.null(nBlocksPlan) && !(is.numeric(delta) && delta != 0) && is.null(beta)) {
-    #scenario 1c: only nPlan known, can perform a pilot (no warning though)
+    # scenario 1c: only nPlan known, can perform a pilot (no warning though)
     pilot <- TRUE
   } else if (!is.null(nBlocksPlan) && (is.numeric(delta) && delta != 0) && is.null(beta)) {
-    #scenario 2: given effect size and nPlan, calculate power and implied target
-    worstCaseSimulationResult <- simulateWorstCaseQuantileTwoProportions(delta = delta,
-                                                                         na = na, nb = nb,
-                                                                         priorValues = hyperParameterValues,
-                                                                         alternativeRestriction = alternativeRestriction,
-                                                                         maxSimStoptime = nBlocksPlan,
-                                                                         alpha = alpha, beta = 0, M = M,
-                                                                         estimateImpliedTarget = TRUE,
-                                                                         thetaAMin = simThetaAMin, thetaAMax = simThetaAMax)
+    # scenario 2: given effect size and nPlan, calculate power and implied target
+    worstCaseSimulationResult <- simulateWorstCaseQuantileTwoProportions(
+      delta = delta,
+      na = na, nb = nb,
+      priorValues = hyperParameterValues,
+      alternativeRestriction = alternativeRestriction,
+      maxSimStoptime = nBlocksPlan,
+      alpha = alpha, beta = 0, M = M,
+      estimateImpliedTarget = TRUE,
+      thetaAMin = simThetaAMin, thetaAMax = simThetaAMax
+    )
     beta <- 1 - worstCaseSimulationResult[["worstCasePower"]]
     betaTwoSe <- worstCaseSimulationResult[["worstCasePowerTwoSe"]]
     logImpliedTarget <- worstCaseSimulationResult[["logImpliedTarget"]]
     logImpliedTargetTwoSe <- worstCaseSimulationResult[["logImpliedTargetTwoSe"]]
   } else if (!is.null(nBlocksPlan) && !(is.numeric(delta) && delta != 0) && !is.null(beta)) {
-    #scenario 3: given power and nPlan, calculate minimal effect size to be "detected"
-    delta <- simulateWorstCaseDeltaTwoProportions(na = na, nb = nb, priorValues = hyperParameterValues,
-                                    alternativeRestriction = alternativeRestriction,
-                                    alpha = alpha, beta = beta, M = M, maxSimStoptime = nBlocksPlan)
+    # scenario 3: given power and nPlan, calculate minimal effect size to be "detected"
+    delta <- simulateWorstCaseDeltaTwoProportions(
+      na = na, nb = nb, priorValues = hyperParameterValues,
+      alternativeRestriction = alternativeRestriction,
+      alpha = alpha, beta = beta, M = M, maxSimStoptime = nBlocksPlan
+    )
     if (length(delta) == 0) {
       stop("For this sample size and power, no effect size below deltamax yielded the desired power")
     }
   } else {
-    #also includes scenario 1b: only delta known, raise error
+    # also includes scenario 1b: only delta known, raise error
     stop("Provide two of nBlocksPlan, delta and power, or only nBlocksPlan for a pilot with default settings.")
   }
 
-  #in the scenario's we accept now, there always is an nBlocksPlan not null
+  # in the scenario's we accept now, there always is an nBlocksPlan not null
   nPlan <- c(na, nb, nBlocksPlan)
   names(nPlan) <- c("na", "nb", "nBlocksPlan")
 
   alternative <- switch(alternativeRestriction,
-                        "none" = "twoSided",
-                        "difference" = ifelse(delta < 0, "less", "greater"),
-                        "logOddsRatio" = ifelse(delta < 0, "less", "greater"))
+    "none" = "twoSided",
+    "difference" = ifelse(delta < 0, "less", "greater"),
+    "logOddsRatio" = ifelse(delta < 0, "less", "greater")
+  )
 
   if (!is.null(delta)) {
     names(delta) <- ifelse(alternativeRestriction == "logOddsRatio", "log odds ratio", "difference")
   }
 
   testType <- "2x2"
+  testName <- "Two Proportions"
   h0 <- 0
 
-  result <- list("nPlan"=nPlan,
-                 "nPlanTwoSe" = nPlanTwoSe,
-                 "parameter"= priorValuesForPrint,
-                 "betaPriorParameterValues" = hyperParameterValues,
-                 "alpha"=alpha,
-                 "beta"=beta,
-                 "betaTwoSe" = betaTwoSe,
-                 "logImpliedTarget" = logImpliedTarget,
-                 "logImpliedTargetTwoSe" = logImpliedTargetTwoSe,
-                 "esMin" = delta,
-                 "h0"= h0,
-                 "testType"=testType,
-                 "alternativeRestriction" = alternativeRestriction,
-                 "alternative" = alternative,
-                 "pilot" = pilot,
-                 "lowN"=NULL,
-                 "highN"=NULL,
-                 "call"=sys.call(),
-                 "timeStamp"=Sys.time(),
-                 "note" = note)
+  result <- list(
+    "nPlan" = nPlan,
+    "nPlanTwoSe" = nPlanTwoSe,
+    "parameter" = priorValuesForPrint,
+    "betaPriorParameterValues" = hyperParameterValues,
+    "alpha" = alpha,
+    "beta" = beta,
+    "betaTwoSe" = betaTwoSe,
+    "logImpliedTarget" = logImpliedTarget,
+    "logImpliedTargetTwoSe" = logImpliedTargetTwoSe,
+    "esMin" = delta,
+    "h0" = h0,
+    "testType" = testType,
+    "testName" = testName,
+    "alternativeRestriction" = alternativeRestriction,
+    "alternative" = alternative,
+    "pilot" = pilot,
+    "lowN" = NULL,
+    "highN" = NULL,
+    "call" = sys.call(),
+    "timeStamp" = Sys.time(),
+    "note" = note
+  )
   class(result) <- "safeDesign"
 
   return(result)
@@ -261,58 +284,70 @@ designSafeTwoProportions <- function(na, nb,
 #' @export
 #'
 #' @examples
-#' #balanced design
-#' yb <- c(1,0,1,1,1,0,1)
-#' ya <- c(1,0,1,0,0,0,1)
-#' safeDesign <- designSafeTwoProportions(na = 1,
-#'                                        nb = 1,
-#'                                        beta = 0.20,
-#'                                        delta = 0.6,
-#'                                        alternativeRestriction = "none",
-#'                                        M = 1e1)
+#' # balanced design
+#' yb <- c(1, 0, 1, 1, 1, 0, 1)
+#' ya <- c(1, 0, 1, 0, 0, 0, 1)
+#' safeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   beta = 0.20,
+#'   delta = 0.6,
+#'   alternativeRestriction = "none",
+#'   M = 1e1
+#' )
 #' safeTwoProportionsTest(ya = ya, yb = yb, designObj = safeDesign)
 #'
-#' #pilot
+#' # pilot
 #' safeTwoProportionsTest(ya = ya, yb = yb, pilot = TRUE)
 #'
-#' #unbalanced design
-#' yb <- c(1,0,1,1,1,0,1)
-#' ya <- c(2,2,1,2,0,2,2)
-#' safeDesign <- designSafeTwoProportions(na = 2,
-#'                                        nb = 1,
-#'                                        beta = 0.20,
-#'                                        delta = 0.6,
-#'                                        alternativeRestriction = "none",
-#'                                        M = 1e1)
+#' # unbalanced design
+#' yb <- c(1, 0, 1, 1, 1, 0, 1)
+#' ya <- c(2, 2, 1, 2, 0, 2, 2)
+#' safeDesign <- designSafeTwoProportions(
+#'   na = 2,
+#'   nb = 1,
+#'   beta = 0.20,
+#'   delta = 0.6,
+#'   alternativeRestriction = "none",
+#'   M = 1e1
+#' )
 #' safeTwoProportionsTest(ya = ya, yb = yb, designObj = safeDesign)
 #'
 safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSequence = FALSE, ciValue = NULL,
                                    confidenceBoundGridPrecision = 20, logOddsConfidenceSearchBounds = c(0.01, 5), pilot = FALSE) {
   if (is.null(designObj) & !pilot) {
-    stop("Please provide a safe 2x2 design object, or run the function with pilot=TRUE.",
-         "A design object can be obtained by running designSafeTwoProportions().")
+    stop(
+      "Please provide a safe 2x2 design object, or run the function with pilot=TRUE.",
+      "A design object can be obtained by running designSafeTwoProportions()."
+    )
   }
 
   if (length(ya) != length(yb)) {
-    stop("Can only process complete data blocks: provide vectors with numbers of positive observations per timepoint,",
-         "see example in helpfile.")
+    stop(
+      "Can only process complete data blocks: provide vectors with numbers of positive observations per timepoint,",
+      "see example in helpfile."
+    )
   }
 
   if (pilot) {
-    designObj <- designSafeTwoProportions(na = 1, nb = 1, nBlocksPlan = length(ya),
-                                          alternativeRestriction = "none", pilot = TRUE)
+    designObj <- designSafeTwoProportions(
+      na = 1, nb = 1, nBlocksPlan = length(ya),
+      alternativeRestriction = "none", pilot = TRUE
+    )
   }
 
   if (any(ya > designObj[["nPlan"]][["na"]] | ya < 0) | any(yb > designObj[["nPlan"]][["nb"]] | yb < 0)) {
     stop("Provided sample sizes within blocks, na and nb, do not match provided ya and yb.")
   }
 
-  eValue <- calculateSequential2x2E(aSample = ya, bSample = yb,
-                                    priorValues = designObj[["betaPriorParameterValues"]],
-                                    restriction = designObj[["alternativeRestriction"]],
-                                    delta = designObj[["esMin"]],
-                                    na = designObj[["nPlan"]][["na"]],
-                                    nb = designObj[["nPlan"]][["nb"]])
+  eValue <- calculateSequential2x2E(
+    aSample = ya, bSample = yb,
+    priorValues = designObj[["betaPriorParameterValues"]],
+    restriction = designObj[["alternativeRestriction"]],
+    delta = designObj[["esMin"]],
+    na = designObj[["nPlan"]][["na"]],
+    nb = designObj[["nPlan"]][["nb"]]
+  )
 
   confInt <- NULL
   if (wantConfidenceSequence) {
@@ -320,24 +355,26 @@ safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSeque
     originalAlpha <- designObj[["alpha"]]
     ciAlpha <- 1 - ciValue
 
-    #for the confidence calculation, set design alpha to the ci alpha
-    #as this could differ in an exploratory setting
+    # for the confidence calculation, set design alpha to the ci alpha
+    # as this could differ in an exploratory setting
     designObj[["alpha"]] <- ciAlpha
 
     if (designObj[["alternativeRestriction"]] == "logOddsRatio") {
-      #we can only give a lower OR an upper bound
-      #if delta > 0, we hypothesize thetaB > thetaA and can estimate a lower bound
+      # we can only give a lower OR an upper bound
+      # if delta > 0, we hypothesize thetaB > thetaA and can estimate a lower bound
       boundDirection <- ifelse(designObj[["esMin"]] > 0, "lower", "upper")
       gridBounds <- sign(designObj[["esMin"]]) * logOddsConfidenceSearchBounds
-      confidenceBound <- computeConfidenceBoundForLogOddsTwoProportions(ya = ya,
-                                                     yb = yb,
-                                                     safeDesign = designObj,
-                                                     bound = boundDirection,
-                                                     deltaStart = gridBounds[1],
-                                                     deltaStop = gridBounds[2],
-                                                     precision = confidenceBoundGridPrecision)
-      #fill in the bound we could not estimate (due to non-convexity of H0 in that direction)
-      #with infinity
+      confidenceBound <- computeConfidenceBoundForLogOddsTwoProportions(
+        ya = ya,
+        yb = yb,
+        safeDesign = designObj,
+        bound = boundDirection,
+        deltaStart = gridBounds[1],
+        deltaStop = gridBounds[2],
+        precision = confidenceBoundGridPrecision
+      )
+      # fill in the bound we could not estimate (due to non-convexity of H0 in that direction)
+      # with infinity
       if (confidenceBound == 0) {
         confInt <- c(-Inf, Inf)
       } else if (confidenceBound > 0) {
@@ -347,15 +384,15 @@ safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSeque
       }
     } else {
       confidenceBounds <- computeConfidenceBoundsForDifferenceTwoProportions(
-         ya = ya,
-         yb = yb,
-         precision = confidenceBoundGridPrecision,
-         safeDesign = designObj
-       )
+        ya = ya,
+        yb = yb,
+        precision = confidenceBoundGridPrecision,
+        safeDesign = designObj
+      )
       confInt <- c(confidenceBounds[["lowerBound"]], confidenceBounds[["upperBound"]])
     }
 
-    #return the original alpha after calculating with the ciAlpha design
+    # return the original alpha after calculating with the ciAlpha design
     designObj[["alpha"]] <- originalAlpha
   }
 
@@ -363,25 +400,27 @@ safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSeque
   xLabel <- extractNameFromArgs(argumentNames, "ya")
   yLabel <- extractNameFromArgs(argumentNames, "yb")
   dataName <- paste(xLabel, "and", yLabel)
-  n <- c(length(ya)*designObj[["nPlan"]][["na"]], length(yb)*designObj[["nPlan"]][["nb"]])
+  n <- c(length(ya) * designObj[["nPlan"]][["na"]], length(yb) * designObj[["nPlan"]][["nb"]])
   names(n) <- c("nObsA", "nObsB")
 
-  #calculate the posterior: prior parameters from original design, plus successes and failures
-  #seen in this experiment
+  # calculate the posterior: prior parameters from original design, plus successes and failures
+  # seen in this experiment
   posteriorHyperParameters <- list(
     betaA1 = sum(ya) + designObj[["betaPriorParameterValues"]][["betaA1"]],
-    betaB1 = length(ya)*designObj[["nPlan"]][["na"]] - sum(ya) + designObj[["betaPriorParameterValues"]][["betaA2"]],
+    betaB1 = length(ya) * designObj[["nPlan"]][["na"]] - sum(ya) + designObj[["betaPriorParameterValues"]][["betaA2"]],
     betaA2 = sum(yb) + designObj[["betaPriorParameterValues"]][["betaB1"]],
-    betaB2 = length(yb)*designObj[["nPlan"]][["nb"]] - sum(yb) + designObj[["betaPriorParameterValues"]][["betaB2"]]
+    betaB2 = length(yb) * designObj[["nPlan"]][["nb"]] - sum(yb) + designObj[["betaPriorParameterValues"]][["betaB2"]]
   )
 
-  testResult <- list(designObj = designObj,
-                     eValue = eValue,
-                     dataName = dataName,
-                     n = n,
-                     posteriorHyperParameters = posteriorHyperParameters,
-                     ciValue = ciValue,
-                     confSeq = confInt)
+  testResult <- list(
+    designObj = designObj,
+    eValue = eValue,
+    dataName = dataName,
+    n = n,
+    posteriorHyperParameters = posteriorHyperParameters,
+    ciValue = ciValue,
+    confSeq = confInt
+  )
   class(testResult) <- "safeTest"
 
   return(testResult)
@@ -394,14 +433,20 @@ safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSeque
 #' @export
 safe.prop.test <- function(ya, yb, designObj = NULL, wantConfidenceSequence = FALSE, ciValue = NULL,
                            confidenceBoundGridPrecision = 20, logOddsConfidenceSearchBounds = c(0.01, 5), pilot = FALSE) {
-  safeTestResult <- tryCatch(safeTwoProportionsTest(ya = ya, yb = yb, designObj = designObj,
-                                                    wantConfidenceSequence = wantConfidenceSequence, ciValue = ciValue,
-                                                    confidenceBoundGridPrecision = confidenceBoundGridPrecision,
-                                                    logOddsConfidenceSearchBounds = logOddsConfidenceSearchBounds, pilot = pilot),
-                  error = function(e){e})
+  safeTestResult <- tryCatch(
+    safeTwoProportionsTest(
+      ya = ya, yb = yb, designObj = designObj,
+      wantConfidenceSequence = wantConfidenceSequence, ciValue = ciValue,
+      confidenceBoundGridPrecision = confidenceBoundGridPrecision,
+      logOddsConfidenceSearchBounds = logOddsConfidenceSearchBounds, pilot = pilot
+    ),
+    error = function(e) {
+      e
+    }
+  )
 
   if (!is.null(safeTestResult[["message"]])) {
-    #safeTwoProportionsTest has thrown an error - return neatly, as from this call
+    # safeTwoProportionsTest has thrown an error - return neatly, as from this call
     stop(safeTestResult[["message"]])
   } else {
     return(safeTestResult)
@@ -456,7 +501,7 @@ safe.prop.test <- function(ya, yb, designObj = NULL, wantConfidenceSequence = FA
 #'   alpha = 0.1, beta = 0.2, na = 1, nb = 1,
 #'   deltamax = -0.4, deltamin = -0.9, deltaGridSize = 3,
 #'   M = 10
-#'   )
+#' )
 #'
 #' print(simResult)
 #' plot(simResult)
@@ -471,63 +516,70 @@ simulateTwoProportions <- function(hyperparameterList,
                                    deltaGridSize = 8,
                                    M = 1e2,
                                    maxSimStoptime = 1e4,
-                                   thetaAgridSize = 8){
-
+                                   thetaAgridSize = 8) {
   deltaVec <- seq(deltamax, deltamin, length.out = deltaGridSize)
   resultDataFrame <- data.frame()
 
-  #use list names to index and return the result
+  # use list names to index and return the result
   if (is.null(names(hyperparameterList))) {
     names(hyperparameterList) <- paste("setting", 1:length(hyperparameterList), sep = "")
   }
 
-  #for every prior, simulate the worst-case 1 - beta stopping times
-  #for a grid of delta values
+  # for every prior, simulate the worst-case 1 - beta stopping times
+  # for a grid of delta values
   for (hyperparameterSet in names(hyperparameterList)) {
     message(paste("Retrieving worst case stopping times for hyperparameter set ", hyperparameterSet))
     for (deltaGenerating in deltaVec) {
-      worstCase <- simulateWorstCaseQuantileTwoProportions(na = na, nb = nb,
-                                 priorValues = hyperparameterList[[hyperparameterSet]],
-                                 alternativeRestriction = alternativeRestriction,
-                                 alpha = alpha, beta = beta,
-                                 delta = deltaGenerating,
-                                 deltaDesign = deltaDesign,
-                                 M = M,
-                                 maxSimStoptime = maxSimStoptime,
-                                 gridSize = thetaAgridSize)[["worstCaseQuantile"]]
-      resultDataFrame <- rbind(resultDataFrame,
-                               data.frame(hyperparameters = hyperparameterSet,
-                                          delta = deltaGenerating,
-                                          worstCaseQuantile = worstCase)
-                               )
+      worstCase <- simulateWorstCaseQuantileTwoProportions(
+        na = na, nb = nb,
+        priorValues = hyperparameterList[[hyperparameterSet]],
+        alternativeRestriction = alternativeRestriction,
+        alpha = alpha, beta = beta,
+        delta = deltaGenerating,
+        deltaDesign = deltaDesign,
+        M = M,
+        maxSimStoptime = maxSimStoptime,
+        gridSize = thetaAgridSize
+      )[["worstCaseQuantile"]]
+      resultDataFrame <- rbind(
+        resultDataFrame,
+        data.frame(
+          hyperparameters = hyperparameterSet,
+          delta = deltaGenerating,
+          worstCaseQuantile = worstCase
+        )
+      )
     }
   }
 
-  #now we know the worst case quantiles, retrieve expected stopping times
+  # now we know the worst case quantiles, retrieve expected stopping times
   message(paste("Retrieving all expected stopping times given the worst case stopping times"))
   for (i in 1:nrow(resultDataFrame)) {
-    resultDataFrame[i,"expected"] <- simulateWorstCaseQuantileTwoProportions(na = na, nb = nb,
-                                          priorValues = hyperparameterList[[resultDataFrame[i, "hyperparameters"]]],
-                                          alternativeRestriction = alternativeRestriction,
-                                          alpha = alpha, beta = 0,
-                                          delta = resultDataFrame[i, "delta"],
-                                          deltaDesign = deltaDesign,
-                                          M = M,
-                                          #now we stop, each experiment,
-                                          #maximally at the worst case stoptime for 80% power
-                                          maxSimStoptime = ceiling(resultDataFrame[i,"worstCaseQuantile"]),
-                                          gridSize = thetaAgridSize,
-                                          #and we calculate the expectation instead of a (1-b) quantile
-                                          expectedStopTime = TRUE)[["worstCaseQuantile"]]
+    resultDataFrame[i, "expected"] <- simulateWorstCaseQuantileTwoProportions(
+      na = na, nb = nb,
+      priorValues = hyperparameterList[[resultDataFrame[i, "hyperparameters"]]],
+      alternativeRestriction = alternativeRestriction,
+      alpha = alpha, beta = 0,
+      delta = resultDataFrame[i, "delta"],
+      deltaDesign = deltaDesign,
+      M = M,
+      # now we stop, each experiment,
+      # maximally at the worst case stoptime for 80% power
+      maxSimStoptime = ceil(resultDataFrame[i, "worstCaseQuantile"]),
+      gridSize = thetaAgridSize,
+      # and we calculate the expectation instead of a (1-b) quantile
+      expectedStopTime = TRUE
+    )[["worstCaseQuantile"]]
   }
 
-  simResult <- list(simdata = resultDataFrame,
-                    alpha = alpha,
-                    beta = beta,
-                    deltaDesign = deltaDesign,
-                    restriction = alternativeRestriction,
-                    hyperparameters = hyperparameterList
-                    )
+  simResult <- list(
+    simdata = resultDataFrame,
+    alpha = alpha,
+    beta = beta,
+    deltaDesign = deltaDesign,
+    restriction = alternativeRestriction,
+    hyperparameters = hyperparameterList
+  )
   class(simResult) <- "safe2x2Sim"
   return(simResult)
 }
@@ -552,26 +604,32 @@ simulateTwoProportions <- function(hyperparameterList,
 #'   alpha = 0.1, beta = 0.2, na = 1, nb = 1,
 #'   deltamax = -0.4, deltamin = -0.9, deltaGridSize = 3,
 #'   M = 10
-#'   )
-print.safe2x2Sim <- function(x, ...){
+#' )
+print.safe2x2Sim <- function(x, ...) {
   cat("Simulation results for test of two proportions")
   cat("\n\n")
 
   cat("Simulations ran with alpha =", x[["alpha"]], "and beta =", x[["beta"]], ".\n")
   if (!is.null(x[["deltaDesign"]])) {
-    cat("The alternative hypothesis was restricted based on a",
-        x[["restriction"]], "of", x[["deltaDesign"]], ".\n")
+    cat(
+      "The alternative hypothesis was restricted based on a",
+      x[["restriction"]], "of", x[["deltaDesign"]], ".\n"
+    )
   }
 
   cat("The following hyperparameter settings were evaluated:\n")
   displayList <- list()
   for (i in 1:length(x[["hyperparameters"]])) {
-    displaytext <- paste(names(x[["hyperparameters"]][[i]]), unlist(x[["hyperparameters"]][[i]]), sep = " = ",
-                         collapse = "; ")
+    displaytext <- paste(names(x[["hyperparameters"]][[i]]), unlist(x[["hyperparameters"]][[i]]),
+      sep = " = ",
+      collapse = "; "
+    )
     displayList[[names(x[["hyperparameters"]])[i]]] <- displaytext
   }
   cat(paste(format(names(displayList), width = 20L, justify = "right"),
-            format(displayList), sep = ": "), sep = "\n")
+    format(displayList),
+    sep = ": "
+  ), sep = "\n")
   cat("and yielded the following results:\n")
   print(x[["simdata"]], justify = "right")
 }
@@ -596,55 +654,61 @@ print.safe2x2Sim <- function(x, ...){
 #'   alpha = 0.1, beta = 0.2, na = 1, nb = 1,
 #'   deltamax = -0.4, deltamin = -0.9, deltaGridSize = 3,
 #'   M = 10
-#'   )
+#' )
 #'
 #' plot(simResult)
 #'
-plot.safe2x2Sim <- function(x, ...){
+plot.safe2x2Sim <- function(x, ...) {
   if (is.null(x[["deltaDesign"]])) {
     mainTitle <- "Worst case and expected stopping times without restriction on H1"
   } else {
-    mainTitle <- paste("Worst case and expected stopping times with a restriction on the",
-                               x[["restriction"]], "of", round(x[["deltaDesign"]],2))
+    mainTitle <- paste(
+      "Worst case and expected stopping times with a restriction on the",
+      x[["restriction"]], "of", round(x[["deltaDesign"]], 2)
+    )
   }
-  subTitle <- bquote(alpha == .(x[["alpha"]]) ~"," ~ beta == .(x[["beta"]]))
+  subTitle <- bquote(alpha == .(x[["alpha"]]) ~ "," ~ beta == .(x[["beta"]]))
 
-  xmin <- min(x[["simdata"]][,"delta"])
-  xmax <- max(x[["simdata"]][,"delta"])
+  xmin <- min(x[["simdata"]][, "delta"])
+  xmax <- max(x[["simdata"]][, "delta"])
   ymin <- 0
-  ymax <- ceiling(max(x[["simdata"]][,c("worstCaseQuantile", "expected")]))
+  ymax <- ceil(max(x[["simdata"]][, c("worstCaseQuantile", "expected")]))
 
   xlab <- paste("divergence value:", ifelse(x[["restriction"]] == "logOddsRatio", "log odds ratio", "difference"))
 
-  graphics::plot(x = 1, type = "n",
-                 xlim = c(xmin, xmax),
-                 ylim = c(ymin, ymax),
-                 xlab = xlab,
-                 ylab = "stopping time (m collected)",
-                 main = mainTitle,
-                 sub = subTitle,
-                 col = "lightgrey")
+  graphics::plot(
+    x = 1, type = "n",
+    xlim = c(xmin, xmax),
+    ylim = c(ymin, ymax),
+    xlab = xlab,
+    ylab = "stopping time (m collected)",
+    main = mainTitle,
+    sub = subTitle,
+    col = "lightgrey"
+  )
 
-  priorcolors <- grDevices::rainbow(length(unique(x[["simdata"]][,"hyperparameters"])))
-  names(priorcolors) <- unique(x[["simdata"]][,"hyperparameters"])
+  priorcolors <- grDevices::rainbow(length(unique(x[["simdata"]][, "hyperparameters"])))
+  names(priorcolors) <- unique(x[["simdata"]][, "hyperparameters"])
 
-  #first, add the worst case stopping times
-  for (hyperparameters in unique(x[["simdata"]][,"hyperparameters"])) {
-    plotData <- x[["simdata"]][x[["simdata"]]$hyperparameters == hyperparameters,]
+  # first, add the worst case stopping times
+  for (hyperparameters in unique(x[["simdata"]][, "hyperparameters"])) {
+    plotData <- x[["simdata"]][x[["simdata"]]$hyperparameters == hyperparameters, ]
     linecolor <- priorcolors[hyperparameters]
-    graphics::lines(x = plotData[,"delta"], y = plotData[,"worstCaseQuantile"], col = linecolor, lty = 2, lwd = 2)
+    graphics::lines(x = plotData[, "delta"], y = plotData[, "worstCaseQuantile"], col = linecolor, lty = 2, lwd = 2)
   }
 
-  #then, add the expected stopping times
-  for (hyperparameters in unique(x[["simdata"]][,"hyperparameters"])) {
-    plotData <- x[["simdata"]][x[["simdata"]]$hyperparameters == hyperparameters,]
+  # then, add the expected stopping times
+  for (hyperparameters in unique(x[["simdata"]][, "hyperparameters"])) {
+    plotData <- x[["simdata"]][x[["simdata"]]$hyperparameters == hyperparameters, ]
     linecolor <- priorcolors[hyperparameters]
-    graphics::lines(x = plotData[,"delta"], y = plotData[,"expected"], col = linecolor, lty = 1, lwd = 2)
+    graphics::lines(x = plotData[, "delta"], y = plotData[, "expected"], col = linecolor, lty = 1, lwd = 2)
   }
 
-  graphics::legend(x = "topright", legend = c(names(priorcolors), "worst case", "expected"),
-                   col = c(priorcolors, "grey", "grey"),
-                   lty = c(rep(2, length(priorcolors)), 2, 1), lwd = 2)
+  graphics::legend(
+    x = "topright", legend = c(names(priorcolors), "worst case", "expected"),
+    col = c(priorcolors, "grey", "grey"),
+    lty = c(rep(2, length(priorcolors)), 2, 1), lwd = 2
+  )
 }
 
 #' Estimate Lower and Upper Bounds on the Confidence Sequence (Interval)
@@ -664,34 +728,40 @@ plot.safe2x2Sim <- function(x, ...){
 #' @importFrom rlang .data
 #'
 #' @examples
-#' balancedSafeDesign <- designSafeTwoProportions(na = 1,
-#'                                                nb = 1,
-#'                                                nBlocksPlan = 10,
-#'                                                alpha = 0.05)
-#' ya <- c(1,1,1,1,1,1,1,1,0,1)
-#' yb <- c(0,0,0,0,1,0,0,0,0,0)
-#' computeConfidenceBoundsForDifferenceTwoProportions(ya = ya,
-#'                                                yb = yb,
-#'                                                precision = 20,
-#'                                                safeDesign = balancedSafeDesign)
+#' balancedSafeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 10,
+#'   alpha = 0.05
+#' )
+#' ya <- c(1, 1, 1, 1, 1, 1, 1, 1, 0, 1)
+#' yb <- c(0, 0, 0, 0, 1, 0, 0, 0, 0, 0)
+#' computeConfidenceBoundsForDifferenceTwoProportions(
+#'   ya = ya,
+#'   yb = yb,
+#'   precision = 20,
+#'   safeDesign = balancedSafeDesign
+#' )
 #'
 computeConfidenceBoundsForDifferenceTwoProportions <- function(ya,
-                                                           yb,
-                                                           precision,
-                                                           safeDesign){
+                                                               yb,
+                                                               precision,
+                                                               safeDesign) {
   na <- safeDesign[["nPlan"]][["na"]]
   nb <- safeDesign[["nPlan"]][["nb"]]
   alpha <- safeDesign[["alpha"]]
 
-  eValuesDeltaGrid <- calculateEValuesForLinearDeltaGrid(ya = ya, yb = yb,
-                                                         na = na, nb = nb,
-                                                         priorParameters = safeDesign[["betaPriorParameterValues"]],
-                                                         precision = precision,
-                                                         alpha = alpha,
-                                                         runningIntersection = TRUE)
-  #include in the CS: not rejected delta values
+  eValuesDeltaGrid <- calculateEValuesForLinearDeltaGrid(
+    ya = ya, yb = yb,
+    na = na, nb = nb,
+    priorParameters = safeDesign[["betaPriorParameterValues"]],
+    precision = precision,
+    alpha = alpha,
+    runningIntersection = TRUE
+  )
+  # include in the CS: not rejected delta values
   ciSummary <- eValuesDeltaGrid %>%
-    dplyr::filter(.data[["E"]] < 1/alpha) %>%
+    dplyr::filter(.data[["E"]] < 1 / alpha) %>%
     dplyr::summarise(lowerBound = min(.data[["delta"]]), upperBound = max(.data[["delta"]]))
 
   return(as.list(ciSummary))
@@ -724,59 +794,65 @@ computeConfidenceBoundsForDifferenceTwoProportions <- function(ya,
 #' @importFrom rlang .data
 #'
 #' @examples
-#' balancedSafeDesign <- designSafeTwoProportions(na = 1,
-#'                                                nb = 1,
-#'                                                nBlocksPlan = 10,
-#'                                                alpha = 0.05)
-#' #hypothesize OR < 1 (i.e., log OR < 0)
-#' ya <- c(1,1,1,1,1,1,1,1,0,1)
-#' yb <- c(0,0,0,0,1,0,0,0,0,0)
-#' #one-sided CI for OR-, establish upper bound on log odds ratio
-#' computeConfidenceBoundForLogOddsTwoProportions(ya = ya,
-#'                                            yb = yb,
-#'                                            safeDesign = balancedSafeDesign,
-#'                                            bound = "upper",
-#'                                            deltaStart = -0.01,
-#'                                            deltaStop = -4,
-#'                                            precision = 20)
+#' balancedSafeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 10,
+#'   alpha = 0.05
+#' )
+#' # hypothesize OR < 1 (i.e., log OR < 0)
+#' ya <- c(1, 1, 1, 1, 1, 1, 1, 1, 0, 1)
+#' yb <- c(0, 0, 0, 0, 1, 0, 0, 0, 0, 0)
+#' # one-sided CI for OR-, establish upper bound on log odds ratio
+#' computeConfidenceBoundForLogOddsTwoProportions(
+#'   ya = ya,
+#'   yb = yb,
+#'   safeDesign = balancedSafeDesign,
+#'   bound = "upper",
+#'   deltaStart = -0.01,
+#'   deltaStop = -4,
+#'   precision = 20
+#' )
 #'
 computeConfidenceBoundForLogOddsTwoProportions <- function(ya,
-                                                       yb,
-                                                       safeDesign,
-                                                       bound = c("lower", "upper"),
-                                                       deltaStart,
-                                                       deltaStop,
-                                                       precision){
+                                                           yb,
+                                                           safeDesign,
+                                                           bound = c("lower", "upper"),
+                                                           deltaStart,
+                                                           deltaStop,
+                                                           precision) {
   na <- safeDesign[["nPlan"]][["na"]]
   nb <- safeDesign[["nPlan"]][["nb"]]
   priorParameters <- safeDesign[["betaPriorParameterValues"]]
   alpha <- safeDesign[["alpha"]]
-  bound = match.arg(bound)
-  lowerBound = ifelse(bound == "lower", TRUE, FALSE)
+  bound <- match.arg(bound)
+  lowerBound <- ifelse(bound == "lower", TRUE, FALSE)
 
-  eValuesDeltaGrid <- calculateEValuesForOddsDeltaGrid(ya = ya, yb = yb,
-                                                       na = na, nb = nb,
-                                                       lowerBound = lowerBound,
-                                                       priorParameters = priorParameters,
-                                                       precision = precision,
-                                                       deltaStart = deltaStart,
-                                                       deltaStop = deltaStop,
-                                                       alpha = alpha)
+  eValuesDeltaGrid <- calculateEValuesForOddsDeltaGrid(
+    ya = ya, yb = yb,
+    na = na, nb = nb,
+    lowerBound = lowerBound,
+    priorParameters = priorParameters,
+    precision = precision,
+    deltaStart = deltaStart,
+    deltaStop = deltaStop,
+    alpha = alpha
+  )
 
-  if (all(eValuesDeltaGrid$E < 1/alpha)) {
+  if (all(eValuesDeltaGrid$E < 1 / alpha)) {
     warning(paste("No", bound, "bound could be established; try different bound or smaller deltaStart"))
     return(0)
   }
 
   deltaBound <- as.numeric(
     eValuesDeltaGrid %>%
-     dplyr::group_by(.data[["delta"]]) %>%
-     dplyr::filter(.data[["block"]] == max(.data[["block"]])) %>%
-     dplyr::ungroup() %>%
-     dplyr::filter(.data[["E"]] < 1/alpha) %>%
-     #lower bound: the smallest delta we did not reject
-     #upper bound: the biggest delta we did not reject
-     dplyr::summarise(bound = ifelse(lowerBound, min(.data[["delta"]]), max(.data[["delta"]])))
+      dplyr::group_by(.data[["delta"]]) %>%
+      dplyr::filter(.data[["block"]] == max(.data[["block"]])) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(.data[["E"]] < 1 / alpha) %>%
+      # lower bound: the smallest delta we did not reject
+      # upper bound: the biggest delta we did not reject
+      dplyr::summarise(bound = ifelse(lowerBound, min(.data[["delta"]]), max(.data[["delta"]])))
   )
 
   return(deltaBound)
@@ -807,9 +883,11 @@ computeConfidenceBoundForLogOddsTwoProportions <- function(ya,
 #' @export
 #'
 #' @examples
-#' balancedSafeDesign <- designSafeTwoProportions(na = 1,
-#'                                                nb = 1,
-#'                                                nBlocksPlan = 30)
+#' balancedSafeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 30
+#' )
 #' optionalStoppingSimulationResult <- simulateOptionalStoppingScenarioTwoProportions(
 #'   safeDesign = balancedSafeDesign,
 #'   M = 1e2,
@@ -819,41 +897,45 @@ computeConfidenceBoundForLogOddsTwoProportions <- function(ya,
 simulateOptionalStoppingScenarioTwoProportions <- function(safeDesign,
                                                            M,
                                                            thetaA,
-                                                           thetaB){
-
+                                                           thetaB) {
   stoppingTimes <- stopEs <- numeric(M)
 
   for (i in 1:M) {
-    #For every m, draw a sample of max streamlength and record the time
-    #at which we would have stopped
-    ya <- rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"],
-                 size = safeDesign[["nPlan"]]["na"],
-                 prob = thetaA
+    # For every m, draw a sample of max streamlength and record the time
+    # at which we would have stopped
+    ya <- stats::rbinom(
+      n = safeDesign[["nPlan"]]["nBlocksPlan"],
+      size = safeDesign[["nPlan"]]["na"],
+      prob = thetaA
     )
-    yb <- rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"],
-                 size = safeDesign[["nPlan"]]["nb"],
-                 prob = thetaB
+    yb <- stats::rbinom(
+      n = safeDesign[["nPlan"]]["nBlocksPlan"],
+      size = safeDesign[["nPlan"]]["nb"],
+      prob = thetaB
     )
-    simResult <- calculateSequential2x2E(aSample = ya, bSample = yb,
-                                         priorValues = safeDesign[["betaPriorParameterValues"]],
-                                         restriction = safeDesign[["alternativeRestriction"]],
-                                         #if explicitly passsed deltaDesign (neq delta), use that one for test
-                                         #e.g. when studying effect of overestimated/ underestimated effect size
-                                         delta = safeDesign[["esMin"]],
-                                         na = safeDesign[["nPlan"]]["na"],
-                                         nb = safeDesign[["nPlan"]]["nb"],
-                                         simSetting = TRUE,
-                                         alphaSim = safeDesign[["alpha"]])
+    simResult <- calculateSequential2x2E(
+      aSample = ya, bSample = yb,
+      priorValues = safeDesign[["betaPriorParameterValues"]],
+      restriction = safeDesign[["alternativeRestriction"]],
+      # if explicitly passsed deltaDesign (neq delta), use that one for test
+      # e.g. when studying effect of overestimated/ underestimated effect size
+      delta = safeDesign[["esMin"]],
+      na = safeDesign[["nPlan"]]["na"],
+      nb = safeDesign[["nPlan"]]["nb"],
+      simSetting = TRUE,
+      alphaSim = safeDesign[["alpha"]]
+    )
     stoppingTimes[i] <- simResult[["stopTime"]]
     stopEs[i] <- simResult[["stopE"]]
   }
 
-  allSafeDecisions <- stopEs >= (1/safeDesign[["alpha"]])
-  safeSim <- list("powerOptioStop"= mean(allSafeDecisions),
-                  "nMean"= mean(stoppingTimes),
-                  "probLessNDesign"= mean(stoppingTimes < safeDesign[["nPlan"]]["nBlocksPlan"]),
-                  "lowN"= min(stoppingTimes),
-                  "eValues"=stopEs
+  allSafeDecisions <- stopEs >= (1 / safeDesign[["alpha"]])
+  safeSim <- list(
+    "powerOptioStop" = mean(allSafeDecisions),
+    "nMean" = mean(stoppingTimes),
+    "probLessNDesign" = mean(stoppingTimes < safeDesign[["nPlan"]]["nBlocksPlan"]),
+    "lowN" = min(stoppingTimes),
+    "eValues" = stopEs
   )
 
   safeSim[["allN"]] <- stoppingTimes
@@ -879,32 +961,32 @@ simulateOptionalStoppingScenarioTwoProportions <- function(safeDesign,
 #' @export
 #'
 #' @examples
-#' simulateIncorrectStoppingTimesFisher(thetaA = 0.3,
-#'                                      thetaB = 0.3,
-#'                                      alpha = 0.05,
-#'                                      na = 1,
-#'                                      nb = 1,
-#'                                      M = 10,
-#'                                      maxSimStoptime = 100,
-#'                                      numberForSeed = 251)
+#' simulateIncorrectStoppingTimesFisher(
+#'   thetaA = 0.3,
+#'   thetaB = 0.3,
+#'   alpha = 0.05,
+#'   na = 1,
+#'   nb = 1,
+#'   M = 10,
+#'   maxSimStoptime = 100,
+#'   numberForSeed = 251
+#' )
 simulateIncorrectStoppingTimesFisher <- function(thetaA, thetaB, alpha,
                                                  na, nb,
                                                  maxSimStoptime = 1e4,
-                                                 M = 1e3, numberForSeed = NULL){
-
-  #setup
+                                                 M = 1e3, numberForSeed = NULL) {
+  # setup
   stoppingTimes <- rejections <- numeric(M)
   numberForSeed <- ifelse(is.null(numberForSeed), Sys.time(), numberForSeed)
   set.seed(numberForSeed)
 
-  groupSizeVecA <- (1:maxSimStoptime)*na
-  groupSizeVecB <- (1:maxSimStoptime)*nb
+  groupSizeVecA <- (1:maxSimStoptime) * na
+  groupSizeVecB <- (1:maxSimStoptime) * nb
 
   for (m in 1:M) {
-
-    #simulate data
-    ya <- rbinom(n = maxSimStoptime, size = na, prob = thetaA)
-    yb <- rbinom(n = maxSimStoptime, size = nb, prob = thetaB)
+    # simulate data
+    ya <- stats::rbinom(n = maxSimStoptime, size = na, prob = thetaA)
+    yb <- stats::rbinom(n = maxSimStoptime, size = nb, prob = thetaB)
 
     successAVec <- cumsum(ya)
     successBVec <- cumsum(yb)
@@ -912,23 +994,26 @@ simulateIncorrectStoppingTimesFisher <- function(thetaA, thetaB, alpha,
     failAVec <- groupSizeVecA - successAVec
     failBVec <- groupSizeVecB - successBVec
     for (i in 5:maxSimStoptime) {
-      #new data come in
+      # new data come in
       successA <- successAVec[i]
       failA <- failAVec[i]
       successB <- successBVec[i]
       failB <- failBVec[i]
 
-      #Fisher's exact test with all data seen so far
-      pVal <- tryCatch(fisher.test(matrix(data = c(successA, failA, successB, failB), nrow = 2, byrow = TRUE))$p.value,
-                       error = function(e){return(1)})
+      # Fisher's exact test with all data seen so far
+      pVal <- tryCatch(stats::fisher.test(matrix(data = c(successA, failA, successB, failB), nrow = 2, byrow = TRUE))$p.value,
+        error = function(e) {
+          return(1)
+        }
+      )
 
-      #if first significant result, record stopping time
+      # if first significant result, record stopping time
       if (pVal <= alpha) {
         stoppingTimes[m] <- i
         rejections[m] <- 1
         break()
       }
-      #if we have reached last iteration, we have not stopped; register max stopping time
+      # if we have reached last iteration, we have not stopped; register max stopping time
       if (i == maxSimStoptime) {
         stoppingTimes[m] <- maxSimStoptime
         rejections[m] <- 0
@@ -964,33 +1049,41 @@ simulateIncorrectStoppingTimesFisher <- function(thetaA, thetaB, alpha,
 #' set.seed(39413)
 #' ya <- rbinom(n = 30, size = 1, prob = 0.1)
 #' yb <- rbinom(n = 30, size = 1, prob = 0.8)
-#' balancedSafeDesign <- designSafeTwoProportions(na = 1,
-#'                                                nb = 1,
-#'                                                nBlocksPlan = 30)
-#' plotConfidenceSequenceTwoProportions(ya = ya,
-#'                                      yb = yb,
-#'                                      safeDesign = balancedSafeDesign,
-#'                                      differenceMeasure = "difference",
-#'                                      precision = 15,
-#'                                      trueDifference = 0.7)
+#' balancedSafeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 30
+#' )
+#' plotConfidenceSequenceTwoProportions(
+#'   ya = ya,
+#'   yb = yb,
+#'   safeDesign = balancedSafeDesign,
+#'   differenceMeasure = "difference",
+#'   precision = 15,
+#'   trueDifference = 0.7
+#' )
 #'
-#' #log odds ratio difference measure
-#' plotConfidenceSequenceTwoProportions(ya = ya,
-#'                                      yb = yb,
-#'                                      safeDesign = balancedSafeDesign,
-#'                                      differenceMeasure = "odds",
-#'                                      precision = 15,
-#'                                      deltaStop = 5,
-#'                                      trueDifference = log(36))
+#' # log odds ratio difference measure
+#' plotConfidenceSequenceTwoProportions(
+#'   ya = ya,
+#'   yb = yb,
+#'   safeDesign = balancedSafeDesign,
+#'   differenceMeasure = "odds",
+#'   precision = 15,
+#'   deltaStop = 5,
+#'   trueDifference = log(36)
+#' )
 #'
-#' #switch ya and yb: observe negative log odds ratio in the data, plot mirrored in x-axis
-#' plotConfidenceSequenceTwoProportions(ya = yb,
-#'                                      yb = ya,
-#'                                      safeDesign = balancedSafeDesign,
-#'                                      differenceMeasure = "odds",
-#'                                      precision = 15,
-#'                                      deltaStop = 5,
-#'                                      trueDifference = -log(36))
+#' # switch ya and yb: observe negative log odds ratio in the data, plot mirrored in x-axis
+#' plotConfidenceSequenceTwoProportions(
+#'   ya = yb,
+#'   yb = ya,
+#'   safeDesign = balancedSafeDesign,
+#'   differenceMeasure = "odds",
+#'   precision = 15,
+#'   deltaStop = 5,
+#'   trueDifference = -log(36)
+#' )
 #'
 plotConfidenceSequenceTwoProportions <- function(ya, yb,
                                                  safeDesign,
@@ -998,7 +1091,7 @@ plotConfidenceSequenceTwoProportions <- function(ya, yb,
                                                  precision = 100,
                                                  deltaStart = 0.001,
                                                  deltaStop = 3,
-                                                 trueDifference = NA){
+                                                 trueDifference = NA) {
   differenceMeasure <- match.arg(differenceMeasure)
 
   if (differenceMeasure == "difference") {
@@ -1013,53 +1106,59 @@ plotConfidenceSequenceTwoProportions <- function(ya, yb,
       lowerBounds[m] <- confidenceInterval[["lowerBound"]]
       upperBounds[m] <- confidenceInterval[["upperBound"]]
     }
-    graphics::plot(x = 1:length(ya), y = lowerBounds, ylim = c(-1, 1), col = "blue", type = "l",
-                   xlab = "data block number", ylab = "difference",
-                   main = "Upper and lower bound confidence sequence for difference")
+    graphics::plot(
+      x = 1:length(ya), y = lowerBounds, ylim = c(-1, 1), col = "blue", type = "l",
+      xlab = "data block number", ylab = "difference",
+      main = "Upper and lower bound confidence sequence for difference"
+    )
     graphics::lines(x = 1:length(yb), y = upperBounds, col = "red")
     graphics::abline(h = 0, lty = 2, col = "grey")
     if (!is.na(trueDifference)) {
       graphics::abline(h = trueDifference, lty = 4, col = "black")
     }
   } else {
-    positiveLOREstimate <- (sum(yb)/length(yb) - sum(ya)/length(ya)) > 0
-    #delta in [0, -infty], we are estimating an upper bound
+    positiveLOREstimate <- (sum(yb) / length(yb) - sum(ya) / length(ya)) > 0
+    # delta in [0, -infty], we are estimating an upper bound
     if (!positiveLOREstimate) {
       deltaStart <- -1 * deltaStart
       deltaStop <- -1 * deltaStop
     }
-    ciValues <- calculateEValuesForOddsDeltaGrid(ya = ya, yb = yb,
-                                                 na = safeDesign[["nPlan"]][["na"]],
-                                                 nb = safeDesign[["nPlan"]][["nb"]],
-                                                 lowerBound = positiveLOREstimate,
-                                                 priorParameters = safeDesign[["betaPriorParameterValues"]],
-                                                 precision = precision,
-                                                 deltaStart = deltaStart,
-                                                 deltaStop = deltaStop,
-                                                 alpha = safeDesign[["alpha"]])
+    ciValues <- calculateEValuesForOddsDeltaGrid(
+      ya = ya, yb = yb,
+      na = safeDesign[["nPlan"]][["na"]],
+      nb = safeDesign[["nPlan"]][["nb"]],
+      lowerBound = positiveLOREstimate,
+      priorParameters = safeDesign[["betaPriorParameterValues"]],
+      precision = precision,
+      deltaStart = deltaStart,
+      deltaStop = deltaStop,
+      alpha = safeDesign[["alpha"]]
+    )
     if (positiveLOREstimate) {
       plotdfstep <- ciValues %>%
-        dplyr::filter(.data[["E"]] < 1/safeDesign[["alpha"]]) %>%
+        dplyr::filter(.data[["E"]] < 1 / safeDesign[["alpha"]]) %>%
         dplyr::group_by(.data[["block"]]) %>%
         dplyr::summarise(delta = min(.data[["delta"]]))
-      #make sure the step function walks until the end of the x axis
-      plotdfstepextra <- rbind(plotdfstep,
-                               data.frame(
-                                 block = length(ya),
-                                 delta = max(plotdfstep$delta)
-                               )
+      # make sure the step function walks until the end of the x axis
+      plotdfstepextra <- rbind(
+        plotdfstep,
+        data.frame(
+          block = length(ya),
+          delta = max(plotdfstep$delta)
+        )
       )
     } else {
       plotdfstep <- ciValues %>%
-        dplyr::filter(.data[["E"]] < 1/safeDesign[["alpha"]]) %>%
+        dplyr::filter(.data[["E"]] < 1 / safeDesign[["alpha"]]) %>%
         dplyr::group_by(.data[["block"]]) %>%
         dplyr::summarise(delta = max(.data[["delta"]]))
-      #make sure the step function walks until the end of the x axis
-      plotdfstepextra <- rbind(plotdfstep,
-                               data.frame(
-                                 block = length(ya),
-                                 delta = min(plotdfstep$delta)
-                               )
+      # make sure the step function walks until the end of the x axis
+      plotdfstepextra <- rbind(
+        plotdfstep,
+        data.frame(
+          block = length(ya),
+          delta = min(plotdfstep$delta)
+        )
       )
     }
 
@@ -1068,10 +1167,12 @@ plotConfidenceSequenceTwoProportions <- function(ya, yb,
     } else {
       yLimits <- c(min(plotdfstepextra$delta, trueDifference) - 0.1, 0)
     }
-    graphics::plot(x = plotdfstepextra$block, y = plotdfstepextra$delta,
-                   ylim = yLimits, col = "blue", type = "l",
-                   xlab = "data block number", ylab = "difference",
-                   main = "Confidence sequence for log odds ratio")
+    graphics::plot(
+      x = plotdfstepextra$block, y = plotdfstepextra$delta,
+      ylim = yLimits, col = "blue", type = "l",
+      xlab = "data block number", ylab = "difference",
+      main = "Confidence sequence for log odds ratio"
+    )
     if (!is.na(trueDifference)) {
       graphics::abline(h = trueDifference, lty = 2, col = "grey")
     }
@@ -1092,21 +1193,25 @@ plotConfidenceSequenceTwoProportions <- function(ya, yb,
 #' @export
 #'
 #' @examples
-#' balancedSafeDesign <- designSafeTwoProportions(na = 1,
-#'                                                nb = 1,
-#'                                                nBlocksPlan = 20)
-#' simulateCoverageDifferenceTwoProportions(successProbabilityA = 0.2,
-#'                                          trueDelta = 0,
-#'                                          safeDesign = balancedSafeDesign,
-#'                                          M = 100,
-#'                                          precision = 20,
-#'                                          numberForSeed = 1082021)
+#' balancedSafeDesign <- designSafeTwoProportions(
+#'   na = 1,
+#'   nb = 1,
+#'   nBlocksPlan = 20
+#' )
+#' simulateCoverageDifferenceTwoProportions(
+#'   successProbabilityA = 0.2,
+#'   trueDelta = 0,
+#'   safeDesign = balancedSafeDesign,
+#'   M = 100,
+#'   precision = 20,
+#'   numberForSeed = 1082021
+#' )
 simulateCoverageDifferenceTwoProportions <- function(successProbabilityA,
-                                                        trueDelta,
-                                                        safeDesign,
-                                                        precision = 100,
-                                                        M = 1000,
-                                                        numberForSeed = NA){
+                                                     trueDelta,
+                                                     safeDesign,
+                                                     precision = 100,
+                                                     M = 1000,
+                                                     numberForSeed = NA) {
   if (!is.na(numberForSeed)) {
     set.seed(numberForSeed)
   }
@@ -1115,8 +1220,8 @@ simulateCoverageDifferenceTwoProportions <- function(successProbabilityA,
   trueDeltaIncluded <- logical(M)
 
   for (simulationNumber in 1:M) {
-    yaSim <- rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityA)
-    ybSim <- rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityB)
+    yaSim <- stats::rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityA)
+    ybSim <- stats::rbinom(n = safeDesign[["nPlan"]]["nBlocksPlan"], size = 1, prob = successProbabilityB)
     confidenceInterval <- computeConfidenceBoundsForDifferenceTwoProportions(
       ya = yaSim,
       yb = ybSim,
@@ -1130,49 +1235,52 @@ simulateCoverageDifferenceTwoProportions <- function(successProbabilityA,
   return(mean(trueDeltaIncluded))
 }
 
-#NON-EXPORT --------------------------------------------------------------------
-#basics ------------------------------------------------------------------------
-calculateETwoProportions <- function(na1, na, nb1, nb, thetaA, thetaB, theta0){
+# NON-EXPORT --------------------------------------------------------------------
+# basics ------------------------------------------------------------------------
+calculateETwoProportions <- function(na1, na, nb1, nb, thetaA, thetaB, theta0) {
   exp(
-    na1*log(thetaA) + (na - na1)*log(1-thetaA) + nb1*log(thetaB) + (nb-nb1)*log(1 - thetaB) -
+    na1 * log(thetaA) + (na - na1) * log(1 - thetaA) + nb1 * log(thetaB) + (nb - nb1) * log(1 - thetaB) -
       (na1 + nb1) * log(theta0) - (na + nb - na1 - nb1) * log(1 - theta0)
   )
 }
 
-calculateThetaBFromThetaAAndLOR <- function(thetaA, lOR){
-  c <- exp(lOR)*thetaA/(1-thetaA)
-  return(c/(1+c))
+calculateThetaBFromThetaAAndLOR <- function(thetaA, lOR) {
+  c <- exp(lOR) * thetaA / (1 - thetaA)
+  return(c / (1 + c))
 }
 
-logOddsRatio <- function(thetaA, thetaB){
-  log(thetaB/(1 - thetaB) * (1 - thetaA)/thetaA)
+logOddsRatio <- function(thetaA, thetaB) {
+  log(thetaB / (1 - thetaB) * (1 - thetaA) / thetaA)
 }
 
-likelihoodTwoProportions<- function(na1, na, nb1, nb, thetaA, thetaB){
+likelihoodTwoProportions <- function(na1, na, nb1, nb, thetaA, thetaB) {
   exp(
-    na1*log(thetaA) + (na - na1)*log(1-thetaA) + nb1*log(thetaB) + (nb-nb1)*log(1 - thetaB)
+    na1 * log(thetaA) + (na - na1) * log(1 - thetaA) + nb1 * log(thetaB) + (nb - nb1) * log(1 - thetaB)
   )
 }
 
-#No restrictions fncs ---------------------------------------------------------
-#NOTE THAT FOR THESE FUNCTIONS TOTALS ARE USED
-bernoulliMLTwoProportions <- function(totalSuccess, totalFail, priorSuccess, priorFail){
-  (totalSuccess + priorSuccess)/(totalSuccess + totalFail + priorSuccess + priorFail)
+# No restrictions fncs ---------------------------------------------------------
+# NOTE THAT FOR THESE FUNCTIONS TOTALS ARE USED
+bernoulliMLTwoProportions <- function(totalSuccess, totalFail, priorSuccess, priorFail) {
+  (totalSuccess + priorSuccess) / (totalSuccess + totalFail + priorSuccess + priorFail)
 }
 
 updateETwoProportions <- function(totalSuccessA, totalFailA, totalSuccessB, totalFailB, na, nb,
-                    betaA1, betaA2, betaB1, betaB2){
+                                  betaA1, betaA2, betaB1, betaB2) {
+  thetaA <- bernoulliMLTwoProportions(
+    totalSuccess = totalSuccessA,
+    totalFail = totalFailA,
+    priorSuccess = betaA1,
+    priorFail = betaA2
+  )
+  thetaB <- bernoulliMLTwoProportions(
+    totalSuccess = totalSuccessB,
+    totalFail = totalFailB,
+    priorSuccess = betaB1,
+    priorFail = betaB2
+  )
 
-  thetaA <- bernoulliMLTwoProportions(totalSuccess = totalSuccessA,
-                        totalFail = totalFailA,
-                        priorSuccess = betaA1,
-                        priorFail = betaA2)
-  thetaB <- bernoulliMLTwoProportions(totalSuccess = totalSuccessB,
-                        totalFail = totalFailB,
-                        priorSuccess = betaB1,
-                        priorFail = betaB2)
-
-  theta0 <- (na*thetaA + nb*thetaB)/(na+nb)
+  theta0 <- (na * thetaA + nb * thetaB) / (na + nb)
 
   return(
     list(
@@ -1183,55 +1291,56 @@ updateETwoProportions <- function(totalSuccessA, totalFailA, totalSuccessB, tota
   )
 }
 
-#Restriction on H1 variant fncs ------------------------------------------------
+# Restriction on H1 variant fncs ------------------------------------------------
 createStartEWithRestrictionTwoProportions <- function(na, nb,
-                                        delta,
-                                        logOdds,
-                                        betaA1,
-                                        betaA2,
-                                        gridSize = 1e3
-                                        ){
-  #do not start at 0/ end at 1, because using log/ exp trick on calcualtions
-  #later for precision and log(0) raises error
-  rhoGrid <- seq(1/gridSize, 1 - 1/gridSize, length.out = gridSize)
-  rhoGridDensity <- dbeta(x = rhoGrid, shape1 = betaA1, shape2 = betaA2)
-  densityStart <- rhoGridDensity/sum(rhoGridDensity)
+                                                      delta,
+                                                      logOdds,
+                                                      betaA1,
+                                                      betaA2,
+                                                      gridSize = 1e3) {
+  # do not start at 0/ end at 1, because using log/ exp trick on calcualtions
+  # later for precision and log(0) raises error
+  rhoGrid <- seq(1 / gridSize, 1 - 1 / gridSize, length.out = gridSize)
+  rhoGridDensity <- stats::dbeta(x = rhoGrid, shape1 = betaA1, shape2 = betaA2)
+  densityStart <- rhoGridDensity / sum(rhoGridDensity)
 
-  #calculate marginal pred. prob
+  # calculate marginal pred. prob
   if (logOdds) {
-    #log odds: theta A in (0,1), no reparameterization needed
+    # log odds: theta A in (0,1), no reparameterization needed
     thetaAgrid <- rhoGrid
     thetaBgrid <- sapply(thetaAgrid, calculateThetaBFromThetaAAndLOR, lOR = delta)
 
     thetaA <- as.numeric(thetaAgrid %*% densityStart)
     thetaB <- calculateThetaBFromThetaAAndLOR(thetaA = thetaA, lOR = delta)
   } else {
-    #if delta < 0, add term to reparameterization
-    thetaAgrid <- rhoGrid*(1 - abs(delta)) - ifelse(delta < 0, delta, 0)
+    # if delta < 0, add term to reparameterization
+    thetaAgrid <- rhoGrid * (1 - abs(delta)) - ifelse(delta < 0, delta, 0)
     thetaBgrid <- thetaAgrid + delta
 
     thetaA <- as.numeric(thetaAgrid %*% densityStart)
     thetaB <- thetaA + delta
   }
 
-  return(list(posteriorDensity = densityStart,
-              thetaAgrid = thetaAgrid,
-              thetaBgrid = thetaBgrid,
-              thetaA = thetaA,
-              thetaB = thetaB,
-              theta0 = (na*thetaA + nb*thetaB)/(na+nb)))
+  return(list(
+    posteriorDensity = densityStart,
+    thetaAgrid = thetaAgrid,
+    thetaBgrid = thetaBgrid,
+    thetaA = thetaA,
+    thetaB = thetaB,
+    theta0 = (na * thetaA + nb * thetaB) / (na + nb)
+  ))
 }
 
 updateEWithRestrictionTwoProportions <- function(na1, nb1, na, nb, delta, logOdds,
-                                   priorDensity, thetaAgrid, thetaBgrid){
-  likelihoodTimesPrior <- exp(na1*log(thetaAgrid) + (na - na1)*log(1-thetaAgrid) +
-                           nb1*log(thetaBgrid) + (nb - nb1)*log(1-thetaBgrid) +
-                           log(priorDensity))
+                                                 priorDensity, thetaAgrid, thetaBgrid) {
+  likelihoodTimesPrior <- exp(na1 * log(thetaAgrid) + (na - na1) * log(1 - thetaAgrid) +
+    nb1 * log(thetaBgrid) + (nb - nb1) * log(1 - thetaBgrid) +
+    log(priorDensity))
 
-  #normalize
-  posteriorDensity <- likelihoodTimesPrior/sum(likelihoodTimesPrior)
+  # normalize
+  posteriorDensity <- likelihoodTimesPrior / sum(likelihoodTimesPrior)
 
-  #calculate new marginal pred. probs
+  # calculate new marginal pred. probs
   thetaA <- as.numeric(thetaAgrid %*% posteriorDensity)
   if (logOdds) {
     thetaB <- calculateThetaBFromThetaAAndLOR(thetaA = thetaA, lOR = delta)
@@ -1239,106 +1348,123 @@ updateEWithRestrictionTwoProportions <- function(na1, nb1, na, nb, delta, logOdd
     thetaB <- thetaA + delta
   }
 
-  return(list(posteriorDensity = posteriorDensity,
-              thetaAgrid = thetaAgrid,
-              thetaBgrid = thetaBgrid,
-              thetaA = thetaA,
-              thetaB = thetaB,
-              theta0 = (na*thetaA + nb*thetaB)/(na+nb)))
+  return(list(
+    posteriorDensity = posteriorDensity,
+    thetaAgrid = thetaAgrid,
+    thetaBgrid = thetaBgrid,
+    thetaA = thetaA,
+    thetaB = thetaB,
+    theta0 = (na * thetaA + nb * thetaB) / (na + nb)
+  ))
 }
 
-#Confidence functions ---------------------------------------------------------
-calculateKLTwoProportions <- function(candidateThetaA, distanceFunction, delta, na, nb, breveThetaA,breveThetaB){
+# Confidence functions ---------------------------------------------------------
+calculateKLTwoProportions <- function(candidateThetaA, distanceFunction, delta, na, nb, breveThetaA, breveThetaB) {
   candidateThetaB <- distanceFunction(candidateThetaA, delta)
 
   na1vec <- 0:na
   nb1vec <- 0:nb
   outcomeSpace <- expand.grid(na1vec, nb1vec)
 
-  likelihoodAlternative <- likelihoodTwoProportions(na1 = outcomeSpace[,1], na = na,
-                                                    nb1 = outcomeSpace[,2], nb = nb,
-                                                    thetaA = breveThetaA, thetaB = breveThetaB
+  likelihoodAlternative <- likelihoodTwoProportions(
+    na1 = outcomeSpace[, 1], na = na,
+    nb1 = outcomeSpace[, 2], nb = nb,
+    thetaA = breveThetaA, thetaB = breveThetaB
   )
-  likelihoodNull <- likelihoodTwoProportions(na1 = outcomeSpace[,1], na = na,
-                                             nb1 = outcomeSpace[,2], nb = nb,
-                                             thetaA = candidateThetaA, thetaB = candidateThetaB
+  likelihoodNull <- likelihoodTwoProportions(
+    na1 = outcomeSpace[, 1], na = na,
+    nb1 = outcomeSpace[, 2], nb = nb,
+    thetaA = candidateThetaA, thetaB = candidateThetaB
   )
 
   sum(likelihoodAlternative * (log(likelihoodAlternative) - log(likelihoodNull)))
 }
 
-calculateDerivativeKLTwoProportionsLinear <- function(candidateThetaA, delta, na, nb, breveThetaA, breveThetaB, c = 1){
+calculateDerivativeKLTwoProportionsLinear <- function(candidateThetaA, delta, na, nb, breveThetaA, breveThetaB, c = 1) {
   candidateThetaB <- candidateThetaA + delta
 
-  na*((1 - breveThetaA)/(1 - candidateThetaA) - breveThetaA/candidateThetaA) +
-    nb*c*((1 - breveThetaB)/(1 - candidateThetaB) - breveThetaB/candidateThetaB)
+  na * ((1 - breveThetaA) / (1 - candidateThetaA) - breveThetaA / candidateThetaA) +
+    nb * c * ((1 - breveThetaB) / (1 - candidateThetaB) - breveThetaB / candidateThetaB)
 }
 
 calculateEValuesForLinearDeltaGrid <- function(ya, yb, na, nb,
                                                priorParameters,
                                                precision = 10,
                                                alpha = 0.05,
-                                               runningIntersection = TRUE){
+                                               runningIntersection = TRUE) {
   deltaVec <- seq(-0.99, 0.99, length.out = precision)
   ciEValues <- data.frame()
 
   for (delta in deltaVec) {
     currentE <- 1
-    breveThetaA <- bernoulliMLTwoProportions(totalSuccess = 0,
-                                             totalFail = 0,
-                                             priorSuccess = priorParameters[["betaA1"]],
-                                             priorFail = priorParameters[["betaA2"]])
+    breveThetaA <- bernoulliMLTwoProportions(
+      totalSuccess = 0,
+      totalFail = 0,
+      priorSuccess = priorParameters[["betaA1"]],
+      priorFail = priorParameters[["betaA2"]]
+    )
 
-    breveThetaB <- bernoulliMLTwoProportions(totalSuccess = 0,
-                                             totalFail = 0,
-                                             priorSuccess = priorParameters[["betaB1"]],
-                                             priorFail = priorParameters[["betaB2"]])
+    breveThetaB <- bernoulliMLTwoProportions(
+      totalSuccess = 0,
+      totalFail = 0,
+      priorSuccess = priorParameters[["betaB1"]],
+      priorFail = priorParameters[["betaB2"]]
+    )
 
     thetaARIPr <- tryOrFailWithNA(stats::uniroot(calculateDerivativeKLTwoProportionsLinear,
-                                          interval = c(max(c(0, -delta)) + 1e-3, min(c(1,1 - delta))-1e-3),
-                                          delta = delta,
-                                          na = na, nb = nb,
-                                          breveThetaA = breveThetaA,
-                                          breveThetaB = breveThetaB)$root)
+      interval = c(max(c(0, -delta)) + 1e-3, min(c(1, 1 - delta)) - 1e-3),
+      delta = delta,
+      na = na, nb = nb,
+      breveThetaA = breveThetaA,
+      breveThetaB = breveThetaB
+    )$root)
 
-    #loop over all observed data
+    # loop over all observed data
     for (i in seq_along(ya)) {
-      #if RIPr could not be determined, skip this iteration. E-value stays 1
+      # if RIPr could not be determined, skip this iteration. E-value stays 1
       if (!is.na(thetaARIPr)) {
-        likelihoodAlternative <- likelihoodTwoProportions(na1 = ya[i], na = na,
-                                                          nb1 = yb[i], nb = nb,
-                                                          thetaA = breveThetaA, thetaB = breveThetaB
+        likelihoodAlternative <- likelihoodTwoProportions(
+          na1 = ya[i], na = na,
+          nb1 = yb[i], nb = nb,
+          thetaA = breveThetaA, thetaB = breveThetaB
         )
-        likelihoodRIPr <- likelihoodTwoProportions(na1 = ya[i], na = na,
-                                                   nb1 = yb[i], nb = nb,
-                                                   thetaA = thetaARIPr, thetaB = thetaARIPr + delta
+        likelihoodRIPr <- likelihoodTwoProportions(
+          na1 = ya[i], na = na,
+          nb1 = yb[i], nb = nb,
+          thetaA = thetaARIPr, thetaB = thetaARIPr + delta
         )
-        currentE <- currentE * likelihoodAlternative/likelihoodRIPr
+        currentE <- currentE * likelihoodAlternative / likelihoodRIPr
       }
 
 
-      #if we reject, we reject this delta FOR EVER in the running intersection
-      #do not need to loop over the rest of the data
-      if ((currentE >= 1/alpha) & runningIntersection) {
+      # if we reject, we reject this delta FOR EVER in the running intersection
+      # do not need to loop over the rest of the data
+      if ((currentE >= 1 / alpha) & runningIntersection) {
         break()
       }
 
-      #update the E variable for the next data block
-      breveThetaA <- bernoulliMLTwoProportions(totalSuccess = sum(ya[1:i]),
-                                               totalFail = i*na - sum(ya[1:i]),
-                                               priorSuccess = priorParameters[["betaA1"]],
-                                               priorFail = priorParameters[["betaA2"]])
+      # update the E variable for the next data block
+      breveThetaA <- bernoulliMLTwoProportions(
+        totalSuccess = sum(ya[1:i]),
+        totalFail = i * na - sum(ya[1:i]),
+        priorSuccess = priorParameters[["betaA1"]],
+        priorFail = priorParameters[["betaA2"]]
+      )
 
-      breveThetaB <- bernoulliMLTwoProportions(totalSuccess = sum(yb[1:i]),
-                                               totalFail = i*nb - sum(yb[1:i]),
-                                               priorSuccess = priorParameters[["betaB1"]],
-                                               priorFail = priorParameters[["betaB2"]])
+      breveThetaB <- bernoulliMLTwoProportions(
+        totalSuccess = sum(yb[1:i]),
+        totalFail = i * nb - sum(yb[1:i]),
+        priorSuccess = priorParameters[["betaB1"]],
+        priorFail = priorParameters[["betaB2"]]
+      )
 
-      thetaARIPr <- tryOrFailWithNA(stats::uniroot(calculateDerivativeKLTwoProportionsLinear, interval = c(max(c(0, -delta)) + 1e-3, min(c(1,1 - delta))-1e-3),
-                                            delta = delta,
-                                            na = na, nb = nb,
-                                            breveThetaA = breveThetaA,
-                                            breveThetaB = breveThetaB)$root)
+      thetaARIPr <- tryOrFailWithNA(stats::uniroot(calculateDerivativeKLTwoProportionsLinear,
+        interval = c(max(c(0, -delta)) + 1e-3, min(c(1, 1 - delta)) - 1e-3),
+        delta = delta,
+        na = na, nb = nb,
+        breveThetaA = breveThetaA,
+        breveThetaB = breveThetaB
+      )$root)
     }
     ciEValues <- rbind(ciEValues, data.frame(delta = delta, E = currentE))
   }
@@ -1353,7 +1479,7 @@ calculateEValuesForOddsDeltaGrid <- function(ya, yb, na, nb,
                                              deltaStop = 10,
                                              alpha = 0.05,
                                              runningIntersection = TRUE,
-                                             stopAfterBoundHasBeenFound = FALSE){
+                                             stopAfterBoundHasBeenFound = FALSE) {
   if (lowerBound & any(c(deltaStart, deltaStop) < 0)) {
     stop("Cannot check for negative bound values when assessing lower bound.")
   }
@@ -1367,148 +1493,167 @@ calculateEValuesForOddsDeltaGrid <- function(ya, yb, na, nb,
 
   for (delta in deltaVector) {
     currentE <- 1
-    breveThetaA <- bernoulliMLTwoProportions(totalSuccess = 0,
-                                             totalFail = 0,
-                                             priorSuccess = priorParameters[["betaA1"]],
-                                             priorFail = priorParameters[["betaA2"]])
+    breveThetaA <- bernoulliMLTwoProportions(
+      totalSuccess = 0,
+      totalFail = 0,
+      priorSuccess = priorParameters[["betaA1"]],
+      priorFail = priorParameters[["betaA2"]]
+    )
 
-    breveThetaB <- bernoulliMLTwoProportions(totalSuccess = 0,
-                                             totalFail = 0,
-                                             priorSuccess = priorParameters[["betaB1"]],
-                                             priorFail = priorParameters[["betaB2"]])
+    breveThetaB <- bernoulliMLTwoProportions(
+      totalSuccess = 0,
+      totalFail = 0,
+      priorSuccess = priorParameters[["betaB1"]],
+      priorFail = priorParameters[["betaB2"]]
+    )
 
-    #if the point alternative lies within H0(delta), the RIPr and the point alternative should coincide
-    if (sign(delta)*logOddsRatio(breveThetaA, breveThetaB) <= sign(delta)*delta) {
+    # if the point alternative lies within H0(delta), the RIPr and the point alternative should coincide
+    if (sign(delta) * logOddsRatio(breveThetaA, breveThetaB) <= sign(delta) * delta) {
       thetaARIPr <- breveThetaA
     } else {
-      #otherwise, the RIPr lies on the lOR line
-      thetaARIPr <- stats::optim(0.5, fn = calculateKLTwoProportions,
-                          method = "L-BFGS-B", lower = 1e-4, upper = 1-1e-4,
-                          distanceFunction = calculateThetaBFromThetaAAndLOR,
-                          delta = delta,
-                          na = na, nb = nb,
-                          breveThetaA = breveThetaA, breveThetaB = breveThetaB)$par
+      # otherwise, the RIPr lies on the lOR line
+      thetaARIPr <- stats::optim(0.5,
+        fn = calculateKLTwoProportions,
+        method = "L-BFGS-B", lower = 1e-4, upper = 1 - 1e-4,
+        distanceFunction = calculateThetaBFromThetaAAndLOR,
+        delta = delta,
+        na = na, nb = nb,
+        breveThetaA = breveThetaA, breveThetaB = breveThetaB
+      )$par
     }
 
     for (i in seq_along(ya)) {
-      #if point alternative coincides with H0(delta), E value for this block equals 1
-      #i.e., the E value remains the same
+      # if point alternative coincides with H0(delta), E value for this block equals 1
+      # i.e., the E value remains the same
       if (breveThetaA != thetaARIPr) {
-        likelihoodAlternative <- likelihoodTwoProportions(na1 = ya[i], na = na,
-                                                          nb1 = yb[i], nb = nb,
-                                                          thetaA = breveThetaA, thetaB = breveThetaB
+        likelihoodAlternative <- likelihoodTwoProportions(
+          na1 = ya[i], na = na,
+          nb1 = yb[i], nb = nb,
+          thetaA = breveThetaA, thetaB = breveThetaB
         )
 
-        likelihoodRIPr <- likelihoodTwoProportions(na1 = ya[i], na = na,
-                                                   nb1 = yb[i], nb = nb,
-                                                   thetaA = thetaARIPr, thetaB = calculateThetaBFromThetaAAndLOR(thetaARIPr, delta)
+        likelihoodRIPr <- likelihoodTwoProportions(
+          na1 = ya[i], na = na,
+          nb1 = yb[i], nb = nb,
+          thetaA = thetaARIPr, thetaB = calculateThetaBFromThetaAAndLOR(thetaARIPr, delta)
         )
-        currentE <- currentE * likelihoodAlternative/likelihoodRIPr
+        currentE <- currentE * likelihoodAlternative / likelihoodRIPr
       }
 
       ciEValues <- rbind(ciEValues, data.frame(delta = delta, block = i, E = currentE))
 
-      #if we reject, we reject this delta FOR EVER (running intersection)
-      if ((currentE >= 1/alpha) & runningIntersection) {
+      # if we reject, we reject this delta FOR EVER (running intersection)
+      if ((currentE >= 1 / alpha) & runningIntersection) {
         break()
       }
 
-      #update the E variable
-      breveThetaA <- bernoulliMLTwoProportions(totalSuccess = sum(ya[1:i]),
-                                               totalFail = i*na - sum(ya[1:i]),
-                                               priorSuccess = priorParameters[["betaA1"]],
-                                               priorFail = priorParameters[["betaA2"]])
+      # update the E variable
+      breveThetaA <- bernoulliMLTwoProportions(
+        totalSuccess = sum(ya[1:i]),
+        totalFail = i * na - sum(ya[1:i]),
+        priorSuccess = priorParameters[["betaA1"]],
+        priorFail = priorParameters[["betaA2"]]
+      )
 
-      breveThetaB <- bernoulliMLTwoProportions(totalSuccess = sum(yb[1:i]),
-                                               totalFail = i*nb - sum(yb[1:i]),
-                                               priorSuccess = priorParameters[["betaA1"]],
-                                               priorFail = priorParameters[["betaA2"]])
+      breveThetaB <- bernoulliMLTwoProportions(
+        totalSuccess = sum(yb[1:i]),
+        totalFail = i * nb - sum(yb[1:i]),
+        priorSuccess = priorParameters[["betaA1"]],
+        priorFail = priorParameters[["betaA2"]]
+      )
 
-      #if the point alternative lies within H0(delta), the RIPr and the point alternative should coincide
-      if (sign(delta)*logOddsRatio(breveThetaA, breveThetaB) <= sign(delta)*delta) {
+      # if the point alternative lies within H0(delta), the RIPr and the point alternative should coincide
+      if (sign(delta) * logOddsRatio(breveThetaA, breveThetaB) <= sign(delta) * delta) {
         thetaARIPr <- breveThetaA
       } else {
-        #otherwise, the RIPr lies on the lOR line
-        thetaARIPr <- stats::optim(0.5, fn = calculateKLTwoProportions,
-                            method = "L-BFGS-B", lower = 1e-4, upper = 1-1e-4,
-                            distanceFunction = calculateThetaBFromThetaAAndLOR,
-                            delta = delta,
-                            na = na, nb = nb,
-                            breveThetaA = breveThetaA, breveThetaB = breveThetaB)$par
+        # otherwise, the RIPr lies on the lOR line
+        thetaARIPr <- stats::optim(0.5,
+          fn = calculateKLTwoProportions,
+          method = "L-BFGS-B", lower = 1e-4, upper = 1 - 1e-4,
+          distanceFunction = calculateThetaBFromThetaAAndLOR,
+          delta = delta,
+          na = na, nb = nb,
+          breveThetaA = breveThetaA, breveThetaB = breveThetaB
+        )$par
       }
     }
-    #if we want to be fast, we can stop the first time the OR is not significant,
-    #if we search in the direction from not extreme -> extreme.
-    #Then we have found the bound, where we switch from not include to include
-    if (stopAfterBoundHasBeenFound & (currentE <= 1/alpha)) {
-        break()
+    # if we want to be fast, we can stop the first time the OR is not significant,
+    # if we search in the direction from not extreme -> extreme.
+    # Then we have found the bound, where we switch from not include to include
+    if (stopAfterBoundHasBeenFound & (currentE <= 1 / alpha)) {
+      break()
     }
   }
   return(ciEValues)
 }
 
-#Main functions ---------------------------------------------------------------
+# Main functions ---------------------------------------------------------------
 calculateSequential2x2E <- function(aSample, bSample,
-                                 restriction = c("none", "difference", "logOddsRatio"),
-                                 priorValues,
-                                 delta = NULL,
-                                 na = 1,
-                                 nb = 1,
-                                 gridSize = 1e3,
-                                 simSetting = FALSE,
-                                 impliedTargetSetting = FALSE,
-                                 alphaSim = 0.05){
+                                    restriction = c("none", "difference", "logOddsRatio"),
+                                    priorValues,
+                                    delta = NULL,
+                                    na = 1,
+                                    nb = 1,
+                                    gridSize = 1e3,
+                                    simSetting = FALSE,
+                                    impliedTargetSetting = FALSE,
+                                    alphaSim = 0.05) {
   restriction <- match.arg(restriction)
 
-  #these errors should all be caught in the export level function
-  #but remain here now for testing purposes
+  # these errors should all be caught in the export level function
+  # but remain here now for testing purposes
   if (restriction %in% c("difference", "logOddsRatio") & !is.numeric(delta)) {
     stop("Provide numeric value for divergence measure: a difference or log Odds ratio")
   }
 
   if (length(aSample) != length(bSample)) {
-    stop("Can only process complete data blocks: provide vectors with numbers of positive observations per timepoint,",
-         "see example in helpfile.")
+    stop(
+      "Can only process complete data blocks: provide vectors with numbers of positive observations per timepoint,",
+      "see example in helpfile."
+    )
   }
 
   if (any(aSample > na | aSample < 0) | any(bSample > nb | bSample < 0)) {
     stop("Provided sample sizes within blocks, na and nb, do not match provided aSample and bSample.")
   }
 
-  #unpack the prior values
+  # unpack the prior values
   betaA1 <- priorValues[["betaA1"]]
   betaA2 <- priorValues[["betaA2"]]
   betaB1 <- priorValues[["betaB1"]]
   betaB2 <- priorValues[["betaB2"]]
 
-  #set starting E variable
+  # set starting E variable
   if (restriction == "difference") {
-    eVariable <- createStartEWithRestrictionTwoProportions(na = na, nb = nb,
-                                             delta = delta,
-                                             logOdds = FALSE,
-                                             betaA1 = betaA1, betaA2 = betaA2,
-                                             gridSize = gridSize
-                                             )
-
+    eVariable <- createStartEWithRestrictionTwoProportions(
+      na = na, nb = nb,
+      delta = delta,
+      logOdds = FALSE,
+      betaA1 = betaA1, betaA2 = betaA2,
+      gridSize = gridSize
+    )
   } else if (restriction == "logOddsRatio") {
-    eVariable <- createStartEWithRestrictionTwoProportions(na = na, nb = nb,
-                                             delta = delta,
-                                             logOdds = TRUE,
-                                             betaA1 = betaA1, betaA2 = betaA2,
-                                             gridSize = gridSize
-                                             )
+    eVariable <- createStartEWithRestrictionTwoProportions(
+      na = na, nb = nb,
+      delta = delta,
+      logOdds = TRUE,
+      betaA1 = betaA1, betaA2 = betaA2,
+      gridSize = gridSize
+    )
   } else if (restriction == "none") {
-    eVariable <- updateETwoProportions(totalSuccessA = 0, totalFailA = 0,
-                         totalSuccessB = 0, totalFailB = 0,
-                         na = na, nb = nb,
-                         betaA1 = betaA1, betaA2 = betaA2,
-                         betaB1 = betaB1, betaB2 = betaB2)
+    eVariable <- updateETwoProportions(
+      totalSuccessA = 0, totalFailA = 0,
+      totalSuccessB = 0, totalFailB = 0,
+      na = na, nb = nb,
+      betaA1 = betaA1, betaA2 = betaA2,
+      betaB1 = betaB1, betaB2 = betaB2
+    )
 
-    #for updating without restriction, use totals: store them here
+    # for updating without restriction, use totals: store them here
     totalSuccessA <- cumsum(aSample)
     totalSuccessB <- cumsum(bSample)
-    groupSizeVecA <- seq_along(totalSuccessA)*na
-    groupSizeVecB <- seq_along(totalSuccessB)*nb
+    groupSizeVecA <- seq_along(totalSuccessA) * na
+    groupSizeVecB <- seq_along(totalSuccessB) * nb
     totalFailA <- groupSizeVecA - totalSuccessA
     totalFailB <- groupSizeVecB - totalSuccessB
   }
@@ -1516,21 +1661,23 @@ calculateSequential2x2E <- function(aSample, bSample,
   currentE <- 1
   stopTime <- stopE <- NULL
   for (i in seq_along(aSample)) {
-    #use only new data to calculate the new E variable
-    newE <- calculateETwoProportions(na1 = aSample[i],
-                       na = na,
-                       nb1 = bSample[i],
-                       nb = nb,
-                       thetaA = eVariable[["thetaA"]],
-                       thetaB = eVariable[["thetaB"]],
-                       theta0 = eVariable[["theta0"]])
+    # use only new data to calculate the new E variable
+    newE <- calculateETwoProportions(
+      na1 = aSample[i],
+      na = na,
+      nb1 = bSample[i],
+      nb = nb,
+      thetaA = eVariable[["thetaA"]],
+      thetaB = eVariable[["thetaB"]],
+      theta0 = eVariable[["theta0"]]
+    )
     currentE <- newE * currentE
 
-    #in simulation setting, only interested in the stopping time
-    if (simSetting & currentE >= (1/alphaSim) & is.null(stopTime)) {
+    # in simulation setting, only interested in the stopping time
+    if (simSetting & currentE >= (1 / alphaSim) & is.null(stopTime)) {
       if (impliedTargetSetting) {
-        #we save the time and E-value where we would have stopped, but continue collecting
-        #untill we reach nPlan for calculating impliedTarget
+        # we save the time and E-value where we would have stopped, but continue collecting
+        # untill we reach nPlan for calculating impliedTarget
         stopTime <- i
         stopE <- currentE
       } else {
@@ -1540,47 +1687,50 @@ calculateSequential2x2E <- function(aSample, bSample,
       }
     }
 
-    #after observing the data, also update the E variable
+    # after observing the data, also update the E variable
     if (restriction == "none") {
-      #updating the E variable without restrictions:
-      #using all data seen so far + priorSuccess at the start, new Bernoulli ML
-      eVariable <- updateETwoProportions(totalSuccessA = totalSuccessA[i],
-                           totalFailA = totalFailA[i],
-                           totalSuccessB = totalSuccessB[i],
-                           totalFailB = totalFailB[i],
-                           na = na, nb = nb,
-                           betaA1 = betaA1, betaA2 = betaA2,
-                           betaB1 = betaB1, betaB2 = betaB2)
+      # updating the E variable without restrictions:
+      # using all data seen so far + priorSuccess at the start, new Bernoulli ML
+      eVariable <- updateETwoProportions(
+        totalSuccessA = totalSuccessA[i],
+        totalFailA = totalFailA[i],
+        totalSuccessB = totalSuccessB[i],
+        totalFailB = totalFailB[i],
+        na = na, nb = nb,
+        betaA1 = betaA1, betaA2 = betaA2,
+        betaB1 = betaB1, betaB2 = betaB2
+      )
     } else if (restriction == "difference") {
-      #updating the E variable with restriction on H1:
-      #take product of previous posterior and posterior of NEW data
-      eVariable <- updateEWithRestrictionTwoProportions(na1 = aSample[i], nb1 = bSample[i],
-                                          na = na, nb = nb,
-                                          priorDensity = eVariable[["posteriorDensity"]],
-                                          thetaAgrid = eVariable[["thetaAgrid"]],
-                                          thetaBgrid = eVariable[["thetaBgrid"]],
-                                          delta = delta,
-                                          logOdds = FALSE
-                                          )
+      # updating the E variable with restriction on H1:
+      # take product of previous posterior and posterior of NEW data
+      eVariable <- updateEWithRestrictionTwoProportions(
+        na1 = aSample[i], nb1 = bSample[i],
+        na = na, nb = nb,
+        priorDensity = eVariable[["posteriorDensity"]],
+        thetaAgrid = eVariable[["thetaAgrid"]],
+        thetaBgrid = eVariable[["thetaBgrid"]],
+        delta = delta,
+        logOdds = FALSE
+      )
     } else if (restriction == "logOddsRatio") {
-      eVariable <- updateEWithRestrictionTwoProportions(na1 = aSample[i], nb1 = bSample[i],
-                                          na = na, nb = nb,
-                                          priorDensity = eVariable[["posteriorDensity"]],
-                                          thetaAgrid = eVariable[["thetaAgrid"]],
-                                          thetaBgrid = eVariable[["thetaBgrid"]],
-                                          delta = delta,
-                                          logOdds = TRUE
-                                          )
+      eVariable <- updateEWithRestrictionTwoProportions(
+        na1 = aSample[i], nb1 = bSample[i],
+        na = na, nb = nb,
+        priorDensity = eVariable[["posteriorDensity"]],
+        thetaAgrid = eVariable[["thetaAgrid"]],
+        thetaBgrid = eVariable[["thetaBgrid"]],
+        delta = delta,
+        logOdds = TRUE
+      )
     }
-
   }
 
   if (!simSetting) {
-    #we have looped over the entire stream: return the E value
+    # we have looped over the entire stream: return the E value
     return(currentE)
   } else {
-    #If we have never rejected, store final stoptime and stopE
-    if (is.null(stopTime)){
+    # If we have never rejected, store final stoptime and stopE
+    if (is.null(stopTime)) {
       stopTime <- length(aSample)
     }
     if (is.null(stopE)) {
@@ -1588,30 +1738,30 @@ calculateSequential2x2E <- function(aSample, bSample,
     }
     return(list(stopTime = stopTime, stopE = stopE, finalE = currentE))
   }
-
 }
 
 simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
-                                      alternativeRestriction = c("none", "difference", "logOddsRatio"),
-                                      alpha,
-                                      delta, beta = 0, M = 1e3,
-                                      deltaDesign = NULL,
-                                      maxSimStoptime = 1e4,
-                                      gridSize = 8,
-                                      thetaAMin = NULL,
-                                      thetaAMax = NULL,
-                                      expectedStopTime = FALSE,
-                                      estimateImpliedTarget = FALSE,
-                                      nBoot = 1e3){
-
+                                                    alternativeRestriction = c("none", "difference", "logOddsRatio"),
+                                                    alpha,
+                                                    delta, beta = 0, M = 1e3,
+                                                    deltaDesign = NULL,
+                                                    maxSimStoptime = 1e4,
+                                                    gridSize = 8,
+                                                    thetaAMin = NULL,
+                                                    thetaAMax = NULL,
+                                                    expectedStopTime = FALSE,
+                                                    estimateImpliedTarget = FALSE,
+                                                    nBoot = 1e3) {
   restriction <- match.arg(alternativeRestriction)
 
   if (!is.null(thetaAMin) & !is.null(thetaAMax)) {
-    #check if provided thetaAMin and thetaAMax both comply with delta
+    # check if provided thetaAMin and thetaAMax both comply with delta
     if (restriction %in% c("none", "difference") &
-        !all(c(thetaAMin, thetaAMax) + delta < 1 & c(thetaAMin, thetaAMax) + delta > 0)) {
-      stop("Prior knowledge on proportion in control group does not comply with expected difference",
-           " in proportions between groups: proportions >1 or <0.")
+      !all(c(thetaAMin, thetaAMax) + delta < 1 & c(thetaAMin, thetaAMax) + delta > 0)) {
+      stop(
+        "Prior knowledge on proportion in control group does not comply with expected difference",
+        " in proportions between groups: proportions >1 or <0."
+      )
     }
 
     if (thetaAMin == thetaAMax) {
@@ -1619,15 +1769,14 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
     } else {
       thetaAVec <- thetaAMin
     }
-
   } else {
-    rhoGrid <- seq(1/gridSize, 1 - 1/gridSize, length.out = gridSize)
+    rhoGrid <- seq(1 / gridSize, 1 - 1 / gridSize, length.out = gridSize)
     if (restriction == "logOddsRatio") {
-      #log odds: theta A in (0,1), no reparameterization needed
+      # log odds: theta A in (0,1), no reparameterization needed
       thetaAVec <- rhoGrid
     } else {
-      #if delta < 0, reparameterize + translate
-      thetaAVec <- rhoGrid*(1 - abs(delta)) - ifelse(delta < 0, delta, 0)
+      # if delta < 0, reparameterize + translate
+      thetaAVec <- rhoGrid * (1 - abs(delta)) - ifelse(delta < 0, delta, 0)
     }
   }
 
@@ -1636,7 +1785,7 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
   stoppingTimesWorstCase <- stopEsWorstCase <- finalEsWorstCase <- numeric(M)
 
   message(paste("Simulating E values and stopping times for divergence between groups of ", delta))
-  pbSafe <- utils::txtProgressBar(style=1)
+  pbSafe <- utils::txtProgressBar(style = 1)
   for (t in seq_along(thetaAVec)) {
     stoppingTimes <- stopEs <- finalEs <- numeric(M)
 
@@ -1648,16 +1797,16 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
     }
 
     for (i in 1:M) {
-      #For every m, draw a sample of max streamlength and record the time
-      #at which we would have stopped
-      ya <- rbinom(n = maxSimStoptime, size = na, prob = thetaA)
-      yb <- rbinom(n = maxSimStoptime, size = nb, prob = thetaB)
+      # For every m, draw a sample of max streamlength and record the time
+      # at which we would have stopped
+      ya <- stats::rbinom(n = maxSimStoptime, size = na, prob = thetaA)
+      yb <- stats::rbinom(n = maxSimStoptime, size = nb, prob = thetaB)
       simResult <- calculateSequential2x2E(
         aSample = ya, bSample = yb,
         priorValues = priorValues,
         restriction = restriction,
-        #if explicitly passsed deltaDesign (neq delta), use that one for test
-        #e.g. when studying effect of overestimated/ underestimated effect size
+        # if explicitly passsed deltaDesign (neq delta), use that one for test
+        # e.g. when studying effect of overestimated/ underestimated effect size
         delta = ifelse(is.null(deltaDesign), delta, deltaDesign),
         na = na,
         nb = nb,
@@ -1665,26 +1814,25 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
         impliedTargetSetting = estimateImpliedTarget,
         alphaSim = alpha
       )
-      stoppingTimes[i] <- simResult [["stopTime"]]
+      stoppingTimes[i] <- simResult[["stopTime"]]
       stopEs[i] <- simResult[["stopE"]]
       finalEs[i] <- simResult[["finalE"]]
-      utils::setTxtProgressBar(pbSafe, value=((t-1)*M+i)/(length(thetaAVec)*M))
+      utils::setTxtProgressBar(pbSafe, value = ((t - 1) * M + i) / (length(thetaAVec) * M))
     }
 
-    #get the quantile for (1-b) power
+    # get the quantile for (1-b) power
     if (expectedStopTime) {
       currentQuantile <- mean(stoppingTimes)
     } else {
-      currentQuantile <- quantile(stoppingTimes, probs = 1 - beta)
+      currentQuantile <- stats::quantile(stoppingTimes, probs = 1 - beta)
     }
-    currentPower <- mean(stopEs >= 1/alpha)
+    currentPower <- mean(stopEs >= 1 / alpha)
 
-    #we look for the worst case (1-beta)% stopping time or power: store only that one
+    # we look for the worst case (1-beta)% stopping time or power: store only that one
     if (currentQuantile >= currentWorstCaseQuantile) {
       currentWorstCaseQuantile <- currentQuantile
-      #store obtained stopping times for bootstrapping later
+      # store obtained stopping times for bootstrapping later
       stoppingTimesWorstCase <- stoppingTimes
-
     }
     if (currentPower <= currentWorstCasePower) {
       currentWorstCasePower <- currentPower
@@ -1694,7 +1842,7 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
   }
   close(pbSafe)
 
-  #bootstrapping to estimate standard deviation of metrics
+  # bootstrapping to estimate standard deviation of metrics
   if (expectedStopTime) {
     bootResultNPlan <- computeBootObj(
       values = stoppingTimesWorstCase,
@@ -1702,8 +1850,8 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
       objType = "expectedStopTime"
     )
     worstCaseQuantileTwoSe <- 2 * bootResultNPlan[["bootSe"]]
-  } else if (beta != 0){
-    #beta is set to 0 if NPlan is already given, then do not estimate SE
+  } else if (beta != 0) {
+    # beta is set to 0 if NPlan is already given, then do not estimate SE
     bootResultNPlan <- computeBootObj(
       values = stoppingTimesWorstCase,
       beta = beta,
@@ -1748,22 +1896,24 @@ simulateWorstCaseQuantileTwoProportions <- function(na, nb, priorValues,
 }
 
 simulateWorstCaseDeltaTwoProportions <- function(na, nb, priorValues,
-                                   alternativeRestriction = c("none", "difference", "logOddsRatio"),
-                                   alpha,
-                                   beta, maxSimStoptime,
-                                   M = 1e3,
-                                   deltaGridSize = 10,
-                                   deltamax = 0.99, deltamin = 0.01,
-                                   thetaAgridSize = 8){
+                                                 alternativeRestriction = c("none", "difference", "logOddsRatio"),
+                                                 alpha,
+                                                 beta, maxSimStoptime,
+                                                 M = 1e3,
+                                                 deltaGridSize = 10,
+                                                 deltamax = 0.99, deltamin = 0.01,
+                                                 thetaAgridSize = 8) {
   deltaVec <- seq(deltamax, deltamin, length.out = deltaGridSize)
   for (deltaIndex in seq_along(deltaVec)) {
-    if (simulateWorstCaseQuantileTwoProportions(na = na, nb = nb,
-                                 priorValues = priorValues,
-                                 alternativeRestriction = alternativeRestriction,
-                                 alpha = alpha,
-                                 delta = deltaVec[deltaIndex], M = M,
-                                 maxSimStoptime = maxSimStoptime,
-                                 gridSize = thetaAgridSize)$worstCasePower < (1 - beta)) {
+    if (simulateWorstCaseQuantileTwoProportions(
+      na = na, nb = nb,
+      priorValues = priorValues,
+      alternativeRestriction = alternativeRestriction,
+      alpha = alpha,
+      delta = deltaVec[deltaIndex], M = M,
+      maxSimStoptime = maxSimStoptime,
+      gridSize = thetaAgridSize
+    )$worstCasePower < (1 - beta)) {
       break()
     }
   }
