@@ -2,7 +2,7 @@
 % Please edit documentation in R/EValTwoProp.R
 \name{EValTwoProp}
 \alias{EValTwoProp}
-\title{Calculate e-value for 2 x 2 contingency table}
+\title{Calculate the e-value for a Safe Experiment to Test Two Proportions in Stream Data}
 \usage{
 EValTwoProp(
   ya,
@@ -10,12 +10,40 @@ EValTwoProp(
   alternative = c("twoSided", "greater", "less"),
   na = 1,
   nb = 1,
-  esType = c("logOddsRatio", "difference", "none"),
+  esType = c("none", "logOddsRatio", "difference"),
   esMin = NULL,
   alpha = 0.05,
   prior = NULL
 )
 }
+\arguments{
+\item{ya}{positive observations/events per data block in group a: a numeric with integer values
+between (and including) 0 and \code{na}, the number of observations in group a per block.}
+
+\item{yb}{positive observations/events per data block in group b: a numeric with integer values
+between (and including) 0 and \code{nb}, the number of observations in group b per block.}
+
+\item{alternative}{comparision in the alternative hypothesis}
+
+\item{na}{number of observations in group a per data block}
+
+\item{nb}{number of observations in group b per data block.
+The number of data blocks arrived in two streams (group a/b) must be the same
+while the size of data block can vary (\code{na} != \code{nb}).}
+
+\item{esType}{a character string specifying an optional restriction on the alternative hypothesis; must be one of "none" (default),
+"difference" (difference group mean b minus group b) or "logOddsRatio" (the log odds ratio between group means b and a).}
+
+\item{esMin}{a priori minimal relevant divergence between group means b and a, either a numeric between -1 and 1 for
+no alternative restriction or a restriction on difference, or a real for a restriction on the log odds ratio.}
+
+\item{alpha}{numeric in (0, 1)}
+
+\item{prior}{a list of shape parameters for priori Beta distribution for group a, group b.}
+}
+\value{
+e-value between 0 and \code{Inf}
+}
 \description{
-Calculate e-value for 2 x 2 contingency table
+Calculate the e-value for a Safe Experiment to Test Two Proportions in Stream Data
 }
