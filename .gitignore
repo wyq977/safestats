@@ -1,10 +1,37 @@
-.Rproj.user
+# --- R Specific
 .Rhistory
 .RData
+.RDataTmp
 .Ruserdata
-.DS_Store
-doc
-Meta
+.Rproj.user/
+.Renviron
+*-Ex.R
+
+# --- Build & Check Output
+/*.tar.gz
+/*.Rcheck/
+/libs/
+/src/*.o
+/src/*.so
+/src/*.dll
+
+# --- RMarkdown / knitr / Bookdown
+*_cache/
+/cache/
+*_files/
+*.utf8.md
+*.knit.md
+rsconnect/
+
+# --- Documentation
 /doc/
 /Meta/
-.Rapp.history
+/docs/
+vignettes/*.html
+vignettes/*.pdf
+
+# --- Essential OS Files
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+.AppleDouble
