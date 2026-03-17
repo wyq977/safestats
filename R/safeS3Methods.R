@@ -725,7 +725,8 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
     xlab <- switch(x[["testName"]],
                    "Z-Test"="n1",
                    "T-Test"="n1",
-                   "logrank"="Number of events")
+                   "logrank"="Number of events",
+                   "Two Proportions"="Number of blocks")
   }
 
   if (isTRUE(wantConfSeqPlot)) {
