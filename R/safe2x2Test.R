@@ -7,10 +7,8 @@ saviTwoPropCondStat <- function(
   nb,
   logOddsRatio = NULL,
   alternative = c("twoSided", "less", "greater"),
-  eType = c("eGauss", "nml", "turner", "grow"),
+  eType = c("eGauss", "nml", "turner", "grow", "eBayes"),
   designObj = NULL,
-  sequential = NULL,
-  debug = FALSE,
   ...
 ) {
   alternative <- match.arg(alternative)
@@ -56,82 +54,31 @@ saviTwoPropCondStat <- function(
     nb <- rep(nb, mIter)
   }
 
-  if (is.null(sequential)) {
-    sequential <- if (mIter > 1) TRUE else FALSE
-  }
-
-  # Aggregate the data if not sequential but multiple vectors provided
-  if (!sequential && mIter > 1) {
-    warningMessage <- paste(
-      "Data has been aggregated into a single table!"
-    )
-    warning(warningMessage)
-
-    ya <- sum(ya)
-    yb <- sum(yb)
-    na <- sum(na)
-    nb <- sum(nb)
-    mIter <- 1
-  }
-
   dataName <- paste(deparse1(substitute(ya)), "and", deparse1(substitute(yb)))
 
   n <- c(sum(na), sum(nb))
   names(n) <- c("nObsA", "nObsB")
 
-  ### Early Return: Debug -----
-  if (debug) {
-    result[["n"]] <- n
-    result[["eValue"]] <- NA_real_
-    result[["dataName"]] <- dataName
-    result[["alternative"]] <- alternative
-    result[["testType"]] <- "2x2"
-    result[["testName"]] <- "Two Proportions"
-    result[["designObj"]] <- designObj
-    result[["h0"]] <- h0
-    result[["eValueVec"]] <- if (sequential) numeric(mIter) else NULL
-    result[["confSeqMatrix"]] <- if (sequential) matrix(NA_real_, nrow = mIter, ncol = 2) else NULL
-    result[["eValueApproxError"]] <- NULL
-    result[["call"]] <- sys.call()
-
-    class(result) <- "saviTest"
-    return(result)
-  }
-
   # Vars for analysis
   eValueVec <- NULL
-  confSeqMatrix <- NULL
-  eValueApproxError <- NULL
 
   ### Compute: eValue ----
   if (eType == "eGauss") {
-    if (mIter == 1) {
-      bayesRes <- oneshotBayes(ya, yb, na, nb, log = FALSE, returnError = TRUE)
-      eValueVec <- bayesRes[["eValue"]]
-      eValueApproxError <- bayesRes[["abs.error"]]
-    } else {
-      eValueVec <- seqBayes(ya, yb, na, nb)
-    }
+    eValueVec <- computeEGauss(ya, yb, na, nb, log = FALSE)
+  } else if (eType == "eBayes") {
+    eValueVec <- computeEGaussGrid(ya, yb, na, nb)
   } else {
-    eValueVec <- switch(eType,
+    eValueVec <- switch(
+      eType,
       "turner" = computeTurner(ya, yb, na, nb),
-      "nml"    = computeNml(ya, yb, na, nb),
-      "grow"   = conditionalEValueFixedAlternative(ya, yb, na, nb, logOddsRatio),
+      "nml" = computeNml(ya, yb, na, nb),
+      "grow" = conditionalEValueFixedAlternative(ya, yb, na, nb, logOddsRatio),
       rep(NA_real_, mIter)
     )
   }
 
   # Final e-value is the last one in the sequence
   eValue <- eValueVec[mIter]
-
-  ### Compute: Confidence Intervals ----
-  if (sequential) {
-    confSeqMatrix <- matrix(nrow = mIter, ncol = 2)
-    for (i in seq_along(ya)) {
-      # TODO: Implement sequence CI math
-      confSeqMatrix[i, ] <- c(NA_real_, NA_real_)
-    }
-  }
 
   ### Fill: Result -----
   result[["n"]] <- n
@@ -142,9 +89,7 @@ saviTwoPropCondStat <- function(
   result[["testName"]] <- "Two Proportions"
   result[["designObj"]] <- designObj
   result[["h0"]] <- h0
-  result[["eValueVec"]] <- if (sequential) eValueVec else NULL
-  result[["confSeqMatrix"]] <- confSeqMatrix
-  result[["eValueApproxError"]] <- eValueApproxError
+  result[["eValueVec"]] <- if (mIter > 1) eValueVec else NULL
   result[["call"]] <- sys.call()
 
   class(result) <- "saviTest"
@@ -153,7 +98,32 @@ saviTwoPropCondStat <- function(
 
 ## Math Functions ----
 
-oneshotBayes <- function(
+computeEGauss <- function(ya, yb, na, nb, priorDist = stats::dnorm, ..., log = FALSE) {
+
+  # Internal worker for a single 2x2 table
+  computeSingleTable <- function(y1, y2, n1_val, n2_val) {
+    nTotal <- y1 + y2
+    psiZero <- lchoose(n1_val + n2_val, nTotal)
+
+    integrand <- function(delta) {
+      sapply(delta, function(d) {
+        logWeight <- (d * y1) - fnchPsi(n1_val, n2_val, nTotal, d) + psiZero
+        exp(logWeight + priorDist(d, ..., log = TRUE))
+      })
+    }
+
+    # Integrate to get the marginal likelihood ratio (E-value)
+    stats::integrate(integrand, lower = -40, upper = 40)$value
+  }
+
+  eVals <- mapply(computeSingleTable, ya, yb, na, nb)
+
+  if (log) return(sum(log(eVals)))
+
+  prod(eVals)
+}
+
+computeEGaussGrid <- function(
   ya,
   yb,
   na,
@@ -161,35 +131,51 @@ oneshotBayes <- function(
   priorDist = stats::dnorm,
   ...,
   log = FALSE,
-  returnError = FALSE
+  returnPosteriors = FALSE
 ) {
+  nSteps <- length(ya)
   n1 <- ya + yb
+  deltaGrid <- seq(-20, 20, length.out = 2000)
 
-  # Psi(0) is just the log of the central hypergeometric total sum
-  # which is log(choose(na + nb, n1))
-  psiZero <- lchoose(na + nb, n1)
+  # Initial prior weights
+  logPriorWeights <- priorDist(deltaGrid, ..., log = TRUE)
+  logPriorWeights <- logPriorWeights - logSumExp(logPriorWeights)
 
-  integrand <- function(delta) {
-    # Vectorized calculation of the E-value kernel
-    # exp( delta * ya - Psi(delta) + Psi(0) + logPrior )
-    sapply(delta, function(d) {
-      logWeight <- (d * ya) - fnchPsi(na, nb, n1, d) + psiZero
-      exp(logWeight + priorDist(d, ..., log = TRUE))
+  logE <- numeric(nSteps)
+  currentLogPostWeights <- logPriorWeights
+
+  if (returnPosteriors) {
+    posteriors <- matrix(NA, nrow = nSteps + 1, ncol = length(deltaGrid))
+    posteriors[1, ] <- exp(logPriorWeights)
+  }
+
+  for (t in 1:nSteps) {
+    # Incremental likelihood ratio log(f_delta / f_0)
+    # logLR(delta) = delta * ya[t] - psi(delta) + psi(0)
+    psiZero <- lchoose(na[t] + nb[t], n1[t])
+
+    logLR <- sapply(deltaGrid, function(d) {
+      (d * ya[t]) - fnchPsi(na[t], nb[t], n1[t], d) + psiZero
     })
+
+    # Step t e-value: sum( w_{t-1} * LR_t )
+    logE[t] <- logSumExp(currentLogPostWeights + logLR)
+
+    # Update posterior for next step: w_t = w_{t-1} * LR_t / e_t
+    currentLogPostWeights <- currentLogPostWeights + logLR - logE[t]
+
+    if (returnPosteriors) {
+      posteriors[t + 1, ] <- exp(currentLogPostWeights)
+    }
   }
 
-  # Use a sensible finite range for the log-odds integration
-  res <- stats::integrate(integrand, lower = -40, upper = 40)
-  eValue <- res$value
+  res <- if (log) logE else exp(logE)
 
-  if (log) {
-    eValue <- log(eValue)
+  if (returnPosteriors) {
+    return(list(eValues = res, posteriors = posteriors, deltaGrid = deltaGrid))
+  } else {
+    return(res)
   }
-
-  if (returnError) {
-    return(list(eValue = eValue, abs.error = res$abs.error))
-  }
-  eValue
 }
 
 #' Conditional E-variable for fixed delta
@@ -222,10 +208,10 @@ computeTurner <- function(ya, yb, na, nb, priorValues = NULL, log = FALSE) {
   if (is.null(priorValues)) {
     # Default to REGRET optimal based on first data block sample sizes
     priorValues <- list(
-      betaA1 = 0.18, 
-      betaA2 = 0.18, 
-      betaB1 = (nb[1]/na[1]) * 0.18, 
-      betaB2 = (nb[1]/na[1]) * 0.18
+      betaA1 = 0.18,
+      betaA2 = 0.18,
+      betaB1 = (nb[1] / na[1]) * 0.18,
+      betaB2 = (nb[1] / na[1]) * 0.18
     )
   }
 
@@ -261,10 +247,9 @@ computeTurner <- function(ya, yb, na, nb, priorValues = NULL, log = FALSE) {
   logDen <- stats::dbinom(ya, na, breveMeanNull, log = TRUE) +
     stats::dbinom(yb, nb, breveMeanNull, log = TRUE)
 
-  logEIncremental <- logNum - logDen
-  logECumulative <- cumsum(logEIncremental)
+  logE <- logNum - logDen
 
-  if (log) return(logECumulative) else return(exp(logECumulative))
+  if (log) return(logE) else return(exp(logE))
 }
 
 #' NML method
@@ -309,8 +294,7 @@ computeNml <- function(ya, yb, na, nb, log = FALSE, pseudo = FALSE) {
   logDiff <- logNum - logDenHg
 
   if (pseudo) {
-    logECumulative <- cumsum(logDiff)
-    if (log) return(logECumulative) else return(exp(logECumulative))
+    if (log) return(logDiff) else return(exp(logDiff))
   }
 
   # Normalization constants (log-space)
@@ -358,72 +342,9 @@ computeNml <- function(ya, yb, na, nb, log = FALSE, pseudo = FALSE) {
     normConst[t] <- logSumExp(logDensities)
   }
 
-  logEIncremental <- logDiff - normConst
-  logECumulative <- cumsum(logEIncremental)
+  logE <- logDiff - normConst
 
-  if (log) return(logECumulative) else return(exp(logECumulative))
-}
-
-
-seqBayes <- function(
-  ya,
-  yb,
-  na,
-  nb,
-  priorDist = stats::dnorm,
-  ...,
-  log = FALSE,
-  returnPosteriors = FALSE
-) {
-  nSteps <- length(ya)
-  n1 <- ya + yb
-  deltaGrid <- seq(-10, 10, length.out = 1000)
-
-  # Initial prior weights
-  logPriorWeights <- priorDist(deltaGrid, ..., log = TRUE)
-  logPriorWeights <- logPriorWeights - logSumExp(logPriorWeights)
-
-  logECumulative <- numeric(nSteps)
-  currentLogPostWeights <- logPriorWeights
-
-  if (returnPosteriors) {
-    posteriors <- matrix(NA, nrow = nSteps + 1, ncol = length(deltaGrid))
-    posteriors[1, ] <- exp(logPriorWeights)
-  }
-
-  for (t in 1:nSteps) {
-    # Incremental likelihood ratio log(f_delta / f_0)
-    # logLR(delta) = delta * ya[t] - psi(delta) + psi(0)
-    psiZero <- lchoose(na[t] + nb[t], n1[t])
-
-    logLR <- sapply(deltaGrid, function(d) {
-      (d * ya[t]) - fnchPsi(na[t], nb[t], n1[t], d) + psiZero
-    })
-
-    # Step t e-value: sum( w_{t-1} * LR_t )
-    logEIncremental <- logSumExp(currentLogPostWeights + logLR)
-
-    if (t == 1) {
-      logECumulative[t] <- logEIncremental
-    } else {
-      logECumulative[t] <- logECumulative[t - 1] + logEIncremental
-    }
-
-    # Update posterior for next step: w_t = w_{t-1} * LR_t / e_t
-    currentLogPostWeights <- currentLogPostWeights + logLR - logEIncremental
-
-    if (returnPosteriors) {
-      posteriors[t + 1, ] <- exp(currentLogPostWeights)
-    }
-  }
-
-  res <- if (log) logECumulative else exp(logECumulative)
-
-  if (returnPosteriors) {
-    return(list(eValues = res, posteriors = posteriors, deltaGrid = deltaGrid))
-  } else {
-    return(res)
-  }
+  if (log) return(logE) else return(exp(logE))
 }
 
 # Design fnts ----
@@ -442,7 +363,8 @@ seqBayes <- function(
 #' @return Returns a 'saviDesign' object
 #' @export
 designSaviTwoProportions <- function(
-  na = 1, nb = 1,
+  na = 1,
+  nb = 1,
   alpha = 0.05,
   beta = NULL,
   logOddsRatio = NULL,
@@ -464,27 +386,28 @@ designSaviTwoProportions <- function(
     # TODO: run simulation/math to find worstCaseQuantile (nBlocksPlan)
     nBlocksPlan <- NA_real_
 
-  # Scenario 1b: pilot (only nBlocksPlan known)
+    # Scenario 1b: pilot (only nBlocksPlan known)
   } else if (!is.null(nBlocksPlan) && is.null(logOddsRatio) && is.null(beta)) {
     designScenario <- "1b"
     pilot <- TRUE
 
-  # Scenario 2: logOddsRatio + nBlocksPlan known -> Find beta
+    # Scenario 2: logOddsRatio + nBlocksPlan known -> Find beta
   } else if (!is.null(nBlocksPlan) && !is.null(logOddsRatio) && is.null(beta)) {
     designScenario <- "2"
     # TODO: run simulation/math to find worstCasePower (beta)
     beta <- NA_real_
 
-  # Scenario 3: beta + nBlocksPlan known -> Find logOddsRatio
+    # Scenario 3: beta + nBlocksPlan known -> Find logOddsRatio
   } else if (!is.null(nBlocksPlan) && is.null(logOddsRatio) && !is.null(beta)) {
     designScenario <- "3"
     # TODO: run simulation/math to find min effect size
     logOddsRatio <- NA_real_
-
   } else if (pilot) {
     designScenario <- "pilot"
   } else {
-    stop("Provide two of: nBlocksPlan, logOddsRatio, and beta. Or set pilot = TRUE.")
+    stop(
+      "Provide two of: nBlocksPlan, logOddsRatio, and beta. Or set pilot = TRUE."
+    )
   }
 
   nPlan <- c(na, nb, nBlocksPlan)
@@ -554,17 +477,24 @@ fnchPsi <- function(na, nb, n1, delta) {
 #' Validate data for 2 stream data
 isValid2x2Vec <- function(ya, yb, na, nb) {
   # 1. Ensure all are finite and non-missing
-  if (!all(is.finite(c(ya, yb, na, nb)))) return(FALSE)
+  if (!all(is.finite(c(ya, yb, na, nb)))) {
+    return(FALSE)
+  }
 
   # 2. Vectorized check for:
   # - Non-negative integers (ya, yb)
   # - Positive integers (na, nb)
   # - Data does not exceed group size
   all(
-    ya >= 0, yb >= 0,
-    na > 0,  nb > 0,
-    ya %% 1 == 0, yb %% 1 == 0,
-    na %% 1 == 0, nb %% 1 == 0,
-    ya <= na, yb <= nb
+    ya >= 0,
+    yb >= 0,
+    na > 0,
+    nb > 0,
+    ya %% 1 == 0,
+    yb %% 1 == 0,
+    na %% 1 == 0,
+    nb %% 1 == 0,
+    ya <= na,
+    yb <= nb
   )
 }
