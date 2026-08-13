@@ -157,6 +157,12 @@ After implementation:
 
 ## Testing expectations
 
+For a legacy 2x2 migration, begin with an end-to-end comparison in
+`scratch/debug-2x2.R`: load the legacy code in a separate environment, use
+explicit data and prior parameters, print old and new outputs side by side, and
+fail on a justified numerical tolerance. Only add narrower regression tests
+after this comparison establishes the intended contract.
+
 Prefer small, exact, high-information tests. As applicable, cover:
 
 - a hand-computable 2x2 table or comparison with an independent implementation;
