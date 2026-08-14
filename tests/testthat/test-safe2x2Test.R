@@ -115,3 +115,141 @@ testthat::test_that("linear-difference grid covers the feasible interior", {
   )
   testthat::expect_identical(dim(gridResult[["logEProcesses"]]), c(3L, 7L))
 })
+
+testthat::test_that("chunked linear-difference evaluation agrees with full paths", {
+  set.seed(11)
+  nBlocks <- 120L
+  ya <- stats::rbinom(nBlocks, size = 2, prob = 0.2)
+  yb <- stats::rbinom(nBlocks, size = 2, prob = 0.7)
+  design <- designSaviTwoProportions(
+    na = 2,
+    nb = 2,
+    nBlocksPlan = nBlocks,
+    alpha = 0.05
+  )
+  preparedProcess <- prepareLinearDifferenceEProcess(
+    ya = ya,
+    yb = yb,
+    na = 2,
+    nb = 2,
+    priorParameters = design[["betaPriorParameterValues"]]
+  )
+  difference <- 0.8
+  chunkedState <- evaluateLinearDifferenceUntilThreshold(
+    preparedProcess = preparedProcess,
+    difference = difference,
+    logThreshold = log(1 / design[["alpha"]])
+  )
+  denominatorThetaA <- solveLinearDifferenceRIPrThetaA(
+    numeratorThetaA = preparedProcess[["breveMean"]][["thetaA"]],
+    numeratorThetaB = preparedProcess[["breveMean"]][["thetaB"]],
+    na = preparedProcess[["na"]],
+    nb = preparedProcess[["nb"]],
+    difference = difference
+  )
+  fullLogEProcess <- logLikelihoodRatioProcess(
+    ya = ya,
+    yb = yb,
+    na = preparedProcess[["na"]],
+    nb = preparedProcess[["nb"]],
+    numeratorThetaA = preparedProcess[["breveMean"]][["thetaA"]],
+    numeratorThetaB = preparedProcess[["breveMean"]][["thetaB"]],
+    denominatorThetaA = denominatorThetaA,
+    denominatorThetaB = denominatorThetaA + difference
+  )
+  crossingBlock <- match(
+    TRUE,
+    fullLogEProcess >= log(1 / design[["alpha"]]),
+    nomatch = 0L
+  )
+
+  testthat::expect_true(chunkedState[["crossed"]])
+  testthat::expect_identical(chunkedState[["crossingBlock"]], crossingBlock)
+  testthat::expect_equal(
+    chunkedState[["logEAtExit"]],
+    fullLogEProcess[crossingBlock],
+    tolerance = 1e-12
+  )
+  testthat::expect_lt(chunkedState[["blocksEvaluated"]], nBlocks)
+  testthat::expect_lte(
+    chunkedState[["blocksEvaluated"]],
+    crossingBlock + 49L
+  )
+  testthat::expect_true(all(
+    cummax(fullLogEProcess)[crossingBlock:nBlocks] >= log(1 / design[["alpha"]])
+  ))
+})
+
+testthat::test_that("adaptive final interval brackets a dense grid", {
+  set.seed(11)
+  nBlocks <- 120L
+  ya <- stats::rbinom(nBlocks, size = 2, prob = 0.2)
+  yb <- stats::rbinom(nBlocks, size = 2, prob = 0.7)
+  design <- designSaviTwoProportions(
+    na = 2,
+    nb = 2,
+    nBlocksPlan = nBlocks,
+    alpha = 0.05
+  )
+  adaptiveInterval <- computeAdaptiveFinalIntervalForDifferenceTwoProportions(
+    ya = ya,
+    yb = yb,
+    precision = 1e-4,
+    saviDesign = design
+  )
+  denseGrid <- calculateEValuesForLinearDeltaGrid(
+    ya = ya,
+    yb = yb,
+    na = 2,
+    nb = 2,
+    priorParameters = design[["betaPriorParameterValues"]],
+    gridSize = 2001L
+  )
+  denseRetained <- denseGrid[["delta"]][vapply(
+    seq_len(ncol(denseGrid[["logEProcesses"]])),
+    function(index) {
+      all(denseGrid[["logEProcesses"]][, index] < log(1 / design[["alpha"]]))
+    },
+    logical(1)
+  )]
+
+  testthat::expect_identical(adaptiveInterval[["status"]], "heuristic")
+  testthat::expect_true(adaptiveInterval[["heuristic"]])
+  testthat::expect_false(adaptiveInterval[["shapeWarning"]])
+  testthat::expect_lte(adaptiveInterval[["achievedPrecision"]], 1e-4)
+  testthat::expect_true(min(denseRetained) >= adaptiveInterval[["lowerBound"]])
+  testthat::expect_true(max(denseRetained) <= adaptiveInterval[["upperBound"]])
+  testthat::expect_true(any(adaptiveInterval[["candidateDiagnostics"]][["crossed"]]))
+  testthat::expect_lt(
+    sum(adaptiveInterval[["candidateDiagnostics"]][["blocksEvaluated"]]),
+    nBlocks * nrow(adaptiveInterval[["candidateDiagnostics"]])
+  )
+})
+
+testthat::test_that("adaptive final interval reports an undetermined empty search", {
+  ya <- c(1, rep(0, 19))
+  yb <- c(0, rep(1, 19))
+  design <- designSaviTwoProportions(
+    na = 1,
+    nb = 1,
+    nBlocksPlan = length(ya),
+    alpha = 0.99
+  )
+
+  adaptiveInterval <- computeAdaptiveFinalIntervalForDifferenceTwoProportions(
+    ya = ya,
+    yb = yb,
+    precision = 1e-3,
+    saviDesign = design
+  )
+
+  testthat::expect_identical(
+    adaptiveInterval[["status"]],
+    "empty_or_undetermined"
+  )
+  testthat::expect_true(all(is.na(c(
+    adaptiveInterval[["lowerBound"]],
+    adaptiveInterval[["upperBound"]]
+  ))))
+  testthat::expect_true(all(adaptiveInterval[["candidateDiagnostics"]][["crossed"]]))
+})

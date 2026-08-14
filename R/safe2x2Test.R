@@ -333,6 +333,390 @@ computeConfidenceSequenceForDifferenceTwoProportions <- function(
   )
 }
 
+# Prepare the data shared by candidate linear-difference e-processes. The
+# numerator probabilities and log likelihood do not depend on the candidate
+# difference, so they are calculated only once for adaptive searches.
+prepareLinearDifferenceEProcess <- function(
+  ya,
+  yb,
+  na,
+  nb,
+  priorParameters
+) {
+  nSteps <- length(ya)
+  if (nSteps < 1L) {
+    stop("ya and yb must contain at least one data block.")
+  }
+  if (length(na) == 1L) na <- rep(na, nSteps)
+  if (length(nb) == 1L) nb <- rep(nb, nSteps)
+  if (!all(c(length(yb), length(na), length(nb)) == nSteps)) {
+    stop("ya, yb, na, and nb must have the same length.")
+  }
+  if (any(!is.finite(c(ya, yb, na, nb))) ||
+      any(c(ya, yb, na, nb) %% 1 != 0) ||
+      any(na <= 0) || any(nb <= 0) ||
+      any(ya < 0) || any(yb < 0) ||
+      any(ya > na) || any(yb > nb)) {
+    stop("Success counts and group sizes must be valid integer-valued blocks.")
+  }
+
+  priorNames <- c("betaA1", "betaA2", "betaB1", "betaB2")
+  if (!all(priorNames %in% names(priorParameters)) ||
+      any(!is.finite(unlist(priorParameters[priorNames]))) ||
+      any(unlist(priorParameters[priorNames]) <= 0)) {
+    stop("priorParameters must contain positive betaA1, betaA2, betaB1, and betaB2 values.")
+  }
+
+  breveMean <- betaPredictiveMeansTwoProportions(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    priorParameters = priorParameters
+  )
+  logNumerator <- stats::dbinom(
+    ya,
+    na,
+    breveMean[["thetaA"]],
+    log = TRUE
+  ) + stats::dbinom(
+    yb,
+    nb,
+    breveMean[["thetaB"]],
+    log = TRUE
+  )
+
+  list(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    priorParameters = priorParameters,
+    breveMean = breveMean,
+    logNumerator = logNumerator,
+    nSteps = nSteps
+  )
+}
+
+# Evaluate one candidate from block one, in chunks, until its running
+# intersection excludes it or all blocks have been used. A chunk may evaluate
+# up to chunkSize - 1 blocks beyond the crossing in exchange for vectorized
+# RIPr and likelihood calculations.
+evaluateLinearDifferenceUntilThreshold <- function(
+  preparedProcess,
+  difference,
+  logThreshold,
+  chunkSize = 50L
+) {
+  if (length(difference) != 1L || !is.finite(difference) ||
+      difference <= -1 || difference >= 1) {
+    stop("difference must be a finite scalar in the open interval (-1, 1).")
+  }
+  if (length(logThreshold) != 1L || !is.finite(logThreshold)) {
+    stop("logThreshold must be a finite scalar.")
+  }
+  if (length(chunkSize) != 1L || !is.finite(chunkSize) ||
+      chunkSize < 1L || chunkSize %% 1 != 0) {
+    stop("chunkSize must be a positive integer.")
+  }
+
+  currentLogE <- 0
+  maxLogE <- -Inf
+  startBlock <- 1L
+  evaluatedBlocks <- 0L
+  nSteps <- preparedProcess[["nSteps"]]
+
+  while (startBlock <= nSteps) {
+    endBlock <- min(nSteps, startBlock + chunkSize - 1L)
+    blockIndices <- startBlock:endBlock
+    denominatorThetaA <- solveLinearDifferenceRIPrThetaA(
+      numeratorThetaA = preparedProcess[["breveMean"]][["thetaA"]][blockIndices],
+      numeratorThetaB = preparedProcess[["breveMean"]][["thetaB"]][blockIndices],
+      na = preparedProcess[["na"]][blockIndices],
+      nb = preparedProcess[["nb"]][blockIndices],
+      difference = difference
+    )
+    logDenominator <- stats::dbinom(
+      preparedProcess[["ya"]][blockIndices],
+      preparedProcess[["na"]][blockIndices],
+      denominatorThetaA,
+      log = TRUE
+    ) + stats::dbinom(
+      preparedProcess[["yb"]][blockIndices],
+      preparedProcess[["nb"]][blockIndices],
+      denominatorThetaA + difference,
+      log = TRUE
+    )
+    logEChunk <- currentLogE + cumsum(
+      preparedProcess[["logNumerator"]][blockIndices] - logDenominator
+    )
+    maxLogE <- max(maxLogE, logEChunk)
+    crossingInChunk <- match(TRUE, logEChunk >= logThreshold, nomatch = 0L)
+    evaluatedBlocks <- endBlock
+
+    if (crossingInChunk != 0L) {
+      crossingBlock <- startBlock + crossingInChunk - 1L
+      return(list(
+        difference = difference,
+        crossed = TRUE,
+        crossingBlock = crossingBlock,
+        logEAtExit = logEChunk[crossingInChunk],
+        maxLogE = maxLogE,
+        blocksEvaluated = evaluatedBlocks
+      ))
+    }
+
+    currentLogE <- logEChunk[length(logEChunk)]
+    startBlock <- endBlock + 1L
+  }
+
+  list(
+    difference = difference,
+    crossed = FALSE,
+    crossingBlock = NA_integer_,
+    logEAtExit = currentLogE,
+    maxLogE = maxLogE,
+    blocksEvaluated = evaluatedBlocks
+  )
+}
+
+#' Heuristic adaptive final interval for a difference between two proportions
+#'
+#' Computes a final, running-intersection interval for `thetaB - thetaA` using
+#' chunked e-process evaluations and adaptive endpoint bisection. Each queried
+#' difference is evaluated from the first data block, so newly queried values
+#' use their complete evidence history. This is a numerical heuristic: it
+#' assumes the final retained set is one connected interval and does not prove
+#' that property.
+#'
+#' @param ya,yb Number of successes in groups A and B in each data block.
+#' @param precision Maximum width of each retained/rejected endpoint bracket.
+#' @param saviDesign A `saviDesign` returned by
+#'   [designSaviTwoProportions()].
+#'
+#' @return A list with conservative `lowerBound` and `upperBound`, the inner
+#'   retained/rejected endpoint brackets, `achievedPrecision`, `status`, and
+#'   diagnostics for every evaluated candidate. `heuristic` is always `TRUE`:
+#'   the connected-interval assumption has not been established for this
+#'   e-process.
+#' @export
+computeAdaptiveFinalIntervalForDifferenceTwoProportions <- function(
+  ya,
+  yb,
+  precision = 1e-8,
+  saviDesign
+) {
+  if (length(precision) != 1L || !is.finite(precision) ||
+      precision <= 0 || precision >= 2) {
+    stop("precision must be a finite scalar strictly between zero and two.")
+  }
+  if (is.null(saviDesign[["nPlan"]]) || is.null(saviDesign[["alpha"]]) ||
+      is.null(saviDesign[["betaPriorParameterValues"]])) {
+    stop("saviDesign must contain nPlan, alpha, and betaPriorParameterValues.")
+  }
+  if (length(saviDesign[["alpha"]]) != 1L ||
+      !is.finite(saviDesign[["alpha"]]) ||
+      saviDesign[["alpha"]] <= 0 || saviDesign[["alpha"]] >= 1) {
+    stop("saviDesign alpha must be strictly between zero and one.")
+  }
+
+  preparedProcess <- prepareLinearDifferenceEProcess(
+    ya = ya,
+    yb = yb,
+    na = saviDesign[["nPlan"]][["na"]],
+    nb = saviDesign[["nPlan"]][["nb"]],
+    priorParameters = saviDesign[["betaPriorParameterValues"]]
+  )
+  logThreshold <- log(1 / saviDesign[["alpha"]])
+  domainMargin <- max(.Machine$double.eps * 8, min(1e-10, precision / 4))
+  domainLower <- -1 + domainMargin
+  domainUpper <- 1 - domainMargin
+  candidateStates <- new.env(parent = emptyenv())
+
+  evaluateCandidate <- function(difference) {
+    difference <- min(domainUpper, max(domainLower, difference))
+    key <- sprintf("%.17g", difference)
+    if (!exists(key, envir = candidateStates, inherits = FALSE)) {
+      assign(
+        key,
+        evaluateLinearDifferenceUntilThreshold(
+          preparedProcess = preparedProcess,
+          difference = difference,
+          logThreshold = logThreshold
+        ),
+        envir = candidateStates
+      )
+    }
+    get(key, envir = candidateStates, inherits = FALSE)
+  }
+
+  candidateDiagnostics <- function() {
+    keys <- ls(candidateStates, all.names = TRUE)
+    if (length(keys) == 0L) {
+      return(data.frame(
+        delta = numeric(),
+        crossed = logical(),
+        crossingBlock = integer(),
+        logEAtExit = numeric(),
+        maxLogE = numeric(),
+        blocksEvaluated = integer()
+      ))
+    }
+    states <- lapply(keys, get, envir = candidateStates, inherits = FALSE)
+    diagnostics <- do.call(rbind, lapply(states, function(state) {
+      data.frame(
+        delta = state[["difference"]],
+        crossed = state[["crossed"]],
+        crossingBlock = state[["crossingBlock"]],
+        logEAtExit = state[["logEAtExit"]],
+        maxLogE = state[["maxLogE"]],
+        blocksEvaluated = state[["blocksEvaluated"]]
+      )
+    }))
+    diagnostics[order(diagnostics[["delta"]]), , drop = FALSE]
+  }
+
+  shapeWarning <- function() {
+    diagnostics <- candidateDiagnostics()
+    if (nrow(diagnostics) == 0L) return(FALSE)
+    retainedRuns <- rle(!diagnostics[["crossed"]])
+    sum(retainedRuns[["values"]]) > 1L
+  }
+
+  emptyResult <- function(status) {
+    list(
+      lowerBound = NA_real_,
+      upperBound = NA_real_,
+      lowerBracket = c(rejected = NA_real_, retained = NA_real_),
+      upperBracket = c(retained = NA_real_, rejected = NA_real_),
+      achievedPrecision = NA_real_,
+      status = status,
+      heuristic = TRUE,
+      shapeWarning = shapeWarning(),
+      candidateDiagnostics = candidateDiagnostics()
+    )
+  }
+
+  priorParameters <- preparedProcess[["priorParameters"]]
+  posteriorThetaA <- (priorParameters[["betaA1"]] + sum(preparedProcess[["ya"]])) / (
+    sum(preparedProcess[["na"]]) + priorParameters[["betaA1"]] +
+      priorParameters[["betaA2"]]
+  )
+  posteriorThetaB <- (priorParameters[["betaB1"]] + sum(preparedProcess[["yb"]])) / (
+    sum(preparedProcess[["nb"]]) + priorParameters[["betaB1"]] +
+      priorParameters[["betaB2"]]
+  )
+  centreDifference <- min(
+    domainUpper,
+    max(domainLower, posteriorThetaB - posteriorThetaA)
+  )
+  centreState <- evaluateCandidate(centreDifference)
+
+  if (centreState[["crossed"]]) {
+    pilotGrid <- seq(domainLower, domainUpper, length.out = 21L)
+    pilotStates <- lapply(pilotGrid, evaluateCandidate)
+    retainedPilot <- vapply(
+      pilotStates,
+      function(state) !state[["crossed"]],
+      logical(1)
+    )
+    if (!any(retainedPilot)) {
+      return(emptyResult("empty_or_undetermined"))
+    }
+    retainedDelta <- pilotGrid[retainedPilot]
+    centreDifference <- retainedDelta[which.min(abs(retainedDelta - centreDifference))]
+    centreState <- evaluateCandidate(centreDifference)
+  }
+
+  findEndpointBracket <- function(direction) {
+    retainedDifference <- centreDifference
+    step <- 0.05
+
+    repeat {
+      candidateDifference <- min(
+        domainUpper,
+        max(domainLower, centreDifference + direction * step)
+      )
+      if (identical(candidateDifference, retainedDifference)) {
+        return(c(retained = retainedDifference, rejected = NA_real_))
+      }
+      candidateState <- evaluateCandidate(candidateDifference)
+      if (candidateState[["crossed"]]) {
+        return(c(retained = retainedDifference, rejected = candidateDifference))
+      }
+      retainedDifference <- candidateDifference
+      if (candidateDifference %in% c(domainLower, domainUpper)) {
+        return(c(retained = retainedDifference, rejected = NA_real_))
+      }
+      step <- step * 2
+    }
+  }
+
+  refineEndpointBracket <- function(bracket) {
+    if (is.na(bracket[["rejected"]])) return(bracket)
+
+    while (abs(bracket[["retained"]] - bracket[["rejected"]]) > precision) {
+      midpoint <- mean(bracket)
+      midpointState <- evaluateCandidate(midpoint)
+      if (midpointState[["crossed"]]) {
+        bracket[["rejected"]] <- midpoint
+      } else {
+        bracket[["retained"]] <- midpoint
+      }
+    }
+    bracket
+  }
+
+  lowerBracket <- refineEndpointBracket(findEndpointBracket(direction = -1))
+  upperBracket <- refineEndpointBracket(findEndpointBracket(direction = 1))
+  checkOuterNeighbour <- function(bracket, direction) {
+    if (is.na(bracket[["rejected"]])) return(FALSE)
+
+    bracketWidth <- abs(bracket[["retained"]] - bracket[["rejected"]])
+    neighbourDifference <- min(
+      domainUpper,
+      max(
+        domainLower,
+        bracket[["rejected"]] + direction * bracketWidth
+      )
+    )
+    if (identical(neighbourDifference, bracket[["rejected"]])) return(FALSE)
+
+    !evaluateCandidate(neighbourDifference)[["crossed"]]
+  }
+  lowerNeighbourWarning <- checkOuterNeighbour(lowerBracket, direction = -1)
+  upperNeighbourWarning <- checkOuterNeighbour(upperBracket, direction = 1)
+  lowerWidth <- abs(lowerBracket[["retained"]] - lowerBracket[["rejected"]])
+  upperWidth <- abs(upperBracket[["retained"]] - upperBracket[["rejected"]])
+  bracketWidths <- c(lowerWidth, upperWidth)
+  achievedPrecision <- if (all(is.na(bracketWidths))) {
+    NA_real_
+  } else {
+    max(bracketWidths, na.rm = TRUE)
+  }
+  hasDomainBoundary <- any(is.na(c(
+    lowerBracket[["rejected"]],
+    upperBracket[["rejected"]]
+  )))
+
+  list(
+    lowerBound = if (is.na(lowerBracket[["rejected"]])) -1 else lowerBracket[["rejected"]],
+    upperBound = if (is.na(upperBracket[["rejected"]])) 1 else upperBracket[["rejected"]],
+    lowerBracket = c(
+      rejected = lowerBracket[["rejected"]],
+      retained = lowerBracket[["retained"]]
+    ),
+    upperBracket = c(
+      retained = upperBracket[["retained"]],
+      rejected = upperBracket[["rejected"]]
+    ),
+    achievedPrecision = achievedPrecision,
+    status = if (hasDomainBoundary) "heuristic_domain_boundary" else "heuristic",
+    heuristic = TRUE,
+    shapeWarning = shapeWarning() || lowerNeighbourWarning || upperNeighbourWarning,
+    candidateDiagnostics = candidateDiagnostics()
+  )
+}
 
 # Stopping Time Simulation ----
 
