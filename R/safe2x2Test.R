@@ -1,213 +1,133 @@
-# Testing fnts ---------
+# Turner's method and design ----
 
-saviTwoPropCondStat <- function(
+#' Cumulative log-likelihood-ratio process for two Bernoulli streams
+#'
+#' Calculates the cumulative log likelihood ratio for given predictable
+#' numerator and denominator probabilities. The caller is responsible for
+#' constructing all four probability vectors using only information available
+#' before the corresponding data block.
+#'
+#' @param ya,yb Number of successes in groups A and B in each data block.
+#' @param na,nb Number of observations in groups A and B in each data block.
+#' @param numeratorThetaA,numeratorThetaB Predictable Bernoulli probabilities
+#'   in the numerator.
+#' @param denominatorThetaA,denominatorThetaB Predictable Bernoulli
+#'   probabilities in the denominator.
+#'
+#' @return A numeric vector containing the cumulative log likelihood ratio
+#'   after every block.
+logLikelihoodRatioProcess <- function(
   ya,
   yb,
   na,
   nb,
-  logOddsRatio = NULL,
-  alternative = c("twoSided", "less", "greater"),
-  eType = c("eGauss", "nml", "turner", "grow", "eBayes"),
-  designObj = NULL,
-  ...
-) {
-  alternative <- match.arg(alternative)
-  eType <- match.arg(eType)
-
-  result <- constructSaviTestObj("Two Proportions")
-
-  ### Check: designObj ----
-  if (is.null(designObj)) {
-    warningMessage <- paste(
-      "No designObj given. Default pilot test computed",
-      "based on default settings."
-    )
-    warning(warningMessage)
-
-    designObj <- list(
-      alpha = 0.05,
-      alternative = alternative,
-      h0 = 0,
-      testType = "2x2",
-      testName = "Two Proportions",
-      parameter = list(logOddsRatio = logOddsRatio),
-      pilot = TRUE,
-      eType = eType
-    )
-  }
-
-  alpha <- designObj[["alpha"]]
-  alternative <- designObj[["alternative"]]
-  h0 <- designObj[["h0"]]
-
-  ### Check: Data -----
-  if (!isValid2x2Vec(ya, yb, na, nb)) {
-    stop("Input data wrong! Please check")
-  }
-
-  mIter <- length(ya)
-
-  if (length(na) == 1 && mIter > 1) {
-    na <- rep(na, mIter)
-  }
-  if (length(nb) == 1 && mIter > 1) {
-    nb <- rep(nb, mIter)
-  }
-
-  dataName <- paste(deparse1(substitute(ya)), "and", deparse1(substitute(yb)))
-
-  n <- c(sum(na), sum(nb))
-  names(n) <- c("nObsA", "nObsB")
-
-  # Vars for analysis
-  eValueVec <- NULL
-
-  ### Compute: eValue ----
-  if (eType == "eGauss") {
-    eValueVec <- computeEGauss(ya, yb, na, nb, log = FALSE)
-  } else if (eType == "eBayes") {
-    eValueVec <- computeEGaussGrid(ya, yb, na, nb)
-  } else {
-    eValueVec <- switch(
-      eType,
-      "turner" = computeTurner(ya, yb, na, nb),
-      "nml" = computeNml(ya, yb, na, nb),
-      "grow" = conditionalEValueFixedAlternative(ya, yb, na, nb, logOddsRatio),
-      rep(NA_real_, mIter)
-    )
-  }
-
-  # Final e-value is the last one in the sequence
-  eValue <- eValueVec[mIter]
-
-  ### Fill: Result -----
-  result[["n"]] <- n
-  result[["eValue"]] <- eValue
-  result[["dataName"]] <- dataName
-  result[["alternative"]] <- alternative
-  result[["testType"]] <- "2x2"
-  result[["testName"]] <- "Two Proportions"
-  result[["designObj"]] <- designObj
-  result[["h0"]] <- h0
-  result[["eValueVec"]] <- if (mIter > 1) eValueVec else NULL
-  result[["call"]] <- sys.call()
-
-  class(result) <- "saviTest"
-  return(result)
-}
-
-## Math Functions ----
-
-computeEGauss <- function(ya, yb, na, nb, priorDist = stats::dnorm, ..., log = FALSE) {
-
-  # Internal worker for a single 2x2 table
-  computeSingleTable <- function(y1, y2, n1_val, n2_val) {
-    nTotal <- y1 + y2
-    psiZero <- lchoose(n1_val + n2_val, nTotal)
-
-    integrand <- function(delta) {
-      sapply(delta, function(d) {
-        logWeight <- (d * y1) - fnchPsi(n1_val, n2_val, nTotal, d) + psiZero
-        exp(logWeight + priorDist(d, ..., log = TRUE))
-      })
-    }
-
-    # Integrate to get the marginal likelihood ratio (E-value)
-    stats::integrate(integrand, lower = -40, upper = 40)$value
-  }
-
-  eVals <- mapply(computeSingleTable, ya, yb, na, nb)
-
-  if (log) return(sum(log(eVals)))
-
-  prod(eVals)
-}
-
-computeEGaussGrid <- function(
-  ya,
-  yb,
-  na,
-  nb,
-  priorDist = stats::dnorm,
-  ...,
-  log = FALSE,
-  returnPosteriors = FALSE
+  numeratorThetaA,
+  numeratorThetaB,
+  denominatorThetaA,
+  denominatorThetaB
 ) {
   nSteps <- length(ya)
-  n1 <- ya + yb
-  deltaGrid <- seq(-20, 20, length.out = 2000)
-
-  # Initial prior weights
-  logPriorWeights <- priorDist(deltaGrid, ..., log = TRUE)
-  logPriorWeights <- logPriorWeights - logSumExp(logPriorWeights)
-
-  logE <- numeric(nSteps)
-  currentLogPostWeights <- logPriorWeights
-
-  if (returnPosteriors) {
-    posteriors <- matrix(NA, nrow = nSteps + 1, ncol = length(deltaGrid))
-    posteriors[1, ] <- exp(logPriorWeights)
-  }
-
-  for (t in 1:nSteps) {
-    # Incremental likelihood ratio log(f_delta / f_0)
-    # logLR(delta) = delta * ya[t] - psi(delta) + psi(0)
-    psiZero <- lchoose(na[t] + nb[t], n1[t])
-
-    logLR <- sapply(deltaGrid, function(d) {
-      (d * ya[t]) - fnchPsi(na[t], nb[t], n1[t], d) + psiZero
-    })
-
-    # Step t e-value: sum( w_{t-1} * LR_t )
-    logE[t] <- logSumExp(currentLogPostWeights + logLR)
-
-    # Update posterior for next step: w_t = w_{t-1} * LR_t / e_t
-    currentLogPostWeights <- currentLogPostWeights + logLR - logE[t]
-
-    if (returnPosteriors) {
-      posteriors[t + 1, ] <- exp(currentLogPostWeights)
-    }
-  }
-
-  res <- if (log) logE else exp(logE)
-
-  if (returnPosteriors) {
-    return(list(eValues = res, posteriors = posteriors, deltaGrid = deltaGrid))
-  } else {
-    return(res)
-  }
-}
-
-#' Conditional E-variable for fixed delta
-conditionalEValueFixedAlternative <- function(ya, yb, na, nb, logOddsRatio) {
-  if (is.null(logOddsRatio)) {
-    logOddsRatio <- 0
-  }
-  odds <- exp(logOddsRatio)
-  n1 <- ya + yb
-
-  numerator <- BiasedUrn::dFNCHypergeo(
-    x = ya,
-    m1 = na,
-    m2 = nb,
-    n = n1,
-    odds = odds
+  if (length(na) == 1L) na <- rep(na, nSteps)
+  if (length(nb) == 1L) nb <- rep(nb, nSteps)
+  inputLengths <- c(
+    length(yb),
+    length(na),
+    length(nb),
+    length(numeratorThetaA),
+    length(numeratorThetaB),
+    length(denominatorThetaA),
+    length(denominatorThetaB)
   )
-  denominator <- stats::dhyper(x = ya, m = na, n = nb, k = n1)
+  if (!all(inputLengths == nSteps)) {
+    stop("Data, group sizes, and all four theta vectors must have the same length!")
+  }
 
-  result <- numerator / denominator
-  result[denominator == 0] <- 0
+  logNumerator <- stats::dbinom(
+    ya,
+    na,
+    numeratorThetaA,
+    log = TRUE
+  ) + stats::dbinom(
+    yb,
+    nb,
+    numeratorThetaB,
+    log = TRUE
+  )
+  logDenominator <- stats::dbinom(
+    ya,
+    na,
+    denominatorThetaA,
+    log = TRUE
+  ) + stats::dbinom(
+    yb,
+    nb,
+    denominatorThetaB,
+    log = TRUE
+  )
 
-  return(result)
+  cumsum(logNumerator - logDenominator)
 }
 
-#' Turner's method
-computeTurner <- function(ya, yb, na, nb, priorValues = NULL, log = FALSE) {
+# Calculate the two predictable Beta posterior means before each data block.
+betaPredictiveMeansTwoProportions <- function(
+  ya,
+  yb,
+  na,
+  nb,
+  priorParameters
+) {
+  nSteps <- length(ya)
+  prevYa <- c(0, cumsum(ya))[seq_len(nSteps)]
+  prevYb <- c(0, cumsum(yb))[seq_len(nSteps)]
+  prevNa <- c(0, cumsum(na))[seq_len(nSteps)]
+  prevNb <- c(0, cumsum(nb))[seq_len(nSteps)]
+
+  list(
+    thetaA = (priorParameters[["betaA1"]] + prevYa) / (
+      prevNa + priorParameters[["betaA1"]] + priorParameters[["betaA2"]]
+    ),
+    thetaB = (priorParameters[["betaB1"]] + prevYb) / (
+      prevNb + priorParameters[["betaB1"]] + priorParameters[["betaB2"]]
+    )
+  )
+}
+
+#' Cumulative Turner e-process for two Bernoulli streams
+#'
+#' Computes the Turner e-process for `thetaB - thetaA = 0`. This is the
+#' difference-zero specialization of the linear-difference likelihood-ratio
+#' process. The returned vector is cumulative: element `i` uses blocks `1`
+#' through `i`.
+#'
+#' @param ya,yb Number of successes in groups A and B in each data block.
+#' @param na,nb Number of observations in groups A and B in each data block.
+#'   A scalar is recycled over all blocks.
+#' @param priorParameters Optional named list with `betaA1`, `betaA2`,
+#'   `betaB1`, and `betaB2`.
+#' @param log Return the cumulative log e-process instead of the e-process.
+#'
+#' @return A numeric vector containing the cumulative e-process after every
+#'   block.
+#' @export
+turnerEProcess <- function(
+  ya,
+  yb,
+  na,
+  nb,
+  priorParameters = NULL,
+  log = FALSE
+) {
   nSteps <- length(ya)
 
-  if (is.null(priorValues)) {
+  if (length(na) == 1L) na <- rep(na, nSteps)
+  if (length(nb) == 1L) nb <- rep(nb, nSteps)
+  if (!all(c(length(yb), length(na), length(nb)) == nSteps)) {
+    stop("ya, yb, na, and nb must have the same length.")
+  }
+
+  if (is.null(priorParameters)) {
     # Default to REGRET optimal based on first data block sample sizes
-    priorValues <- list(
+    priorParameters <- list(
       betaA1 = 0.18,
       betaA2 = 0.18,
       betaB1 = (nb[1] / na[1]) * 0.18,
@@ -215,286 +135,570 @@ computeTurner <- function(ya, yb, na, nb, priorValues = NULL, log = FALSE) {
     )
   }
 
-  # unpack the prior values
-  betaA1 <- priorValues[["betaA1"]]
-  betaA2 <- priorValues[["betaA2"]]
-  betaB1 <- priorValues[["betaB1"]]
-  betaB2 <- priorValues[["betaB2"]]
+  breveMean <- betaPredictiveMeansTwoProportions(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    priorParameters = priorParameters
+  )
+  breveMeanNull <- (
+    na * breveMean[["thetaA"]] + nb * breveMean[["thetaB"]]
+  ) / (na + nb)
+  logEProcess <- logLikelihoodRatioProcess(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    numeratorThetaA = breveMean[["thetaA"]],
+    numeratorThetaB = breveMean[["thetaB"]],
+    denominatorThetaA = breveMeanNull,
+    denominatorThetaB = breveMeanNull
+  )
 
-  # Previous cumulative sums
-  if (nSteps == 1) {
-    prevYaCumsum <- 0
-    prevYbCumsum <- 0
-    prevNaCumsum <- 0
-    prevNbCumsum <- 0
-  } else {
-    prevYaCumsum <- c(0, cumsum(ya[-nSteps]))
-    prevYbCumsum <- c(0, cumsum(yb[-nSteps]))
-    prevNaCumsum <- c(0, cumsum(na[-nSteps]))
-    prevNbCumsum <- c(0, cumsum(nb[-nSteps]))
-  }
-
-  # Predictive means
-  breveMeanA <- (betaA1 + prevYaCumsum) / (prevNaCumsum + betaA1 + betaA2)
-  breveMeanB <- (betaB1 + prevYbCumsum) / (prevNbCumsum + betaB1 + betaB2)
-
-  # Null predictive mean (weighted average)
-  breveMeanNull <- (na * breveMeanA + nb * breveMeanB) / (na + nb)
-
-  # Likelihood ratio (incremental)
-  logNum <- stats::dbinom(ya, na, breveMeanA, log = TRUE) +
-    stats::dbinom(yb, nb, breveMeanB, log = TRUE)
-  logDen <- stats::dbinom(ya, na, breveMeanNull, log = TRUE) +
-    stats::dbinom(yb, nb, breveMeanNull, log = TRUE)
-
-  logE <- logNum - logDen
-
-  if (log) return(logE) else return(exp(logE))
+  if (log) logEProcess else exp(logEProcess)
 }
 
-#' NML method
-computeNml <- function(ya, yb, na, nb, log = FALSE, pseudo = FALSE) {
+# Linear-difference confidence sequence ----
+
+# Solve for the thetaA coordinate of the reverse information projection onto
+# the null curve thetaB - thetaA = difference at every data block.
+solveLinearDifferenceRIPrThetaA <- function(
+  numeratorThetaA,
+  numeratorThetaB,
+  na,
+  nb,
+  difference,
+  bWeight = 1
+) {
+  nSteps <- length(numeratorThetaA)
+  if (length(na) == 1L) na <- rep(na, nSteps)
+  if (length(nb) == 1L) nb <- rep(nb, nSteps)
+  if (!all(c(length(numeratorThetaB), length(na), length(nb)) == nSteps)) {
+    stop("Numerator theta vectors and group sizes must align by block.")
+  }
+
+  solveOne <- function(thetaStarA, thetaStarB, blockSizeA, blockSizeB) {
+    A <- blockSizeA
+    B <- blockSizeB * bWeight
+    coefficients <- c(
+      -A * thetaStarA * difference * (1 - difference),
+      A * (
+        difference * (1 - difference) -
+          thetaStarA * (1 - 2 * difference)
+      ) + B * (difference - thetaStarB),
+      A * (1 - 2 * difference + thetaStarA) +
+        B * (1 - difference + thetaStarB),
+      -(A + B)
+    )
+    roots <- Re(base::polyroot(coefficients))
+
+    # The feasible RIPr solution is the middle of the three real roots.
+    sum(roots) - min(roots) - max(roots)
+  }
+
+  mapply(
+    solveOne,
+    numeratorThetaA,
+    numeratorThetaB,
+    na,
+    nb,
+    USE.NAMES = FALSE
+  )
+}
+
+#' Calculate e-processes over a grid of linear differences
+#'
+#' For every candidate `delta = thetaB - thetaA`, computes the Turner
+#' likelihood-ratio process whose denominator is the reverse information
+#' projection onto that candidate null curve. Every process is calculated once
+#' over the complete data sequence and returned on the log scale.
+#'
+#' @param ya,yb Number of successes in groups A and B in each data block.
+#' @param na,nb Number of observations in groups A and B in each data block.
+#'   A scalar is recycled over all blocks.
+#' @param priorParameters Named list with `betaA1`, `betaA2`, `betaB1`, and
+#'   `betaB2` for the Turner predictor.
+#' @param gridSize Number of equally spaced candidate differences in the
+#'   feasible open interval `(-1, 1)`.
+#'
+#' @return A list containing `delta` and `logEProcesses`. Rows of the log
+#'   e-process matrix are data blocks and columns are candidate differences.
+calculateEValuesForLinearDeltaGrid <- function(
+  ya,
+  yb,
+  na,
+  nb,
+  priorParameters,
+  gridSize = 100
+) {
   nSteps <- length(ya)
+  if (length(na) == 1L) na <- rep(na, nSteps)
+  if (length(nb) == 1L) nb <- rep(nb, nSteps)
+  if (!all(c(length(yb), length(na), length(nb)) == nSteps)) {
+    stop("ya, yb, na, and nb must have the same length.")
+  }
 
-  yaCumsum <- cumsum(ya)
-  ybCumsum <- cumsum(yb)
-  naCumsum <- cumsum(na)
-  nbCumsum <- cumsum(nb)
+  breveMean <- betaPredictiveMeansTwoProportions(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    priorParameters = priorParameters
+  )
+  deltaGrid <- seq_len(gridSize) * (2 / (gridSize + 1)) - 1
 
-  if (nSteps == 1) {
-    prevYaCumsum <- 0
-    prevYbCumsum <- 0
+  logEProcesses <- matrix(
+    NA_real_,
+    nrow = nSteps,
+    ncol = gridSize,
+    dimnames = list(NULL, as.character(deltaGrid))
+  )
+
+  for (deltaIndex in seq_along(deltaGrid)) {
+    delta <- deltaGrid[deltaIndex]
+    denominatorThetaA <- solveLinearDifferenceRIPrThetaA(
+      numeratorThetaA = breveMean[["thetaA"]],
+      numeratorThetaB = breveMean[["thetaB"]],
+      na = na,
+      nb = nb,
+      difference = delta
+    )
+    logEProcesses[, deltaIndex] <- logLikelihoodRatioProcess(
+      ya = ya,
+      yb = yb,
+      na = na,
+      nb = nb,
+      numeratorThetaA = breveMean[["thetaA"]],
+      numeratorThetaB = breveMean[["thetaB"]],
+      denominatorThetaA = denominatorThetaA,
+      denominatorThetaB = denominatorThetaA + delta
+    )
+  }
+
+  list(delta = deltaGrid, logEProcesses = logEProcesses)
+}
+
+#' Confidence sequence for the difference between two proportions
+#'
+#' Computes every candidate difference's e-process once over the full data
+#' sequence and inverts their running intersections at every block.
+#'
+#' @param ya,yb Number of successes in groups A and B in each data block.
+#' @param gridSize Number of candidate differences used for the grid
+#'   approximation in the feasible open interval `(-1, 1)`.
+#' @param saviDesign A `saviDesign` returned by
+#'   [designSaviTwoProportions()].
+#'
+#' @return A data frame with `block`, `lowerBound`, and `upperBound`. If no
+#'   grid point remains at a block, both bounds are `NA`.
+computeConfidenceSequenceForDifferenceTwoProportions <- function(
+  ya,
+  yb,
+  gridSize,
+  saviDesign
+) {
+  gridProcesses <- calculateEValuesForLinearDeltaGrid(
+    ya = ya,
+    yb = yb,
+    na = saviDesign[["nPlan"]][["na"]],
+    nb = saviDesign[["nPlan"]][["nb"]],
+    priorParameters = saviDesign[["betaPriorParameterValues"]],
+    gridSize = gridSize
+  )
+  deltaGrid <- gridProcesses[["delta"]]
+  logEProcesses <- gridProcesses[["logEProcesses"]]
+  nSteps <- nrow(logEProcesses)
+  logThreshold <- log(1 / saviDesign[["alpha"]])
+  retained <- matrix(FALSE, nrow = gridSize, ncol = nSteps)
+
+  for (deltaIndex in seq_along(deltaGrid)) {
+    retained[deltaIndex, ] <-
+      cummax(logEProcesses[, deltaIndex]) < logThreshold
+  }
+
+  lowerBound <- upperBound <- rep(NA_real_, nSteps)
+  for (block in seq_len(nSteps)) {
+    retainedDelta <- deltaGrid[retained[, block]]
+    if (length(retainedDelta) > 0L) {
+      lowerBound[block] <- min(retainedDelta)
+      upperBound[block] <- max(retainedDelta)
+    }
+  }
+
+  data.frame(
+    block = seq_len(nSteps),
+    lowerBound = lowerBound,
+    upperBound = upperBound
+  )
+}
+
+
+# Stopping Time Simulation ----
+
+# Simulate complete Turner paths at fixed Bernoulli probabilities. A path that
+# does not cross has no stopping e-value, so its time is Inf, its stopping
+# e-value is NA, and its crossed indicator is FALSE.
+simulateTurnerStoppingTimes <- function(
+  na,
+  nb,
+  thetaA,
+  thetaB,
+  alpha = 0.05,
+  priorParameters = NULL,
+  nSimulations = 1e3,
+  maxBlocks = 1e4
+) {
+  if (length(na) != 1L || length(nb) != 1L ||
+      any(!is.finite(c(na, nb))) || any(c(na, nb) <= 0) ||
+      any(c(na, nb) %% 1 != 0)) {
+    stop("na and nb must be positive integer block sizes.")
+  }
+  if (length(thetaA) != 1L || length(thetaB) != 1L ||
+      any(!is.finite(c(thetaA, thetaB))) ||
+      any(c(thetaA, thetaB) < 0) || any(c(thetaA, thetaB) > 1)) {
+    stop("thetaA and thetaB must be probabilities between 0 and 1.")
+  }
+  if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1) {
+    stop("alpha must be strictly between 0 and 1.")
+  }
+  if (any(!is.finite(c(nSimulations, maxBlocks))) ||
+      any(c(nSimulations, maxBlocks) < 1) ||
+      any(c(nSimulations, maxBlocks) %% 1 != 0)) {
+    stop("nSimulations and maxBlocks must be positive integers.")
+  }
+
+  logThreshold <- log(1 / alpha)
+  stoppingTimes <- rep(Inf, nSimulations)
+  eValuesAtStopping <- rep(NA_real_, nSimulations)
+  crossed <- rep(FALSE, nSimulations)
+
+  for (simulation in seq_len(nSimulations)) {
+    ya <- stats::rbinom(maxBlocks, size = na, prob = thetaA)
+    yb <- stats::rbinom(maxBlocks, size = nb, prob = thetaB)
+    logEProcess <- turnerEProcess(
+      ya,
+      yb,
+      na,
+      nb,
+      priorParameters = priorParameters,
+      log = TRUE
+    )
+    crossing <- match(TRUE, logEProcess >= logThreshold, nomatch = 0L)
+
+    if (crossing != 0L) {
+      stoppingTimes[simulation] <- crossing
+      eValuesAtStopping[simulation] <- exp(logEProcess[crossing])
+      crossed[simulation] <- TRUE
+    }
+  }
+
+  list(
+    stoppingTimes = stoppingTimes,
+    eValuesAtStopping = eValuesAtStopping,
+    crossed = crossed,
+    blocksSimulated = rep(maxBlocks, nSimulations)
+  )
+}
+
+#' Simulate the worst-case stopping time for a linear difference
+#'
+#' Simulates the Turner e-process under `thetaB - thetaA = difference` over a
+#' grid of feasible baseline probabilities. A path that does not cross
+#' `1 / alpha` within `maxBlocks` has stopping time `Inf`.
+#'
+#' The baseline grid is a simulation device, not an alternative restriction.
+#' It ranges over values of `thetaA` for which both probabilities are in
+#' `[0, 1]`.
+#'
+#' @param na,nb Number of observations in groups A and B per block.
+#' @param difference Data-generating difference `thetaB - thetaA`.
+#' @param alpha E-process rejection threshold is `1 / alpha`.
+#' @param beta Target type-II error used to select the stopping-time quantile.
+#' @param priorParameters Optional Turner Beta prior parameters.
+#' @param nSimulations Number of simulated paths at each baseline probability.
+#' @param maxBlocks Maximum number of blocks simulated per path.
+#' @param gridSize Number of equally spaced feasible baseline probabilities.
+#' @param nBoot Number of nonparametric bootstrap samples used to estimate the
+#'   standard error of the worst-case stopping-time quantile; must be at least
+#'   two.
+#'
+#' @return A list with the worst-case baseline probabilities, stopping-time
+#'   quantiles, and per-path stopping results. `crossed` records whether a path
+#'   crossed the threshold. Non-crossing paths have stopping time `Inf` and
+#'   stopping e-value `NA` in `eValuesAtStopping`.
+#'   `worstCaseStoppingTimeBootstrapSe` is the bootstrap standard error of the
+#'   selected worst-case quantile, and `worstCaseStoppingTimeTwoSe` is twice
+#'   that standard error.
+#' @export
+simulateWorstCaseStoppingTimeLinearDifference <- function(
+  na,
+  nb,
+  difference,
+  alpha = 0.05,
+  beta = 0.2,
+  priorParameters = NULL,
+  nSimulations = 1e3,
+  maxBlocks = 1e4,
+  gridSize = 8,
+  nBoot = 1e3
+) {
+  if (length(na) != 1L || length(nb) != 1L ||
+      any(!is.finite(c(na, nb))) || any(c(na, nb) <= 0) ||
+      any(c(na, nb) %% 1 != 0)) {
+    stop("na and nb must be positive integer block sizes.")
+  }
+  if (length(difference) != 1L || !is.finite(difference) ||
+      difference == 0 || abs(difference) >= 1) {
+    stop("difference must be nonzero and strictly between -1 and 1.")
+  }
+  if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1 ||
+      length(beta) != 1L || !is.finite(beta) || beta <= 0 || beta >= 1) {
+    stop("alpha and beta must be strictly between 0 and 1.")
+  }
+  if (any(!is.finite(c(nSimulations, maxBlocks, gridSize, nBoot))) ||
+      any(c(nSimulations, maxBlocks, gridSize) < 1) || nBoot < 2 ||
+      any(c(nSimulations, maxBlocks, gridSize, nBoot) %% 1 != 0)) {
+    stop(
+      paste(
+        "nSimulations, maxBlocks, and gridSize must be positive integers;",
+        "nBoot must be an integer of at least two."
+      )
+    )
+  }
+
+  rhoGrid <- seq(1 / gridSize, 1 - 1 / gridSize, length.out = gridSize)
+  thetaAValues <- rhoGrid * (1 - abs(difference)) -
+    ifelse(difference < 0, difference, 0)
+
+  simulationResults <- lapply(thetaAValues, function(thetaA) {
+    simulateTurnerStoppingTimes(
+      na = na,
+      nb = nb,
+      thetaA = thetaA,
+      thetaB = thetaA + difference,
+      alpha = alpha,
+      priorParameters = priorParameters,
+      nSimulations = nSimulations,
+      maxBlocks = maxBlocks
+    )
+  })
+  stoppingTimes <- lapply(simulationResults, `[[`, "stoppingTimes")
+  stoppingTimeQuantiles <- vapply(
+    stoppingTimes,
+    stats::quantile,
+    numeric(1),
+    probs = 1 - beta,
+    names = FALSE
+  )
+  empiricalPower <- vapply(simulationResults, function(result) {
+    mean(result[["crossed"]])
+  }, numeric(1))
+  worstCaseIndex <- which.max(stoppingTimeQuantiles)
+  worstCaseBootstrap <- computeBootObj(
+    values = stoppingTimes[[worstCaseIndex]],
+    beta = beta,
+    nBoot = nBoot,
+    objType = "nPlan"
+  )
+  bootstrapQuantiles <- worstCaseBootstrap[["t"]]
+  worstCaseStoppingTimeBootstrapSe <- if (any(!is.finite(bootstrapQuantiles))) {
+    Inf
   } else {
-    prevYaCumsum <- c(0, yaCumsum[-nSteps])
-    prevYbCumsum <- c(0, ybCumsum[-nSteps])
+    worstCaseBootstrap[["bootSe"]]
   }
 
-  # Global MLE sequence for the numerator
-  deltaMle <- numeric(nSteps)
-  for (t in 1:nSteps) {
-    deltaMle[t] <- fnchMle(yaCumsum[t], ybCumsum[t], naCumsum[t], nbCumsum[t])
-  }
-  oddsMle <- exp(deltaMle)
-
-  # Numerator: log P_delta(ya_t | n1_t)
-  logNum <- numeric(nSteps)
-  for (t in 1:nSteps) {
-    logNum[t] <- log(BiasedUrn::dFNCHypergeo(
-      ya[t],
-      na[t],
-      nb[t],
-      ya[t] + yb[t],
-      oddsMle[t]
-    ))
-  }
-
-  # Denominator: Central Hypergeometric
-  logDenHg <- stats::dhyper(ya, na, nb, ya + yb, log = TRUE)
-
-  logDiff <- logNum - logDenHg
-
-  if (pseudo) {
-    if (log) return(logDiff) else return(exp(logDiff))
-  }
-
-  # Normalization constants (log-space)
-  normConst <- numeric(nSteps)
-  n1 <- ya + yb
-
-  for (t in 1:nSteps) {
-    if (n1[t] == 0) {
-      normConst[t] <- 0
-      next
-    }
-
-    lb <- max(0, n1[t] - nb[t])
-    ub <- min(n1[t], na[t])
-    if (lb == ub) {
-      normConst[t] <- 0
-      next
-    }
-
-    kVals <- lb:ub
-    # MLE for all possible points at step t based on cumulative data
-    logDensities <- sapply(kVals, function(k) {
-      if (t == 1) {
-        ya_up <- k
-        yb_up <- (n1[t] - k)
-      } else {
-        ya_up <- prevYaCumsum[t] + k
-        yb_up <- prevYbCumsum[t] + (n1[t] - k)
-      }
-
-      # Use tryCatch for fnchMle
-      kDeltaMle <- tryOrFailWithNA(fnchMle(
-        ya_up,
-        yb_up,
-        naCumsum[t],
-        nbCumsum[t]
-      ))
-      if (is.na(kDeltaMle)) {
-        return(-Inf)
-      }
-
-      log(BiasedUrn::dFNCHypergeo(k, na[t], nb[t], n1[t], exp(kDeltaMle)))
-    })
-
-    normConst[t] <- logSumExp(logDensities)
-  }
-
-  logE <- logDiff - normConst
-
-  if (log) return(logE) else return(exp(logE))
+  list(
+    difference = difference,
+    alpha = alpha,
+    beta = beta,
+    maxBlocks = maxBlocks,
+    thetaAValues = thetaAValues,
+    thetaBValues = thetaAValues + difference,
+    stoppingTimes = stoppingTimes,
+    eValuesAtStopping = lapply(
+      simulationResults,
+      `[[`,
+      "eValuesAtStopping"
+    ),
+    crossed = lapply(simulationResults, `[[`, "crossed"),
+    blocksSimulated = lapply(simulationResults, `[[`, "blocksSimulated"),
+    stoppingTimeQuantiles = stoppingTimeQuantiles,
+    empiricalPower = empiricalPower,
+    worstCasePower = min(empiricalPower),
+    worstCaseThetaA = thetaAValues[worstCaseIndex],
+    worstCaseThetaB = thetaAValues[worstCaseIndex] + difference,
+    worstCaseStoppingTime = stoppingTimeQuantiles[worstCaseIndex],
+    worstCaseStoppingTimeBootstrapSe = worstCaseStoppingTimeBootstrapSe,
+    worstCaseStoppingTimeTwoSe = 2 * worstCaseStoppingTimeBootstrapSe
+  )
 }
 
 # Design fnts ----
 
-#' Designs a Savi Experiment to Test Two Proportions
+#' Designs a Savi Experiment to Test Two Proportions in Stream Data
 #'
-#' @param na number of observations in group a per data block
-#' @param nb number of observations in group b per data block
-#' @param alpha numeric in (0, 1) that specifies the tolerable type I error control
-#' @param beta numeric in (0, 1) that specifies the tolerable type II error control
-#' @param logOddsRatio true log odds ratio to detect
-#' @param nBlocksPlan planned number of data blocks collected
-#' @param alternative a character string specifying the alternative hypothesis
-#' @param eType character specifying the e-variable type (eGauss, nml, turner, grow)
+#' The Turner design uses independent Beta predictive distributions for the two
+#' Bernoulli streams. For the currently supported design scenario, `delta`
+#' describes the difference between the data-generating probabilities,
+#' `thetaB - thetaA`; it is not supplied to the unrestricted Turner e-process.
 #'
-#' @return Returns a 'saviDesign' object
+#' Supply `delta` and `beta` to estimate the required number of data blocks, or
+#' supply only `nBlocksPlan` to construct a pilot design. The inverse design
+#' scenarios and restricted alternatives are not yet implemented.
+#'
+#' @param na Number of observations in group A per data block.
+#' @param nb Number of observations in group B per data block.
+#' @param nBlocksPlan Planned number of data blocks collected.
+#' @param beta Numeric in `(0, 1)` specifying the tolerable type II error.
+#' @param delta Minimal relevant difference `thetaB - thetaA` used to generate
+#'   data in the design simulation.
+#' @param alpha Numeric in `(0, 1)` specifying the tolerable type I error.
+#' @param pilot Logical specifying whether this is a pilot design.
+#' @param hyperParameterValues Named list containing positive `betaA1`,
+#'   `betaA2`, `betaB1`, and `betaB2` values for the two Beta priors.
+#' @param previousSaviTestResult Optional previous test result whose
+#'   `posteriorHyperParameters` are used as the new prior parameters.
+#' @param M Number of simulations used to estimate `nBlocksPlan`.
+#'
+#' @return A `saviDesign` object. Its `nPlan` component contains `na`, `nb`, and
+#'   the planned number of blocks; `nPlanTwoSe` contains twice the bootstrap
+#'   standard error of these values.
 #' @export
+#'
+#' @examples
+#' designSaviTwoProportions(na = 1, nb = 1, nBlocksPlan = 20)
 designSaviTwoProportions <- function(
-  na = 1,
-  nb = 1,
-  alpha = 0.05,
-  beta = NULL,
-  logOddsRatio = NULL,
+  na,
+  nb,
   nBlocksPlan = NULL,
-  alternative = c("twoSided", "less", "greater"),
-  eType = c("eGauss", "nml", "turner", "grow"),
-  pilot = FALSE
+  beta = NULL,
+  delta = NULL,
+  alpha = 0.05,
+  pilot = FALSE,
+  hyperParameterValues = NULL,
+  previousSaviTestResult = NULL,
+  M = 1e3
 ) {
-  warning("TODO: none restriction on parameters now!")
-  alternative <- match.arg(alternative)
-  eType <- match.arg(eType)
-
-  result <- constructSaviDesignObj("Two Proportions")
-
-  # Design scenarios logic (simplified for structural compliance)
-  # Scenario 1a: logOddsRatio + beta known -> Find nBlocksPlan
-  if (!is.null(logOddsRatio) && !is.null(beta) && is.null(nBlocksPlan)) {
-    designScenario <- "1a"
-    # TODO: run simulation/math to find worstCaseQuantile (nBlocksPlan)
-    nBlocksPlan <- NA_real_
-
-    # Scenario 1b: pilot (only nBlocksPlan known)
-  } else if (!is.null(nBlocksPlan) && is.null(logOddsRatio) && is.null(beta)) {
-    designScenario <- "1b"
-    pilot <- TRUE
-
-    # Scenario 2: logOddsRatio + nBlocksPlan known -> Find beta
-  } else if (!is.null(nBlocksPlan) && !is.null(logOddsRatio) && is.null(beta)) {
-    designScenario <- "2"
-    # TODO: run simulation/math to find worstCasePower (beta)
-    beta <- NA_real_
-
-    # Scenario 3: beta + nBlocksPlan known -> Find logOddsRatio
-  } else if (!is.null(nBlocksPlan) && is.null(logOddsRatio) && !is.null(beta)) {
-    designScenario <- "3"
-    # TODO: run simulation/math to find min effect size
-    logOddsRatio <- NA_real_
-  } else if (pilot) {
-    designScenario <- "pilot"
-  } else {
-    stop(
-      "Provide two of: nBlocksPlan, logOddsRatio, and beta. Or set pilot = TRUE."
+  if (length(na) != 1L || length(nb) != 1L ||
+      any(!is.finite(c(na, nb))) || any(c(na, nb) <= 0) ||
+      any(c(na, nb) %% 1 != 0)) {
+    stop("na and nb must be positive integer block sizes.")
+  }
+  if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1) {
+    stop("alpha must be strictly between 0 and 1.")
+  }
+  note <- NULL
+  if (!is.null(previousSaviTestResult)) {
+    hyperParameterValues <- previousSaviTestResult[["posteriorHyperParameters"]]
+    if (is.null(hyperParameterValues)) {
+      stop("previousSaviTestResult has no posteriorHyperParameters.")
+    }
+    priorValuesForPrint <- paste(unlist(hyperParameterValues), collapse = " ")
+    note <- c(
+      note,
+      "Hyperparameters set according to posterior values from previous test result"
     )
+  } else if (is.null(hyperParameterValues)) {
+    hyperParameterValues <- list(
+      betaA1 = 0.18,
+      betaB1 = (nb / na) * 0.18,
+      betaA2 = 0.18,
+      betaB2 = (nb / na) * 0.18
+    )
+    priorValuesForPrint <- "standard, REGRET optimal"
+    note <- c(
+      note,
+      "Optimality of hyperparameters only verified for equal group sizes (na = nb = 1)"
+    )
+  } else {
+    priorValuesForPrint <- paste(unlist(hyperParameterValues), collapse = " ")
+  }
+
+  requiredPriorNames <- c("betaA1", "betaA2", "betaB1", "betaB2")
+  if (!all(requiredPriorNames %in% names(hyperParameterValues))) {
+    stop(
+      paste(
+        "Provide hyperparameters as a named list for betaA1, betaA2,",
+        "betaB1 and betaB2."
+      )
+    )
+  }
+  priorValues <- unlist(hyperParameterValues[requiredPriorNames], use.names = FALSE)
+  if (!is.numeric(priorValues) || any(!is.finite(priorValues)) ||
+      any(priorValues <= 0)) {
+    stop("Beta prior hyperparameters must be finite and greater than zero.")
+  }
+
+  names(priorValuesForPrint) <- "Beta hyperparameters"
+  nPlanTwoSe <- NULL
+
+  planningDesign <- is.null(nBlocksPlan) && !is.null(delta) && !is.null(beta)
+  pilotDesign <- !is.null(nBlocksPlan) && is.null(delta) && is.null(beta)
+
+  if (!planningDesign && !pilotDesign) {
+    stop(
+      paste(
+        "Provide delta and beta to estimate nBlocksPlan, or provide only",
+        "nBlocksPlan for a pilot design."
+      )
+    )
+  }
+
+  if (planningDesign) {
+    if (length(delta) != 1L || !is.finite(delta) || delta == 0 || abs(delta) >= 1) {
+      stop("delta must be a nonzero difference strictly between -1 and 1.")
+    }
+    if (length(beta) != 1L || !is.finite(beta) || beta <= 0 || beta >= 1) {
+      stop("beta must be strictly between 0 and 1.")
+    }
+
+    simulationResult <- simulateWorstCaseQuantileTwoProportions(
+      delta = delta,
+      na = na,
+      nb = nb,
+      priorValues = hyperParameterValues,
+      alpha = alpha,
+      beta = beta,
+      M = M
+    )
+    nBlocksPlan <- simulationResult[["nBlocksPlan"]]
+    nPlanTwoSe <- c(0, 0, simulationResult[["nBlocksPlanTwoSe"]])
+  } else {
+    pilot <- TRUE
   }
 
   nPlan <- c(na, nb, nBlocksPlan)
   names(nPlan) <- c("na", "nb", "nBlocksPlan")
 
-  esMin <- logOddsRatio
-  if (!is.null(esMin)) {
-    names(esMin) <- "log odds ratio"
+  if (!is.null(delta)) {
+    names(delta) <- "difference"
   }
 
-  tempResult <- list(
+  result <- list(
     "nPlan" = nPlan,
+    "nPlanTwoSe" = nPlanTwoSe,
+    "parameter" = priorValuesForPrint,
+    "betaPriorParameterValues" = hyperParameterValues,
     "alpha" = alpha,
     "beta" = beta,
-    "esMin" = esMin,
+    "betaTwoSe" = NULL,
+    "logImpliedTarget" = NULL,
+    "logImpliedTargetTwoSe" = NULL,
+    "esMin" = delta,
     "h0" = 0,
     "testType" = "2x2",
-    "alternative" = alternative,
+    "testName" = "Two Proportions",
+    "alternativeRestriction" = "none",
+    "alternative" = "twoSided",
     "pilot" = pilot,
-    "designScenario" = designScenario,
-    "eType" = eType,
-    "call" = sys.call()
+    "lowN" = NULL,
+    "highN" = NULL,
+    "call" = sys.call(),
+    "timeStamp" = Sys.time(),
+    "note" = note
   )
-
-  # Merge using modifyList and filter out NULLs (Linus/zTest style)
-  result <- utils::modifyList(result, tempResult)
-  result <- Filter(Negate(is.null), result)
   class(result) <- "saviDesign"
 
   return(result)
-}
-
-
-# Helper ----
-
-#' Log-sum-exp transformation
-logSumExp <- function(x) {
-  xMax <- max(x)
-  xMax + log(sum(exp(x - xMax)))
-}
-
-#' MLE estimator for FNCH
-fnchMle <- function(ya, yb, na, nb) {
-  n1 <- ya + yb
-
-  # Solve for delta: observed ya - expected value = 0
-  objFunc <- function(delta) {
-    ya - BiasedUrn::meanFNCHypergeo(na, nb, n1, exp(delta))
-  }
-
-  # interval c(-50, 50) is safe for log-odds; extendInt handles extremes
-  result <- stats::uniroot(objFunc, interval = c(-50, 50), extendInt = "yes")
-  result$root
-}
-
-#' Log Partition function for FNCH
-fnchPsi <- function(na, nb, n1, delta) {
-  kVals <- max(0, n1 - nb):min(na, n1)
-
-  # Log of the base measure r(k)
-  logH <- lchoose(na, kVals) + lchoose(nb, n1 - kVals)
-  logTerms <- (delta * kVals) + logH
-
-  logSumExp(logTerms)
-}
-
-#' Validate data for 2 stream data
-isValid2x2Vec <- function(ya, yb, na, nb) {
-  # 1. Ensure all are finite and non-missing
-  if (!all(is.finite(c(ya, yb, na, nb)))) {
-    return(FALSE)
-  }
-
-  # 2. Vectorized check for:
-  # - Non-negative integers (ya, yb)
-  # - Positive integers (na, nb)
-  # - Data does not exceed group size
-  all(
-    ya >= 0,
-    yb >= 0,
-    na > 0,
-    nb > 0,
-    ya %% 1 == 0,
-    yb %% 1 == 0,
-    na %% 1 == 0,
-    nb %% 1 == 0,
-    ya <= na,
-    yb <= nb
-  )
 }

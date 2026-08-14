@@ -10,119 +10,53 @@ designSaviTwoProportions(
   nBlocksPlan = NULL,
   beta = NULL,
   delta = NULL,
-  alternativeRestriction = c("none", "difference", "logOddsRatio"),
   alpha = 0.05,
-  pilot = "FALSE",
+  pilot = FALSE,
   hyperParameterValues = NULL,
   previousSaviTestResult = NULL,
-  M = 1000,
-  simThetaAMin = NULL,
-  simThetaAMax = NULL
+  M = 1000
 )
 }
 \arguments{
-\item{na}{number of observations in group a per data block}
+\item{na}{Number of observations in group A per data block.}
 
-\item{nb}{number of observations in group b per data block}
+\item{nb}{Number of observations in group B per data block.}
 
-\item{nBlocksPlan}{planned number of data blocks collected}
+\item{nBlocksPlan}{Planned number of data blocks collected.}
 
-\item{beta}{numeric in (0, 1) that specifies the tolerable type II error control necessary to calculate both "nBlocksPlan"
-and "delta". Note that 1-beta defines the power.}
+\item{beta}{Numeric in \verb{(0, 1)} specifying the tolerable type II error.}
 
-\item{delta}{a priori minimal relevant divergence between group means b and a, either a numeric between -1 and 1 for
-no alternative restriction or a restriction on difference, or a real for a restriction on the log odds ratio.}
+\item{delta}{Minimal relevant difference \code{thetaB - thetaA} used to generate
+data in the design simulation.}
 
-\item{alternativeRestriction}{a character string specifying an optional restriction on the alternative hypothesis; must be one of "none" (default),
-"difference" (difference group mean b minus group b) or "logOddsRatio" (the log odds ratio between group means b and a).}
+\item{alpha}{Numeric in \verb{(0, 1)} specifying the tolerable type I error.}
 
-\item{alpha}{numeric in (0, 1) that specifies the tolerable type I error control --independent on n-- that the
-designed test has to adhere to. Note that it also defines the rejection rule e10 >= 1/alpha.}
+\item{pilot}{Logical specifying whether this is a pilot design.}
 
-\item{pilot}{logical, specifying whether it's a pilot design.}
+\item{hyperParameterValues}{Named list containing positive \code{betaA1},
+\code{betaA2}, \code{betaB1}, and \code{betaB2} values for the two Beta priors.}
 
-\item{hyperParameterValues}{named list containing numeric values for hyperparameters betaA1, betaA2, betaB1 and betaB2, with betaA1 and betaB1 specifying the parameter
-equivalent to \code{shape1} in \code{stats::dbeta} for groups A and B, respectively, and betaA2 and betaB2 equivalent to \code{shape2}. By default
-chosen to optimize evidence collected over subsequent experiments (REGRET). Pass in the following format:
-\code{list(betaA1 = numeric1, betaA2 = numeric2, betaB1 = numeric3, betaB2 = numeric4)}.}
+\item{previousSaviTestResult}{Optional previous test result whose
+\code{posteriorHyperParameters} are used as the new prior parameters.}
 
-\item{previousSaviTestResult}{optionally, a previous savi test result can be provided. The posterior
-of the hyperparameters of this test is then used for the hyperparameter settings. Default NULL.}
-
-\item{M}{number of simulations used to estimate power or nBlocksPlan. Default \code{1000}.}
-
-\item{simThetaAMin}{minimal event rate in control group to simulate nPlan or power for.
-Can be specified when specifically interested in planning studies for specific event rates.
-Default \code{NULL}, then the entire parameter space (possibly restricted by delta) is used for simulation.}
-
-\item{simThetaAMax}{maximal event rate in control group to simulate nPlan or power for. Default \code{NULL}.}
+\item{M}{Number of simulations used to estimate \code{nBlocksPlan}.}
 }
 \value{
-Returns a 'saviDesign' object that includes:
-
-\describe{
-\item{nPlan}{the sample size(s) to plan for. Computed based on beta and meanDiffMin, or provided by the user
-if known.}
-\item{parameter}{the savi test defining parameter: here the hyperparameters.}
-\item{esMin}{the minimally clinically relevant effect size provided by the user.}
-\item{alpha}{the tolerable type I error provided by the user.}
-\item{beta}{the tolerable type II error specified by the user.}
-\item{alternative}{any of "twoSided", "greater", "less" based on the \code{alternativeRestriction} provided by the user.}
-\item{testType}{here 2x2}
-\item{pilot}{logical, specifying whether it's a pilot design.}
-\item{call}{the expression with which this function is called.}
-}
+A \code{saviDesign} object. Its \code{nPlan} component contains \code{na}, \code{nb}, and
+the planned number of blocks; \code{nPlanTwoSe} contains twice the bootstrap
+standard error of these values.
 }
 \description{
-The design requires the number of observations one expects to collect in each group in each data block.
-I.e., when one expects balanced data, one could choose \code{na = nb = 1} and would be allowed to analyse
-the data stream each time a new observation in both groups has come in. The best results in terms of power
-are achieved when the data blocks are chosen as small as possible, as this allows for analysing and updating
-the savi test as often as possible, to fit the data best.
-Further, the design requires two out of the following three parameters to be known:
-\itemize{
-\item the power one aims to achieve (\code{1 - beta}),
-\item the minimal relevant difference between the groups (\code{delta})
-\item the number of blocks planned (\code{nBlocksPlan}),
+The Turner design uses independent Beta predictive distributions for the two
+Bernoulli streams. For the currently supported design scenario, \code{delta}
+describes the difference between the data-generating probabilities,
+\code{thetaB - thetaA}; it is not supplied to the unrestricted Turner e-process.
 }
-where the unknown out of the three will be estimated. In the case of an exploratory "pilot" analysis,
-one can also only provide the number of blocks planned.
+\details{
+Supply \code{delta} and \code{beta} to estimate the required number of data blocks, or
+supply only \code{nBlocksPlan} to construct a pilot design. The inverse design
+scenarios and restricted alternatives are not yet implemented.
 }
 \examples{
-#plan for an experiment to detect minimal difference of 0.6 with a balanced design
-set.seed(3152021)
-designSaviTwoProportions(na = 1,
-                         nb = 1,
-                         alpha = 0.1,
-                         beta = 0.20,
-                         delta = 0.6,
-                         alternativeRestriction = "none",
-                         M = 75)
-
-#savi analysis of a pilot: number of samples already known
-designSaviTwoProportions(na = 1,
-                          nb = 1,
-                          nBlocksPlan = 20,
-                          pilot = TRUE)
-
-#specify own hyperparameters
-hyperParameterValues <- list(betaA1 = 10, betaA2 = 1, betaB1 = 1, betaB2 = 10)
-designSaviTwoProportions(na = 1,
-                         nb = 1,
-                         alpha = 0.1,
-                         beta = 0.20,
-                         delta = 0.6,
-                         hyperParameterValues = hyperParameterValues,
-                         alternativeRestriction = "none",
-                         M = 75)
-
-#restrict range of proportions for estimating nPlan in the control group
-designSaviTwoProportions(na = 1,
-                         nb = 1,
-                         beta = 0.20,
-                         delta = 0.3,
-                         alternativeRestriction = "none",
-                         M = 75,
-                         simThetaAMin = 0.1, simThetaAMax = 0.2)
-
+designSaviTwoProportions(na = 1, nb = 1, nBlocksPlan = 20)
 }
