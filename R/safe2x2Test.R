@@ -561,13 +561,16 @@ computeConfidenceSequenceForLogOddsRatioTwoProportions <- function(
     )
   }
 
-  positiveGrid <- seq(
-    logOddsConfidenceSearchBounds[1L],
-    logOddsConfidenceSearchBounds[2L],
+  # use tanh to transform log uniform in log odds ratio
+  positiveTransformedBounds <- tanh(logOddsConfidenceSearchBounds / 4)
+
+  positiveGrid <- 4 * atanh(seq(
+    positiveTransformedBounds[1L],
+    positiveTransformedBounds[2L],
     length.out = confidenceBoundGridPrecision
-  )
-  negativeGrid <- -rev(positiveGrid)
-  candidateGrid <- c(negativeGrid, positiveGrid)
+  ))
+
+  candidateGrid <- c(-rev(positiveGrid), 0, positiveGrid)
 
   lowerGridProcesses <- calculateEValuesForLogOddsRatioGrid(
     ya = ya,
