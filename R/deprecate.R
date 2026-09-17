@@ -943,12 +943,22 @@ designSafeTwoProportions <- function(na, nb,
   warning('The function designSafeTwoProportions is deprecated;',
           'Please use designSaviTwoProportions instead')
 
+  if (!is.null(simThetaAMin) || !is.null(simThetaAMax)) {
+    warning('simThetaAMin and simThetaAMax are no longer supported and are ignored')
+  }
+
+  alternativeRestriction <- match.arg(alternativeRestriction)
+  # "none" has no counterpart in designSaviTwoProportions: the alternative is
+  # unrestricted whenever delta is NULL, whatever the effect measure.
+  effectMeasure <- if (alternativeRestriction == "none") "propDiff" else alternativeRestriction
+
   designSaviTwoProportions(
     na=na, nb=nb, nBlocksPlan=nBlocksPlan,
-    beta=beta, delta=delta, alternativeRestriction=alternativeRestriction,
-    alpha=alpha, pilot=pilot, hyperParameterValues=hyperParameterValues,
-    previousSaviTestResult=previousSafeTestResult, M=M,
-    simThetaAMin=simThetaAMin, simThetaAMax=simThetaAMax)
+    beta=beta, delta=delta,
+    alpha=alpha, pilot=isTRUE(as.logical(pilot)),
+    hyperParameterValues=hyperParameterValues,
+    previousSaviTestResult=previousSafeTestResult, nSim=M,
+    effectMeasure=effectMeasure)
 }
 
 
@@ -962,8 +972,7 @@ safeTwoProportionsTest <- function(ya, yb, designObj = NULL, wantConfidenceSeque
     ya=ya, yb=yb, designObj=designObj,
     wantConfidenceSequence=wantConfidenceSequence,
     ciValue=ciValue, confidenceBoundGridPrecision=confidenceBoundGridPrecision,
-    logOddsConfidenceSearchBounds=logOddsConfidenceSearchBounds,
-    pilot=pilot)
+    logORConfidenceSearchBounds=logOddsConfidenceSearchBounds)
 }
 
 safe.prop.test <- function(ya, yb, designObj = NULL, wantConfidenceSequence = FALSE, ciValue = NULL,
@@ -975,23 +984,5 @@ safe.prop.test <- function(ya, yb, designObj = NULL, wantConfidenceSequence = FA
   savi.prop.test(
     ya=ya, yb=yb, designObj=designObj, wantConfidenceSequence=wantConfidenceSequence,
     ciValue=ciValue, confidenceBoundGridPrecision=confidenceBoundGridPrecision,
-    logOddsConfidenceSearchBounds=logOddsConfidenceSearchBounds,
-    pilot=pilot)
-}
-
-print.safe2x2Sim <- function(x, ...) {
-
-  warning('The function print.safe2x2Sim is deprecated;',
-          'Please use print.savi2x2Sim instead')
-
-  print.savi2x2Sim(x, ...)
-}
-
-
-plot.safe2x2Sim <- function(x, ...) {
-
-  warning('The function print.safe2x2Sim is deprecated;',
-          'Please use print.savi2x2Sim instead')
-
-  plot.savi2x2Sim(x, ...)
+    logORConfidenceSearchBounds=logOddsConfidenceSearchBounds)
 }

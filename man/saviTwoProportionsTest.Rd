@@ -2,95 +2,90 @@
 % Please edit documentation in R/safe2x2Test.R
 \name{saviTwoProportionsTest}
 \alias{saviTwoProportionsTest}
+\alias{saviTwoProportionsTest.default}
+\alias{saviTwoProportionsTest.formula}
 \alias{savi.prop.test}
-\title{Perform a Savi Test for Two Proportions with Stream Data}
+\title{Savi Test of Two Proportions in Stream Data}
 \usage{
-saviTwoProportionsTest(
+saviTwoProportionsTest(ya, ...)
+
+\method{saviTwoProportionsTest}{default}(
   ya,
   yb,
+  na = 1,
+  nb = 1,
   designObj = NULL,
-  wantConfidenceSequence = FALSE,
   ciValue = NULL,
+  wantConfidenceSequence = FALSE,
   confidenceBoundGridPrecision = 20,
-  logOddsConfidenceSearchBounds = c(0.01, 5),
-  pilot = FALSE
+  logORConfidenceSearchBounds = c(0.01, 5),
+  ...
 )
 
-savi.prop.test(
-  ya,
-  yb,
-  designObj = NULL,
-  wantConfidenceSequence = FALSE,
-  ciValue = NULL,
-  confidenceBoundGridPrecision = 20,
-  logOddsConfidenceSearchBounds = c(0.01, 5),
-  pilot = FALSE
-)
+\method{saviTwoProportionsTest}{formula}(formula, data, subset, na.action, ...)
+
+savi.prop.test(ya, yb, na = 1, nb = 1, designObj = NULL, ...)
 }
 \arguments{
-\item{ya}{positive observations/ events per data block in group a: a numeric with integer values
-between (and including) 0 and \code{na}, the number of observations in group a per block.}
+\item{ya, yb}{Number of successes in groups A and B in each data block. For
+the formula method, \code{ya} is replaced by \code{formula} and \code{data}.}
 
-\item{yb}{positive observations/ events per data block in group b: a numeric with integer values
-between (and including) 0 and \code{nb}, the number of observations in group b per block.}
+\item{...}{Further arguments passed to methods.}
 
-\item{designObj}{a savi test design for two proportions retrieved through \code{\link{designSaviTwoProportions}()}.}
+\item{na, nb}{Number of observations in groups A and B in each data block.
+A scalar is recycled over all blocks.}
 
-\item{wantConfidenceSequence}{logical that can be set to true when the user wants a savi confidence
-sequence to be estimated.}
+\item{designObj}{A \code{saviDesign} object returned by
+\code{\link[=designSaviTwoProportions]{designSaviTwoProportions()}}. If omitted, a pilot design is constructed
+and a warning is issued.}
 
-\item{ciValue}{coverage of the savi confidence sequence; default \code{NULL}, if NULL
-calculated as \code{1 - designObj[["alpha"]]}.}
+\item{ciValue}{Numeric in \verb{(0, 1)}, the coverage of the reported confidence
+sequence. Defaults to \code{1 - alpha} of the design.}
 
-\item{confidenceBoundGridPrecision}{integer specifying the grid precision used to search for the confidence
-bounds. Default 20.}
+\item{wantConfidenceSequence}{Logical. If \code{TRUE}, a confidence sequence for
+the design's effect measure is computed at every block.}
 
-\item{logOddsConfidenceSearchBounds}{vector of to positive doubles specifying the upper and lower bound of the grid
-to search over for finding the confidence bound for the logOddsRatio restriction. Default \code{(0.01, 5)}.}
+\item{confidenceBoundGridPrecision}{Resolution of the confidence-sequence
+candidate grid. See
+\code{\link[=computeConfidenceSequenceForPropDiffTwoProportions]{computeConfidenceSequenceForPropDiffTwoProportions()}} and
+\code{\link[=computeConfidenceSequenceForLogORTwoProportions]{computeConfidenceSequenceForLogORTwoProportions()}}.}
 
-\item{pilot}{logical that can be set to true when performing an exploratory analysis
-without a \code{designObj}; only allows for \code{na = nb = 1}.}
+\item{logORConfidenceSearchBounds}{Positive, increasing search bounds for
+the absolute candidate log odds ratios. Used only when the design's
+effect measure is \code{"logOR"}.}
+
+\item{formula}{A formula of the form \code{success ~ group}, where \code{success} is
+a numeric 0/1 or logical outcome and \code{group} is a factor with two levels.
+The first level is group A. Observations are paired into blocks of one
+observation per group in the order they appear.}
+
+\item{data}{A data frame containing the variables in \code{formula}.}
+
+\item{subset, na.action}{Passed on to \code{\link[stats:model.frame]{stats::model.frame()}}.}
 }
 \value{
-Returns an object of class 'saviTest'. An object of class 'saviTest' is a list containing at least the
-following components:
-
-\describe{
-\item{n}{The realised sample size(s).}
-\item{eValue}{the e-value of the savi test.}
-\item{dataName}{a character string giving the name(s) of the data.}
-\item{designObj}{an object of class "saviDesign" described in \code{\link{designSaviTwoProportions}()}.}
-}
+A \code{saviTest} object. Alongside the usual fields it carries
+\code{eValueVec}, the cumulative e-process; \code{confSeqMatrix}, the running
+bounds when requested; and \code{posteriorHyperParameters}, the updated Beta
+parameters, which \code{\link[=designSaviTwoProportions]{designSaviTwoProportions()}} accepts as
+\code{previousSaviTestResult} to carry the prior forward into a new design.
 }
 \description{
-Perform a savi test for two proportions (a 2x2 contingency table test) with a
-result object retrieved through the design function for planning an experiment to compare
-two proportions in this package, \code{\link{designSaviTwoProportions}()}.
+Computes the Turner e-process for two Bernoulli streams observed in blocks,
+optionally together with an anytime-valid confidence sequence for the
+effect. The e-process is cumulative: element \code{i} uses blocks \code{1} through
+\code{i}, so it may be monitored continuously and stopped as soon as it reaches
+\code{1 / alpha}.
+}
+\details{
+The \code{designObj} supplies the Beta prior, the type-I error, and whether the
+numerator is restricted to a fixed effect. A design carrying an \code{esMin}
+restricts the numerator to that effect; a pilot design leaves it
+unrestricted.
 }
 \examples{
-#balanced design
-yb <- c(1,0,1,1,1,0,1)
-ya <- c(1,0,1,0,0,0,1)
-saviDesign <- designSaviTwoProportions(na = 1,
-                                       nb = 1,
-                                       beta = 0.20,
-                                       delta = 0.6,
-                                       alternativeRestriction = "none",
-                                       M = 1e1)
-saviTwoProportionsTest(ya = ya, yb = yb, designObj = saviDesign)
-
-#pilot
-saviTwoProportionsTest(ya = ya, yb = yb, pilot = TRUE)
-
-#unbalanced design
-yb <- c(1,0,1,1,1,0,1)
-ya <- c(2,2,1,2,0,2,2)
-saviDesign <- designSaviTwoProportions(na = 2,
-                                       nb = 1,
-                                       beta = 0.20,
-                                       delta = 0.6,
-                                       alternativeRestriction = "none",
-                                       M = 1e1)
-saviTwoProportionsTest(ya = ya, yb = yb, designObj = saviDesign)
-
+designObj <- designSaviTwoProportions(na = 1, nb = 1, nBlocksPlan = 20)
+ya <- c(0, 1, 0, 0, 1, 0, 0, 1, 0, 0)
+yb <- c(1, 1, 0, 1, 1, 1, 0, 1, 1, 0)
+saviTwoProportionsTest(ya, yb, designObj = designObj)
 }

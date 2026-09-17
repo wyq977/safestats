@@ -56,6 +56,11 @@ constructSaviDesignObj <- function(testName) {
     testSpecificList <- list("ratio"=NULL, "testName"=testName)
   } else if (testName=="Logrank") {
     testSpecificList <- list("exact"=NULL)
+  } else if (testName=="Two Proportions") {
+    testSpecificList <- list("betaPriorParameterValues"=NULL,
+                             "effectMeasure"=NULL,
+                             "alternativeRestriction"=NULL,
+                             "testName"=testName)
   }
 
   result <- utils::modifyList(result, testSpecificList)
@@ -90,6 +95,9 @@ constructSaviTestObj <- function(testName) {
     testSpecificList <- list("stderr"=NULL, "testName"=testName)
   } else if (testName=="Logrank") {
     testSpecificList <- list("sumStats"=NULL, "testName"=testName)
+  } else if (testName=="Two Proportions") {
+    testSpecificList <- list("posteriorHyperParameters"=NULL,
+                             "sumStats"=NULL, "testName"=testName)
   }
 
   result <- utils::modifyList(result, testSpecificList)

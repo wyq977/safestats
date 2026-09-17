@@ -4,7 +4,17 @@
 \alias{turnerEProcess}
 \title{Cumulative Turner e-process for two Bernoulli streams}
 \usage{
-turnerEProcess(ya, yb, na, nb, priorParameters = NULL, log = FALSE)
+turnerEProcess(
+  ya,
+  yb,
+  na,
+  nb,
+  priorParameters = NULL,
+  log = FALSE,
+  restriction = c("none", "propDiff", "logOR"),
+  delta = NULL,
+  gridSize = 1000L
+)
 }
 \arguments{
 \item{ya, yb}{Number of successes in groups A and B in each data block.}
@@ -13,17 +23,31 @@ turnerEProcess(ya, yb, na, nb, priorParameters = NULL, log = FALSE)
 A scalar is recycled over all blocks.}
 
 \item{priorParameters}{Optional named list with \code{betaA1}, \code{betaA2},
-\code{betaB1}, and \code{betaB2}.}
+\code{betaB1}, and \code{betaB2}. Restricted predictors use the \verb{betaA*} prior on
+their one-dimensional grid.}
 
 \item{log}{Return the cumulative log e-process instead of the e-process.}
+
+\item{restriction}{Restriction placed on the numerator alternative: \code{"none"}
+(default), \code{"propDiff"}, or \code{"logOR"}.}
+
+\item{delta}{The restricted numerator's value of \code{thetaB - thetaA} or
+\code{logit(thetaB) - logit(thetaA)}, according to \code{restriction}.}
+
+\item{gridSize}{Number of points in the restricted-alternative posterior
+grid.}
 }
 \value{
 A numeric vector containing the cumulative e-process after every
 block.
 }
 \description{
-Computes the Turner e-process for \code{thetaB - thetaA = 0}. This is the
-difference-zero specialization of the linear-difference likelihood-ratio
-process. The returned vector is cumulative: element \code{i} uses blocks \code{1}
+Computes the Turner e-process for the equality null \code{thetaB - thetaA = 0}.
+By default the numerator uses independent Beta predictors for the two
+proportions. A restricted numerator can instead impose either
+\code{propDiff = thetaB - thetaA = delta} or
+\code{logOR = logit(thetaB) - logit(thetaA) = delta}; its
+grid posterior is updated with each observed block before predicting the
+next. The returned vector is cumulative: element \code{i} uses blocks \code{1}
 through \code{i}.
 }

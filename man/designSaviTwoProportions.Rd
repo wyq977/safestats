@@ -14,7 +14,11 @@ designSaviTwoProportions(
   pilot = FALSE,
   hyperParameterValues = NULL,
   previousSaviTestResult = NULL,
-  M = 1000
+  nSim = 1000L,
+  nBoot = 1000L,
+  effectMeasure = c("propDiff", "logOR", "difference", "linearDifference",
+    "logOddsRatio"),
+  maxBlocks = 10000
 )
 }
 \arguments{
@@ -26,8 +30,8 @@ designSaviTwoProportions(
 
 \item{beta}{Numeric in \verb{(0, 1)} specifying the tolerable type II error.}
 
-\item{delta}{Minimal relevant difference \code{thetaB - thetaA} used to generate
-data in the design simulation.}
+\item{delta}{Minimal relevant effect used to generate data in the design
+simulation.}
 
 \item{alpha}{Numeric in \verb{(0, 1)} specifying the tolerable type I error.}
 
@@ -39,7 +43,20 @@ data in the design simulation.}
 \item{previousSaviTestResult}{Optional previous test result whose
 \code{posteriorHyperParameters} are used as the new prior parameters.}
 
-\item{M}{Number of simulations used to estimate \code{nBlocksPlan}.}
+\item{nSim}{Number of simulated paths at each baseline probability used to
+estimate \code{nBlocksPlan}, \code{beta}, or the minimum detectable \code{delta}.}
+
+\item{nBoot}{Number of nonparametric bootstrap samples used for the
+standard errors reported alongside \code{nBlocksPlan} and \code{beta}.}
+
+\item{effectMeasure}{Whether \code{delta} is a proportion difference (\code{"propDiff"})
+or log odds ratio (\code{"logOR"}). This is the only entry point that still
+accepts the legacy spellings \code{"difference"}, \code{"linearDifference"}, and
+\code{"logOddsRatio"}; they are mapped on entry and never stored or passed on.}
+
+\item{maxBlocks}{Simulation horizon used when estimating \code{nBlocksPlan} from
+\code{delta} and \code{beta}. Raise it if \code{nBlocksPlan} comes back infinite. The
+other design cases take their horizon from \code{nBlocksPlan} and ignore this.}
 }
 \value{
 A \code{saviDesign} object. Its \code{nPlan} component contains \code{na}, \code{nb}, and
@@ -48,14 +65,21 @@ standard error of these values.
 }
 \description{
 The Turner design uses independent Beta predictive distributions for the two
-Bernoulli streams. For the currently supported design scenario, \code{delta}
-describes the difference between the data-generating probabilities,
-\code{thetaB - thetaA}; it is not supplied to the unrestricted Turner e-process.
+Bernoulli streams. The data-generating effect \code{delta} is either
+\code{propDiff = thetaB - thetaA} or
+\code{logOR = logit(thetaB) - logit(thetaA)}; it is not supplied to the
+unrestricted Turner e-process.
 }
 \details{
-Supply \code{delta} and \code{beta} to estimate the required number of data blocks, or
-supply only \code{nBlocksPlan} to construct a pilot design. The inverse design
-scenarios and restricted alternatives are not yet implemented.
+Supply \code{delta} and \code{beta} to estimate the required number of data blocks.
+Supply \code{nBlocksPlan} and \code{delta} to estimate the worst-case type-II error at
+that horizon, supply \code{nBlocksPlan} and \code{beta} to search a fixed grid for the
+minimum detectable effect, or supply only \code{nBlocksPlan} to construct a pilot
+design.
+
+Whenever a \code{delta} is known or found, the design simulation restricts the
+e-process numerator to that effect and records it as the design's
+\code{alternativeRestriction}; a pilot design leaves the numerator unrestricted.
 }
 \examples{
 designSaviTwoProportions(na = 1, nb = 1, nBlocksPlan = 20)

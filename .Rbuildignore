@@ -9,3 +9,6 @@ cran-comments.md
 ^\.github$
 ^revdep$
 ^CRAN-SUBMISSION$
+^\.claude$
+^safe2x2-requirements\.md$
+^AGENTS\.md$
