@@ -629,30 +629,39 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
   )
   propDiffGrid <- gridProcesses[["propDiff"]]
   logEProcesses <- gridProcesses[["logEProcesses"]]
+  nBlocks <- nrow(logEProcesses)
+  nCandidates <- length(propDiffGrid)
 
-  # A candidate leaves the confidence set the first time its e-process reaches
-  # 1 / alpha and never returns, so test the running maximum per candidate.
-  runningMaximum <- matrix(
-    apply(logEProcesses, 2L, cummax),
-    nrow = nrow(logEProcesses)
-  )
-  retained <- runningMaximum < log(1 / saviDesign[["alpha"]])
-
-  lastCandidate <- length(propDiffGrid)
-  bounds <- apply(retained, 1L, function(survivors) {
-    if (!any(survivors)) {
-      return(c(NA_real_, NA_real_))
-    }
-    c(
-      if (survivors[1L]) -1 else min(propDiffGrid[survivors]),
-      if (survivors[lastCandidate]) 1 else max(propDiffGrid[survivors])
-    )
+  # Running intersection: a candidate is rejected at the first block where its
+  # e-process reaches 1 / alpha, and stays rejected at every later block.
+  # Candidates that never reach it are never rejected.
+  logThreshold <- log(1 / saviDesign[["alpha"]])
+  firstRejectionBlock <- apply(logEProcesses, 2L, function(logEProcess) {
+    rejectedAt <- which(logEProcess >= logThreshold)
+    if (length(rejectedAt) == 0L) Inf else rejectedAt[1L]
   })
 
+  # At each block the confidence set is the candidates not yet rejected, and
+  # the bounds are its smallest and largest members. If the outermost
+  # candidate is still in, the true value may lie beyond the grid, so the
+  # bound stays at the parameter limit. If no candidate is left, both bounds
+  # are NA.
+  lowerBound <- upperBound <- rep(NA_real_, nBlocks)
+  for (block in seq_len(nBlocks)) {
+    inSet <- firstRejectionBlock > block
+    if (!any(inSet)) {
+      next
+    }
+    lowerBound[block] <-
+      if (inSet[1L]) -1 else min(propDiffGrid[inSet])
+    upperBound[block] <-
+      if (inSet[nCandidates]) 1 else max(propDiffGrid[inSet])
+  }
+
   data.frame(
-    block = seq_len(nrow(retained)),
-    lowerBound = bounds[1L, ],
-    upperBound = bounds[2L, ]
+    block = seq_len(nBlocks),
+    lowerBound = lowerBound,
+    upperBound = upperBound
   )
 }
 

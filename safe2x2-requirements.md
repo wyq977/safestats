@@ -157,9 +157,11 @@ matrix. → `calculateEValuesForPropDiffGrid()`, returning `L × gridSize`
 **R2.3 — Confidence interval at each time.** **[stated]** A wrapper returning a
 bound at every one of the `L` blocks.
 → `computeConfidenceSequenceForPropDiffTwoProportions()`. Each candidate is a
-two-sided point null tested at `alpha`; a candidate survives at a block while
-its running-maximum log e-process is still below `log(1/alpha)`, and the lower
-and upper bounds are the smallest and largest survivors. The
+two-sided point null tested at `alpha`. Running intersection: a candidate is
+rejected from the first block at which its log e-process reaches
+`log(1/alpha)` onward, and the confidence set at a block is every candidate
+not yet rejected, with the lower and upper bounds its smallest and largest
+members. The
 propDiff sequence no longer goes through
 `confidenceBoundsFromLogEProcesses()`, which now serves only the
 log-odds-ratio sequence (two one-sided families, see §3); the two
