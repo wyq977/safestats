@@ -11,6 +11,12 @@ The priorities, in order, are:
 4. focused tests of statistical invariants;
 5. clean, maintainable R code and accurate documentation.
 
+The canonical implementation specification is
+`safe2x2-requirements.md`. Read it before changing the safe 2x2 code
+and update it in the same change whenever implementation behaviour changes.
+If the code and this specification disagree, resolve the disagreement before
+considering the task complete.
+
 This is an active port and implementation effort. Preserve behaviour only when
 that behaviour is known to be intentional and statistically correct. Do not
 retain a questionable result merely because it is present in older code.
@@ -34,9 +40,11 @@ z-test, log-rank test, general design framework, unrelated S3 behaviour,
 package-wide style, or unrelated documentation. If a 2x2 change appears to
 require broader work, stop and explain the dependency before editing it.
 
-Treat `scratch/` as exploratory material, not as a source of truth or a package
-dependency. Do not promote scratch code without checking its derivation,
-licence/provenance, numerical behaviour, and fit with the package API.
+The canonical specification lives in `safe2x2-requirements.md`. Treat
+anything under `scratch/`, if present, as exploratory material, not as a source
+of truth or a package dependency. Do not promote scratch code without checking
+its derivation, licence/provenance, numerical behaviour, and fit with the
+package API.
 
 ## Model roles
 
@@ -98,7 +106,8 @@ implementation to Terra.
 Before editing:
 
 1. Read `git status` and preserve all unrelated work in the dirty worktree.
-2. Read the complete functions, tests, and roxygen blocks involved.
+2. Read `safe2x2-requirements.md` and the complete functions, tests,
+   and roxygen blocks involved.
 3. Identify the source being ported: paper/equation, earlier implementation,
    issue, or agreed specification. Do not guess when sources disagree.
 4. State the statistical contract: data layout, conditioning, null and
@@ -157,11 +166,11 @@ After implementation:
 
 ## Testing expectations
 
-For a legacy 2x2 migration, begin with an end-to-end comparison in
-`scratch/debug-2x2.R`: load the legacy code in a separate environment, use
-explicit data and prior parameters, print old and new outputs side by side, and
-fail on a justified numerical tolerance. Only add narrower regression tests
-after this comparison establishes the intended contract.
+For a legacy 2x2 migration, begin with an end-to-end comparison script: load
+the legacy code (`git show upstream/futility88:R/safe2x2Test.R`) in a separate
+environment, use explicit data and prior parameters, print old and new outputs
+side by side, and fail on a justified numerical tolerance. Only add narrower
+regression tests after this comparison establishes the intended contract.
 
 Prefer small, exact, high-information tests. As applicable, cover:
 
