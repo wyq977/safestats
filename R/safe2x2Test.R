@@ -604,8 +604,9 @@ calculateEValuesForPropDiffGrid <- function(
 #'   [designSaviTwoProportions()].
 #' @param runningIntersection Logical. If `TRUE` (default), a candidate
 #'   rejected at some block stays rejected at every later block, so the sets
-#'   are nested. If `FALSE`, each block's set is read from that block's
-#'   e-values alone and a rejected candidate may re-enter later. Both
+#'   are nested. If `FALSE`, each block's set is read from the cumulative
+#'   e-process value at that block only, with no memory of earlier
+#'   rejections, so a rejected candidate may re-enter later. Both
 #'   versions have the same time-uniform coverage; the intersection is never
 #'   wider.
 #'

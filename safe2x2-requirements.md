@@ -162,7 +162,8 @@ rejected from the first block at which its log e-process reaches
 `log(1/alpha)` onward, and the confidence set at a block is every candidate
 not yet rejected, with the lower and upper bounds its smallest and largest
 members. `runningIntersection = FALSE` instead reads each block's set from
-that block's e-values alone, as the old `calculateEValuesForLinearDeltaGrid()`
+the cumulative e-process value at that block only, with no memory of earlier
+rejections, as the old `calculateEValuesForLinearDeltaGrid()`
 flag did; it is kept for inspection only and is `TRUE` by default. The
 propDiff sequence no longer goes through
 `confidenceBoundsFromLogEProcesses()`, which now serves only the
