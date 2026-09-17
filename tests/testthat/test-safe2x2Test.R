@@ -812,6 +812,80 @@ testthat::test_that("confidence inversion keeps sentinels and permanent rejectio
   )
 })
 
+testthat::test_that("propDiff running intersection can be switched off", {
+  design <- designSaviTwoProportions(
+    na = 1,
+    nb = 1,
+    nBlocksPlan = 12,
+    alpha = 0.05
+  )
+  set.seed(20260917)
+  ya <- stats::rbinom(12, size = 1, prob = 0.2)
+  yb <- stats::rbinom(12, size = 1, prob = 0.8)
+  gridResult <- calculateEValuesForPropDiffGrid(
+    ya = ya,
+    yb = yb,
+    na = 1,
+    nb = 1,
+    priorParameters = design[["betaPriorParameterValues"]],
+    gridSize = 10
+  )
+  logThreshold <- log(1 / design[["alpha"]])
+  grid <- gridResult[["propDiff"]]
+  boundsFrom <- function(inSetMatrix) {
+    t(apply(inSetMatrix, 1L, function(inSet) {
+      if (!any(inSet)) return(c(NA_real_, NA_real_))
+      c(
+        if (inSet[1L]) -1 else min(grid[inSet]),
+        if (inSet[length(grid)]) 1 else max(grid[inSet])
+      )
+    }))
+  }
+
+  withIntersection <- computeConfidenceSequenceForPropDiffTwoProportions(
+    ya = ya, yb = yb, confidenceBoundGridPrecision = 10, saviDesign = design
+  )
+  withoutIntersection <- computeConfidenceSequenceForPropDiffTwoProportions(
+    ya = ya, yb = yb, confidenceBoundGridPrecision = 10, saviDesign = design,
+    runningIntersection = FALSE
+  )
+
+  testthat::expect_equal(
+    withIntersection,
+    computeConfidenceSequenceForPropDiffTwoProportions(
+      ya = ya, yb = yb, confidenceBoundGridPrecision = 10,
+      saviDesign = design, runningIntersection = TRUE
+    )
+  )
+  testthat::expect_equal(
+    as.matrix(withoutIntersection[c("lowerBound", "upperBound")]),
+    boundsFrom(gridResult[["logEProcesses"]] < logThreshold),
+    ignore_attr = TRUE
+  )
+  testthat::expect_equal(
+    as.matrix(withIntersection[c("lowerBound", "upperBound")]),
+    boundsFrom(
+      apply(gridResult[["logEProcesses"]], 2L, cummax) < logThreshold
+    ),
+    ignore_attr = TRUE
+  )
+  testthat::expect_true(all(
+    withIntersection[["lowerBound"]] >= withoutIntersection[["lowerBound"]],
+    na.rm = TRUE
+  ))
+  testthat::expect_true(all(
+    withIntersection[["upperBound"]] <= withoutIntersection[["upperBound"]],
+    na.rm = TRUE
+  ))
+  testthat::expect_error(
+    computeConfidenceSequenceForPropDiffTwoProportions(
+      ya = ya, yb = yb, confidenceBoundGridPrecision = 10,
+      saviDesign = design, runningIntersection = NA
+    ),
+    "runningIntersection"
+  )
+})
+
 testthat::test_that("propDiff confidence sequence starts at the parameter limits", {
   design <- designSaviTwoProportions(
     na = 1,

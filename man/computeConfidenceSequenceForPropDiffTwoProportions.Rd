@@ -8,7 +8,8 @@ computeConfidenceSequenceForPropDiffTwoProportions(
   ya,
   yb,
   confidenceBoundGridPrecision,
-  saviDesign
+  saviDesign,
+  runningIntersection = TRUE
 )
 }
 \arguments{
@@ -21,6 +22,13 @@ bound of exactly zero is never reported; the grid holds
 
 \item{saviDesign}{A \code{saviDesign} returned by
 \code{\link[=designSaviTwoProportions]{designSaviTwoProportions()}}.}
+
+\item{runningIntersection}{Logical. If \code{TRUE} (default), a candidate
+rejected at some block stays rejected at every later block, so the sets
+are nested. If \code{FALSE}, each block's set is read from that block's
+e-values alone and a rejected candidate may re-enter later. Both
+versions have the same time-uniform coverage; the intersection is never
+wider.}
 }
 \value{
 A data frame with \code{block}, \code{lowerBound}, and \code{upperBound}. Bounds

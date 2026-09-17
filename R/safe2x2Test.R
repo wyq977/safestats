@@ -602,6 +602,12 @@ calculateEValuesForPropDiffGrid <- function(
 #'   `2 * confidenceBoundGridPrecision` values in the open interval `(-1, 1)`.
 #' @param saviDesign A `saviDesign` returned by
 #'   [designSaviTwoProportions()].
+#' @param runningIntersection Logical. If `TRUE` (default), a candidate
+#'   rejected at some block stays rejected at every later block, so the sets
+#'   are nested. If `FALSE`, each block's set is read from that block's
+#'   e-values alone and a rejected candidate may re-enter later. Both
+#'   versions have the same time-uniform coverage; the intersection is never
+#'   wider.
 #'
 #' @return A data frame with `block`, `lowerBound`, and `upperBound`. Bounds
 #'   remain at `-1` or `1` while their corresponding edge candidate remains;
@@ -610,13 +616,18 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
   ya,
   yb,
   confidenceBoundGridPrecision,
-  saviDesign
+  saviDesign,
+  runningIntersection = TRUE
 ) {
   if (length(confidenceBoundGridPrecision) != 1L ||
       !is.finite(confidenceBoundGridPrecision) ||
       confidenceBoundGridPrecision < 1L ||
       confidenceBoundGridPrecision %% 1 != 0) {
     stop("confidenceBoundGridPrecision must be a positive integer.")
+  }
+  if (!is.logical(runningIntersection) || length(runningIntersection) != 1L ||
+      is.na(runningIntersection)) {
+    stop("runningIntersection must be TRUE or FALSE.")
   }
 
   gridProcesses <- calculateEValuesForPropDiffGrid(
@@ -632,23 +643,27 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
   nBlocks <- nrow(logEProcesses)
   nCandidates <- length(propDiffGrid)
 
-  # Running intersection: a candidate is rejected at the first block where its
-  # e-process reaches 1 / alpha, and stays rejected at every later block.
-  # Candidates that never reach it are never rejected.
+  # A candidate is rejected at a block when its e-process reaches 1 / alpha.
+  # With the running intersection it then stays rejected at every later
+  # block, so what matters is the first block where that happens; candidates
+  # that never reach the threshold are never rejected.
   logThreshold <- log(1 / saviDesign[["alpha"]])
   firstRejectionBlock <- apply(logEProcesses, 2L, function(logEProcess) {
     rejectedAt <- which(logEProcess >= logThreshold)
     if (length(rejectedAt) == 0L) Inf else rejectedAt[1L]
   })
 
-  # At each block the confidence set is the candidates not yet rejected, and
-  # the bounds are its smallest and largest members. If the outermost
-  # candidate is still in, the true value may lie beyond the grid, so the
-  # bound stays at the parameter limit. If no candidate is left, both bounds
-  # are NA.
+  # At each block the confidence set is the candidates not rejected, and the
+  # bounds are its smallest and largest members. If the outermost candidate
+  # is still in, the true value may lie beyond the grid, so the bound stays
+  # at the parameter limit. If no candidate is left, both bounds are NA.
   lowerBound <- upperBound <- rep(NA_real_, nBlocks)
   for (block in seq_len(nBlocks)) {
-    inSet <- firstRejectionBlock > block
+    inSet <- if (runningIntersection) {
+      firstRejectionBlock > block
+    } else {
+      logEProcesses[block, ] < logThreshold
+    }
     if (!any(inSet)) {
       next
     }
