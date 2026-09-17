@@ -518,9 +518,9 @@ solvePropDiffRIPr <- function(
 #'   A scalar is recycled over all blocks.
 #' @param priorParameters Named list with `betaA1`, `betaA2`, `betaB1`, and
 #'   `betaB2` for the Turner predictor.
-#' @param gridSize Number of candidate proportion differences in the feasible
-#'   open interval `(-1, 1)`. Candidates are symmetric about zero and never
-#'   include it, so an odd `gridSize` is rounded up to the next even count.
+#' @param gridSize Number of candidate proportion differences on each side of
+#'   zero. The grid is symmetric, never contains zero, and holds
+#'   `2 * gridSize` values in the open interval `(-1, 1)`.
 #'
 #' @return A list containing `propDiff` and `logEProcesses`. Rows of the log
 #'   e-process matrix are data blocks and columns are candidate proportion
@@ -552,12 +552,8 @@ calculateEValuesForPropDiffGrid <- function(
     priorParameters = priorParameters,
     restriction = "none"
   )
-  # Mirror a positive half grid rather than splitting (-1, 1) directly, so that
-  # 0 is never a candidate whatever the parity of gridSize. A reported bound of
-  # exactly 0 has no unambiguous reading, and whether the null value is
-  # testable should not depend on the parity of a resolution argument.
-  halfGridSize <- ceiling(gridSize / 2)
-  positiveGrid <- seq_len(halfGridSize) / (halfGridSize + 1)
+  # gridSize equally spaced candidates in (0, 1), mirrored so 0 is never one.
+  positiveGrid <- seq_len(gridSize) / (gridSize + 1)
   propDiffGrid <- c(-rev(positiveGrid), positiveGrid)
 
   logEProcesses <- matrix(
@@ -598,9 +594,9 @@ calculateEValuesForPropDiffGrid <- function(
 #'
 #' @param ya,yb Number of successes in groups A and B in each data block.
 #' @param confidenceBoundGridPrecision Number of candidate proportion
-#'   differences used for the grid approximation in the feasible open interval
-#'   `(-1, 1)`. Candidates never include zero, so a bound of exactly zero
-#'   cannot be reported; an odd value is rounded up to the next even count.
+#'   differences on each side of zero. Zero itself is never a candidate, so a
+#'   bound of exactly zero is never reported; the grid holds
+#'   `2 * confidenceBoundGridPrecision` values in the open interval `(-1, 1)`.
 #' @param saviDesign A `saviDesign` returned by
 #'   [designSaviTwoProportions()].
 #'
@@ -1762,8 +1758,8 @@ designSaviTwoProportions <- function(
 #'   sequence. Defaults to `1 - alpha` of the design.
 #' @param wantConfidenceSequence Logical. If `TRUE`, a confidence sequence for
 #'   the design's effect measure is computed at every block.
-#' @param confidenceBoundGridPrecision Resolution of the confidence-sequence
-#'   candidate grid. See
+#' @param confidenceBoundGridPrecision Number of confidence-sequence candidate
+#'   values on each side of zero. See
 #'   [computeConfidenceSequenceForPropDiffTwoProportions()] and
 #'   [computeConfidenceSequenceForLogORTwoProportions()].
 #' @param logORConfidenceSearchBounds Positive, increasing search bounds for

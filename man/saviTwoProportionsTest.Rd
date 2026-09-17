@@ -45,8 +45,8 @@ sequence. Defaults to \code{1 - alpha} of the design.}
 \item{wantConfidenceSequence}{Logical. If \code{TRUE}, a confidence sequence for
 the design's effect measure is computed at every block.}
 
-\item{confidenceBoundGridPrecision}{Resolution of the confidence-sequence
-candidate grid. See
+\item{confidenceBoundGridPrecision}{Number of confidence-sequence candidate
+values on each side of zero. See
 \code{\link[=computeConfidenceSequenceForPropDiffTwoProportions]{computeConfidenceSequenceForPropDiffTwoProportions()}} and
 \code{\link[=computeConfidenceSequenceForLogORTwoProportions]{computeConfidenceSequenceForLogORTwoProportions()}}.}
 

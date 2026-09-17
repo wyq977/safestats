@@ -15,9 +15,9 @@ computeConfidenceSequenceForPropDiffTwoProportions(
 \item{ya, yb}{Number of successes in groups A and B in each data block.}
 
 \item{confidenceBoundGridPrecision}{Number of candidate proportion
-differences used for the grid approximation in the feasible open interval
-\verb{(-1, 1)}. Candidates never include zero, so a bound of exactly zero
-cannot be reported; an odd value is rounded up to the next even count.}
+differences on each side of zero. Zero itself is never a candidate, so a
+bound of exactly zero is never reported; the grid holds
+\code{2 * confidenceBoundGridPrecision} values in the open interval \verb{(-1, 1)}.}
 
 \item{saviDesign}{A \code{saviDesign} returned by
 \code{\link[=designSaviTwoProportions]{designSaviTwoProportions()}}.}

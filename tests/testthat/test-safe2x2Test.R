@@ -703,10 +703,10 @@ testthat::test_that("e-process grid produces the prefix confidence sequence", {
     }
   }, numeric(2)))
 
-  testthat::expect_length(completeGrid[["propDiff"]], 22)
+  testthat::expect_length(completeGrid[["propDiff"]], 42)
   testthat::expect_identical(
     dim(completeGrid[["logEProcesses"]]),
-    c(12L, 22L)
+    c(12L, 42L)
   )
   testthat::expect_identical(confidenceSequence[["block"]], seq_along(ya))
   testthat::expect_equal(
@@ -735,12 +735,12 @@ testthat::test_that("propDiff grid covers the feasible interior", {
 
   testthat::expect_equal(
     gridResult[["propDiff"]],
-    c(-rev(seq_len(4) / 5), seq_len(4) / 5)
+    c(-rev(seq_len(7) / 8), seq_len(7) / 8)
   )
-  testthat::expect_identical(dim(gridResult[["logEProcesses"]]), c(3L, 8L))
+  testthat::expect_identical(dim(gridResult[["logEProcesses"]]), c(3L, 14L))
 })
 
-testthat::test_that("propDiff candidates exclude zero at every grid parity", {
+testthat::test_that("propDiff candidates exclude zero and stay symmetric", {
   priorParameters <- list(
     betaA1 = 0.18, betaA2 = 0.18, betaB1 = 0.18, betaB2 = 0.18
   )

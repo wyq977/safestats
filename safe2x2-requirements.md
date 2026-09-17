@@ -162,8 +162,10 @@ bound at every one of the `L` blocks.
 **R2.4 — Candidates must exclude zero.** **[stated]** The old grid contained `0`
 only when `gridSize` was odd, so whether the null value was testable depended
 on the parity of a resolution argument. Resolved by *excluding* zero at every
-parity: the grid mirrors a positive half, so a bound of exactly `0` can never
-be reported. An odd `gridSize` rounds up to the next even count. **done**
+parity: `gridSize` equally spaced candidates in `(0, 1)` are mirrored about
+zero, so the grid holds `2 * gridSize` values and a bound of exactly `0` can
+never be reported. `gridSize` therefore counts candidates per side, exactly as
+`confidenceBoundGridPrecision` does for the log-odds-ratio grid (R3.2). **done**
 
 ---
 

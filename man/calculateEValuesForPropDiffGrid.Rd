@@ -22,9 +22,9 @@ A scalar is recycled over all blocks.}
 \item{priorParameters}{Named list with \code{betaA1}, \code{betaA2}, \code{betaB1}, and
 \code{betaB2} for the Turner predictor.}
 
-\item{gridSize}{Number of candidate proportion differences in the feasible
-open interval \verb{(-1, 1)}. Candidates are symmetric about zero and never
-include it, so an odd \code{gridSize} is rounded up to the next even count.}
+\item{gridSize}{Number of candidate proportion differences on each side of
+zero. The grid is symmetric, never contains zero, and holds
+\code{2 * gridSize} values in the open interval \verb{(-1, 1)}.}
 }
 \value{
 A list containing \code{propDiff} and \code{logEProcesses}. Rows of the log
