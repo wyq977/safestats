@@ -156,8 +156,15 @@ matrix. → `calculateEValuesForPropDiffGrid()`, returning `L × gridSize`
 
 **R2.3 — Confidence interval at each time.** **[stated]** A wrapper returning a
 bound at every one of the `L` blocks.
-→ `computeConfidenceSequenceForPropDiffTwoProportions()`. **done**
-(pre-existing)
+→ `computeConfidenceSequenceForPropDiffTwoProportions()`. Each candidate is a
+two-sided point null tested at `alpha`; a candidate survives at a block while
+its running-maximum log e-process is still below `log(1/alpha)`, and the lower
+and upper bounds are the smallest and largest survivors. The
+propDiff sequence no longer goes through
+`confidenceBoundsFromLogEProcesses()`, which now serves only the
+log-odds-ratio sequence (two one-sided families, see §3); the two
+constructions are different and are kept separate on purpose. **done**
+2026-09-17
 
 **R2.4 — Candidates must exclude zero.** **[stated]** The old grid contained `0`
 only when `gridSize` was odd, so whether the null value was testable depended
@@ -366,7 +373,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
 | S4 | `simulateWorstCaseStoppingTimes()` and `simulateWorstCasePower()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
 | P1 | `solvePropDiffRIPr()` calls `polyroot()` once per block per candidate (120k calls for a 600-block, 200-candidate sequence), making the propDiff sequence ~5x slower than the logOR one. | **open** |
-| P2 | `confidenceBoundsFromLogEProcesses()` computes the running maximum twice when `upperLogEProcesses` defaults to `lowerLogEProcesses`, as it does for propDiff. | **open** |
+| P2 | `confidenceBoundsFromLogEProcesses()` computed the running maximum twice when `upperLogEProcesses` defaulted to `lowerLogEProcesses`, as it did for propDiff. | **done** 2026-09-17 — propDiff no longer calls it (R2.3) |
 | P3 | The propDiff simulation state key is built with `paste()` every block; an integer key is ~4x faster. | **open** |
 | C1 | `simulateTurnerStoppingGrid()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
 | — | `propDiff` inverts at `alpha`, `logOR` at `alpha/2` (Bonferroni). Different coverage semantics between the two sequences. | **deferred** — "not the major concern now" |

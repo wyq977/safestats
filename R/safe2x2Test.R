@@ -277,9 +277,9 @@ makeSimulationThetaGrid <- function(
 }
 
 # Invert candidate log e-processes into running confidence bounds. Matrices
-# have data blocks as rows and ordered candidate values as columns. Shared by
-# both the proportion-difference and log-odds-ratio confidence sequences below:
-# it has no notion of which effect measure the candidates represent.
+# have data blocks as rows and ordered candidate values as columns. Used only
+# by the log-odds-ratio confidence sequence; the proportion-difference
+# sequence extracts its bounds inline.
 confidenceBoundsFromLogEProcesses <- function(
   candidateGrid,
   lowerLogEProcesses,
@@ -590,7 +590,10 @@ calculateEValuesForPropDiffGrid <- function(
 #' Confidence sequence for the proportion difference
 #'
 #' Computes every candidate proportion difference's e-process once over the
-#' full data sequence and inverts their running intersections at every block.
+#' full data sequence. Each candidate is a two-sided point null tested at
+#' level `alpha`; the confidence set at a block is every candidate whose
+#' e-process has not yet reached `1 / alpha`, and the reported bounds are its
+#' smallest and largest members.
 #'
 #' @param ya,yb Number of successes in groups A and B in each data block.
 #' @param confidenceBoundGridPrecision Number of candidate proportion
@@ -626,11 +629,30 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
   )
   propDiffGrid <- gridProcesses[["propDiff"]]
   logEProcesses <- gridProcesses[["logEProcesses"]]
-  confidenceBoundsFromLogEProcesses(
-    candidateGrid = propDiffGrid,
-    lowerLogEProcesses = logEProcesses,
-    logThreshold = log(1 / saviDesign[["alpha"]]),
-    parameterLimits = c(-1, 1)
+
+  # A candidate leaves the confidence set the first time its e-process reaches
+  # 1 / alpha and never returns, so test the running maximum per candidate.
+  runningMaximum <- matrix(
+    apply(logEProcesses, 2L, cummax),
+    nrow = nrow(logEProcesses)
+  )
+  retained <- runningMaximum < log(1 / saviDesign[["alpha"]])
+
+  lastCandidate <- length(propDiffGrid)
+  bounds <- apply(retained, 1L, function(survivors) {
+    if (!any(survivors)) {
+      return(c(NA_real_, NA_real_))
+    }
+    c(
+      if (survivors[1L]) -1 else min(propDiffGrid[survivors]),
+      if (survivors[lastCandidate]) 1 else max(propDiffGrid[survivors])
+    )
+  })
+
+  data.frame(
+    block = seq_len(nrow(retained)),
+    lowerBound = bounds[1L, ],
+    upperBound = bounds[2L, ]
   )
 }
 

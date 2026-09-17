@@ -29,5 +29,8 @@ if no grid point remains at a block, both bounds are \code{NA}.
 }
 \description{
 Computes every candidate proportion difference's e-process once over the
-full data sequence and inverts their running intersections at every block.
+full data sequence. Each candidate is a two-sided point null tested at
+level \code{alpha}; the confidence set at a block is every candidate whose
+e-process has not yet reached \code{1 / alpha}, and the reported bounds are its
+smallest and largest members.
 }
