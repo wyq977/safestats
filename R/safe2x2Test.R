@@ -21,25 +21,7 @@ logLikelihoodRatioIncrements <- function(
     log1p(-numeratorThetaB) - log1p(-denominatorThetaB)
   )
 
-  # In likelihood notation, a zero count contributes zero even when its log
-  # probability is infinite. Equal distributions have log ratio zero,
-  # including on events to which both assign probability zero.
-  successesA[rep_len(ya == 0, length(successesA))] <- 0
-  successesB[rep_len(yb == 0, length(successesB))] <- 0
-  failuresA[rep_len(ya == na, length(failuresA))] <- 0
-  failuresB[rep_len(yb == nb, length(failuresB))] <- 0
-  incrementA <- successesA + failuresA
-  incrementB <- successesB + failuresB
-  incrementA[rep_len(
-    numeratorThetaA == denominatorThetaA,
-    length(incrementA)
-  )] <- 0
-  incrementB[rep_len(
-    numeratorThetaB == denominatorThetaB,
-    length(incrementB)
-  )] <- 0
-
-  incrementA + incrementB
+  successesA + failuresA + successesB + failuresB
 }
 
 #' Cumulative log-likelihood-ratio process for two Bernoulli streams
