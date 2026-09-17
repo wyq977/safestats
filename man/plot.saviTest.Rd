@@ -26,6 +26,8 @@
   add = FALSE,
   density = NULL,
   angle = 45,
+  xaxt = NULL,
+  yaxt = NULL,
   fillOddEven = FALSE,
   runInt = TRUE,
   ...
