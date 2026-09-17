@@ -645,58 +645,59 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
 #         = log(oddsB / oddsA).
 # A positive logOR means oddsB > oddsA.
 
-# Numerically stable positive root of a*x^2 + b*x + c = 0, computed in log
-# space so that `a` or `c` may safely underflow to zero in linear space while
-# remaining finite as logs (their true values are extreme but never exactly
-# zero). Takes log(a) and log(|c|) directly for that reason. Assumes a > 0
-# and c < 0, which guarantees exactly one positive root. Returns log(root).
+# Log of exp(x) + exp(y), computed pairwise without exponentiating either
+# term on its own. Vectorised over both arguments.
+logAddExp <- function(x, y) {
+  pmax(x, y) + log1p(exp(-abs(x - y)))
+}
+
+# Positive root of a*x^2 + b*x + c = 0, returned as log(root). Assumes a > 0
+# and c < 0, which guarantees exactly one positive root, and takes log(a) and
+# log(|c|) rather than a and c so that callers whose coefficients underflow to
+# zero in linear space can still pass them as ordinary finite logs.
 #
-# The direct formula (-b + sqrt(disc)) / (2a) cancels catastrophically when
-# b > 0 and sqrt(disc) is close to b (i.e. |4ac| << b^2); the algebraically
-# identical form 2c / (-b - sqrt(disc)) is safe there instead, since its
-# denominator sums two same-signed terms. So the two forms are used
-# depending on the sign of b, matching whichever avoids that cancellation.
+# The two quadratic formulas below are algebraically identical, but each
+# cancels catastrophically where the other does not: (-b + sqrt(disc)) / (2a)
+# subtracts near-equal terms when b > 0, and 2c / (-b - sqrt(disc)) does the
+# same when b < 0. Picking by the sign of b always takes the sum, never the
+# difference.
 logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
   logAbsB <- log(abs(b))
-  logFourAC <- log(4) + logA + logAbsC
-  maxTerm <- pmax(2 * logAbsB, logFourAC)
-  logDiscriminant <- 0.5 * (
-    maxTerm + log(exp(2 * logAbsB - maxTerm) + exp(logFourAC - maxTerm))
-  )
-  logAbsBPlusSqrtDiscriminant <-
-    pmax(logAbsB, logDiscriminant) +
-      log1p(exp(-abs(logAbsB - logDiscriminant)))
+  # sqrt(b^2 - 4ac), with -4ac = 4a|c| positive, so the discriminant is a sum.
+  logSqrtDiscriminant <-
+    0.5 * logAddExp(2 * logAbsB, log(4) + logA + logAbsC)
+  logAbsBPlusSqrtDiscriminant <- logAddExp(logAbsB, logSqrtDiscriminant)
 
-  logRoot <- numeric(length(b))
-  bIsNonnegative <- b >= 0
-  # b >= 0: the direct form would cancel; use 2c / (-b - sqrt(disc)) instead.
-  logRoot[bIsNonnegative] <- log(2) + logAbsC[bIsNonnegative] -
-    logAbsBPlusSqrtDiscriminant[bIsNonnegative]
-  # b < 0: the direct form sums two nonnegative numbers, so it's already safe.
-  logRoot[!bIsNonnegative] <- logAbsBPlusSqrtDiscriminant[!bIsNonnegative] -
-    log(2) - logA[!bIsNonnegative]
-  logRoot
+  ifelse(
+    b >= 0,
+    log(2) + logAbsC - logAbsBPlusSqrtDiscriminant,  # 2c / (-b - sqrt(disc))
+    logAbsBPlusSqrtDiscriminant - log(2) - logA      # (-b + sqrt(disc)) / (2a)
+  )
 }
 
 # Solve the reverse information projection onto
 # logit(thetaB) - logit(thetaA) = logOR.
 #
-# As with solvePropDiffRIPr, the KL projection's first-order
-# condition reduces to matching the numerator's weighted mean of successes:
-#   na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB
-#     =: successes
-# To solve this in closed form under the logOR constraint, parameterize
-# by the odds of whichever group has the larger constrained logit (the
-# "base" group); the other group's odds (the "shifted" group) are then
-# base-odds times r = exp(-abs(logOR)), a factor kept in (0, 1)
-# regardless of the sign of logOR. Substituting into the mean-matching
-# condition and clearing denominators gives a quadratic in the base group's
-# odds, u:
+# As with solvePropDiffRIPr, the KL projection's first-order condition reduces
+# to matching the numerator's weighted mean of successes,
+#
+#   na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB =: successes
+#
+# subject to the constraint. Writing each theta as odds/(1 + odds) and clearing
+# the two denominators turns that into a quadratic in one group's odds; the
+# constraint supplies the other group's odds as a fixed multiple of it.
+#
+# Which group to solve for is a numerical choice. Parameterising by the group
+# with the larger constrained logit (the "base" group) makes the multiplier for
+# the other one r = exp(-abs(logOR)), which stays in (0, 1] and so keeps the
+# quadratic's coefficients bounded for either sign of a large logOR. With
+# failures := na + nb - successes, the quadratic in the base odds u is
+#
 #   r*failures*u^2 + (baseSize - successes + r*(shiftedSize - successes))*u
 #     - successes = 0
-# The leading coefficient is positive and the constant term negative whenever
-# 0 < successes < na + nb, so the quadratic has exactly one positive root:
-# the base group's odds.
+#
+# whose leading coefficient is positive and constant term negative whenever
+# 0 < successes < na + nb, leaving exactly one positive root.
 solveLogORRIPr <- function(
   numeratorThetaA,
   numeratorThetaB,
@@ -736,20 +737,22 @@ solveLogORRIPr <- function(
     return(list(thetaA = thetaA, thetaB = thetaB))
   }
 
-  # aIsBase: group A has the larger constrained logit, i.e.
-  # logOR = logit(thetaB) - logit(thetaA) < 0.
+  # logOR = logit(thetaB) - logit(thetaA), so A is the base group exactly when
+  # logOR is negative.
   aIsBase <- logOR < 0
   baseSize <- if (aIsBase) na[interior] else nb[interior]
   shiftedSize <- if (aIsBase) nb[interior] else na[interior]
-  successesInterior <- successes[interior]
-  failures <- totalSize[interior] - successesInterior
+  interiorSuccesses <- successes[interior]
+  interiorFailures <- totalSize[interior] - interiorSuccesses
   r <- exp(-abs(logOR))
-  coefB <- baseSize - successesInterior + r * (shiftedSize - successesInterior)
-  # log(r * failures): computed directly rather than log() of the linear-space
-  # product, since r underflows to exactly 0 for large abs(logOR) even though
-  # log(r) = -abs(logOR) remains an ordinary finite number.
-  logCoefA <- log(failures) - abs(logOR)
-  logAbsCoefC <- log(successesInterior)  # coefC = -successesInterior
+
+  # coefA and coefC are passed as logs: r underflows to exactly 0 for a large
+  # abs(logOR) even though log(r) = -abs(logOR) stays an ordinary finite
+  # number, so log(r * failures) is formed as a sum rather than via log() of
+  # the linear-space product.
+  logCoefA <- log(interiorFailures) - abs(logOR)
+  coefB <- baseSize - interiorSuccesses + r * (shiftedSize - interiorSuccesses)
+  logAbsCoefC <- log(interiorSuccesses)  # coefC = -interiorSuccesses
 
   baseLogit <- logPositiveQuadraticRoot(logCoefA, coefB, logAbsCoefC)
 

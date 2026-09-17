@@ -175,6 +175,33 @@ e-processes → confidence-sequence wrapper.
 via `logPositiveQuadraticRoot()`), `calculateEValuesForLogORGrid()`,
 `computeConfidenceSequenceForLogORTwoProportions()`. **done** (pre-existing)
 
+**R3.1a — The log-space quadratic solve must read as one.** The mean-matching
+condition `na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB`
+under the log-odds-ratio constraint is a plain quadratic, and the code should
+look like it. `logPositiveQuadraticRoot()` spelled its two log-sum-exp steps
+out inline with `max`/`exp`/`log` arithmetic, which buried that. The repeated
+step is now a named pairwise helper, `logAddExp(x, y)`, and the choice between
+the two quadratic formulas is a single `ifelse()` on the sign of `b` rather
+than assignment into a preallocated vector. `solveLogORRIPr()` keeps its
+base/shifted parameterisation — it is what bounds the coefficients for a large
+`abs(logOR)`, not a stylistic choice — but its derivation comment now states
+the mean-matching equation first and the numerical reasoning second.
+
+`base::polyroot()` was considered and rejected: it takes linear-space
+coefficients, and `coefA` and `coefC` here are exactly the ones that underflow
+to zero in linear space while staying finite as logs.
+
+Numerically the refactor is a no-op except for one deliberate change:
+`log(1 + z)` became `log1p(z)`, the correctly-rounded primitive. Roots are
+bit-identical across 20k extreme coefficient draws; RIPr thetas move by at
+most one ULP (2.2e-16), and the score equation holds to 2.3e-15 relative.
+**done**
+
+**R3.1b — `logAddExp()` is a sibling of `logSumExp()` (A11).** The pairwise
+helper sits beside its caller in `R/safe2x2Test.R` while the reducing
+`logSumExp()` sits in `R/safe2x2TestCond.R`. Both belong in the shared helper
+file that A11 asks for; whoever does that move should take both. **open**
+
 **R3.2 — Candidates must exclude zero.** **[stated]** R2.4 applies here too.
 The grid used to insert `0` explicitly between the mirrored halves; that
 insertion is removed, so the grid is now
@@ -384,7 +411,7 @@ projection and confidence sequence ----` — is kept deliberately: each holds a
 solver, a grid function and a confidence-sequence wrapper that belong
 together. **[stated]** Only the template's section *names* and function naming
 are borrowed.
-| A11 | `logSumExp()` lives in the untracked `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file. | **agreed, open** |
+| A11 | `logSumExp()` lives in the untracked `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file — together with the pairwise `logAddExp()` added in R3.1a. | **agreed, open** |
 | A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
 
 ---
