@@ -783,30 +783,58 @@ testthat::test_that("propDiff RIPr is feasible and stationary", {
   testthat::expect_equal(score, rep(0, 3), tolerance = 1e-10)
 })
 
-testthat::test_that("confidence inversion keeps sentinels and permanent rejection", {
-  threshold <- log(20)
-  candidateGrid <- c(-0.5, 0, 0.5)
+testthat::test_that("logOR inversion keeps sentinels and permanent rejection", {
+  design <- designSaviTwoProportions(
+    na = 1,
+    nb = 1,
+    nBlocksPlan = 4,
+    alpha = 0.1
+  )
+  threshold <- log(2 / design[["alpha"]])
+  # Four candidates c(-g2, -g1, g1, g2). Column j is candidate j; a family's
+  # e-process reaching the threshold in a block rejects that candidate there.
+  # Candidates 1 and 4 fall back below the threshold afterwards but must stay
+  # rejected, and in the last block each family has rejected everything.
   lowerLogE <- rbind(
-    c(0, 0, 0),
-    c(threshold, 0, 0),
-    c(0, threshold, threshold)
+    c(0, 0, 0, 0),
+    c(threshold, 0, 0, 0),
+    c(0, threshold, 0, 0),
+    c(0, 0, threshold, threshold)
   )
   upperLogE <- rbind(
-    c(0, 0, 0),
-    c(0, 0, threshold),
-    c(threshold, threshold, 0)
+    c(0, 0, 0, 0),
+    c(0, 0, 0, threshold),
+    c(0, 0, threshold, 0),
+    c(threshold, threshold, 0, 0)
   )
-  bounds <- confidenceBoundsFromLogEProcesses(
-    candidateGrid = candidateGrid,
-    lowerLogEProcesses = lowerLogE,
-    upperLogEProcesses = upperLogE,
-    logThreshold = threshold,
-    parameterLimits = c(-1, 1)
+  seenGrid <- NULL
+  testthat::local_mocked_bindings(
+    calculateEValuesForLogORGrid = function(logORGrid, bound, ...) {
+      seenGrid <<- logORGrid
+      list(
+        logOR = logORGrid,
+        logEProcesses = if (bound == "lower") lowerLogE else upperLogE
+      )
+    }
   )
 
+  bounds <- computeConfidenceSequenceForLogORTwoProportions(
+    ya = rep(0, 4),
+    yb = rep(1, 4),
+    confidenceBoundGridPrecision = 2,
+    logORConfidenceSearchBounds = c(0.5, 2),
+    saviDesign = design
+  )
+
+  testthat::expect_length(seenGrid, 4L)
   testthat::expect_equal(
     as.matrix(bounds[c("lowerBound", "upperBound")]),
-    rbind(c(-1, 1), c(0, 0), c(NA_real_, NA_real_)),
+    rbind(
+      c(-Inf, Inf),
+      c(seenGrid[2L], seenGrid[3L]),
+      c(seenGrid[3L], seenGrid[2L]),
+      c(NA_real_, NA_real_)
+    ),
     tolerance = 0,
     ignore_attr = TRUE
   )
