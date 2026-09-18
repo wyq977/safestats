@@ -278,7 +278,10 @@ most one ULP (2.2e-16), and the score equation holds to 2.3e-15 relative.
 
 **R3.1b — `logAddExp()` is a sibling of `logSumExp()` (A11).** The pairwise
 helper sits beside its caller in `R/safe2x2Test.R` while the reducing
-`logSumExp()` sits in **R3.2a — Confidence bounds are read off inline, block by block.**
+`logSumExp()` sits in `R/safe2x2TestCond.R`. Both are log-space primitives of
+the same family and belong in one shared helper file; A11 tracks that move.
+
+**R3.2a — Confidence bounds are read off inline, block by block.**
 `computeConfidenceSequenceForLogORTwoProportions()` inverts two one-sided
 families, each at `alpha / 2`: the lower family tests `logOR <= candidate`,
 the upper family `logOR >= candidate`, and both run over the full signed
@@ -313,14 +316,6 @@ reference built from `learnPredictiveThetas()`, `solveLogORRIPr()` and
 (including a rejected candidate that later falls back below the threshold
 and a family that rejects every candidate), against its own prefixes, and
 against its group-swapped mirror image. **done** 2026-09-18
-rejected and the upper bound the largest candidate the upper family
-has not yet rejected; a bound is `-Inf`/`Inf` while the outermost candidate
-on its side remains and `NA` once a family has rejected every candidate. The
-wrapper used to hand its two matrices to `confidenceBoundsFromLogEProcesses()`,
-whose input validation, running-maximum matrices and sentinel handling made
-the inversion harder to read than the rule above; that helper is removed and
-the inversion sits in the wrapper next to the grid construction, mirroring the
-propDiff wrapper. Outputs are identical. **done** 2026-09-18
 
 **R3.3 — Sequential conditional Gaussian mixture.** `computeEGaussGrid()`
 represents a standard-normal prior on the A-minus-B conditional log odds ratio
@@ -515,6 +510,8 @@ testing (`saviRelevanceTStatNEffNu` and the `relevanceTest` / `relevanceSize`
 | A8 | `alternative` is hardcoded to `"twoSided"`. | **declined** |
 | A9 | Roxygen/export hygiene, `addCite()` references. | **declined** |
 | A10 | No `generateTwoProportionData()` to match `generateNormalData()`; data is generated inline with `rbinom()` inside the sampler. No `pb`, `seed`, `wantSamplePaths` or `wantSimData` arguments. | **open** |
+| A11 | `logSumExp()` lives in `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file — together with the pairwise `logAddExp()` added in R3.1a. Its `#'` title also emits `man/logSumExp.Rd` with a `\usage` section but no `\arguments` or `\value`, as several other internals of that file do; `@noRd` on the move would settle both. | **agreed, open** |
+| A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
 
 **Section order.** The template's flat section order is *not* adopted wholesale.
 The existing split by effect measure — `# Proportion difference: RIPr
@@ -523,8 +520,6 @@ projection and confidence sequence ----` — is kept deliberately: each holds a
 solver, a grid function and a confidence-sequence wrapper that belong
 together. **[stated]** Only the template's section *names* and function naming
 are borrowed.
-| A11 | `logSumExp()` lives in the untracked `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file — together with the pairwise `logAddExp()` added in R3.1a. | **agreed, open** |
-| A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
 
 ---
 
