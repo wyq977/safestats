@@ -390,26 +390,27 @@ turnerEProcess <- function(
 # A positive propDiff means thetaB > thetaA.
 
 # Solve the reverse information projection onto thetaB - thetaA = propDiff
-# for one data block. The KL projection's first-order condition reduces to a
-# cubic in the null thetaA, of which exactly one root lies in the feasible
-# interval; that root is returned.
-solveOnePropDiffRIPr <- function(
-  thetaStarA,
-  thetaStarB,
-  blockSizeA,
-  blockSizeB,
+# for one data block. thetaA and thetaB are the predictor's Bernoulli
+# probabilities being projected and na and nb the block's group sizes. The KL
+# projection's first-order condition reduces to a cubic in the null thetaA, of
+# which exactly one root lies in the feasible interval; that root is returned.
+solvePropDiffRIPr <- function(
+  thetaA,
+  thetaB,
+  na,
+  nb,
   propDiff
 ) {
-  A <- blockSizeA
-  B <- blockSizeB
+  A <- na
+  B <- nb
   coefficients <- c(
-    -A * thetaStarA * propDiff * (1 - propDiff),
+    -A * thetaA * propDiff * (1 - propDiff),
     A * (
       propDiff * (1 - propDiff) -
-        thetaStarA * (1 - 2 * propDiff)
-    ) + B * (propDiff - thetaStarB),
-    A * (1 - 2 * propDiff + thetaStarA) +
-      B * (1 - propDiff + thetaStarB),
+        thetaA * (1 - 2 * propDiff)
+    ) + B * (propDiff - thetaB),
+    A * (1 - 2 * propDiff + thetaA) +
+      B * (1 - propDiff + thetaB),
     -(A + B)
   )
   roots <- base::polyroot(coefficients)
@@ -514,11 +515,11 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
     toUpdate <- if (runningIntersection) which(inSet) else seq_len(nCandidates)
     for (candidate in toUpdate) {
       propDiff <- propDiffGrid[candidate]
-      nullThetaA <- solveOnePropDiffRIPr(
-        thetaStarA = thetaStarA,
-        thetaStarB = thetaStarB,
-        blockSizeA = na[block],
-        blockSizeB = nb[block],
+      nullThetaA <- solvePropDiffRIPr(
+        thetaA = thetaStarA,
+        thetaB = thetaStarB,
+        na = na[block],
+        nb = nb[block],
         propDiff = propDiff
       )
       logEProcess[candidate] <- logEProcess[candidate] +
@@ -595,7 +596,7 @@ logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
 # Solve the reverse information projection onto
 # logit(thetaB) - logit(thetaA) = logOR.
 #
-# As with solveOnePropDiffRIPr, the KL projection's first-order condition reduces
+# As with solvePropDiffRIPr, the KL projection's first-order condition reduces
 # to matching the numerator's weighted mean of successes,
 #
 #   na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB =: successes

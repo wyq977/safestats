@@ -750,11 +750,11 @@ testthat::test_that("propDiff RIPr is feasible and stationary", {
   nb <- c(2, 1, 5)
   propDiff <- 0.2
   riprThetaA <- mapply(
-    solveOnePropDiffRIPr,
-    thetaStarA = numeratorThetaA,
-    thetaStarB = numeratorThetaB,
-    blockSizeA = na,
-    blockSizeB = nb,
+    solvePropDiffRIPr,
+    thetaA = numeratorThetaA,
+    thetaB = numeratorThetaB,
+    na = na,
+    nb = nb,
     MoreArgs = list(propDiff = propDiff)
   )
   ripr <- list(thetaA = riprThetaA, thetaB = riprThetaA + propDiff)
@@ -891,11 +891,11 @@ testthat::test_that("propDiff running intersection can be switched off", {
   grid <- c(-rev(positiveGrid), positiveGrid)
   logEProcesses <- vapply(grid, function(propDiff) {
     nullThetaA <- mapply(
-      solveOnePropDiffRIPr,
-      thetaStarA = predictiveThetas[["thetaA"]],
-      thetaStarB = predictiveThetas[["thetaB"]],
-      blockSizeA = 1,
-      blockSizeB = 1,
+      solvePropDiffRIPr,
+      thetaA = predictiveThetas[["thetaA"]],
+      thetaB = predictiveThetas[["thetaB"]],
+      na = 1,
+      nb = 1,
       MoreArgs = list(propDiff = propDiff)
     )
     logLikelihoodRatioProcess(
