@@ -378,6 +378,44 @@ turnerEProcess <- function(
 # A positive propDiff means thetaB > thetaA.
 
 # Solve the reverse information projection onto thetaB - thetaA = propDiff
+# for one data block. The KL projection's first-order condition reduces to a
+# cubic in the null thetaA, of which exactly one root lies in the feasible
+# interval; that root is returned.
+solveOnePropDiffRIPr <- function(
+  thetaStarA,
+  thetaStarB,
+  blockSizeA,
+  blockSizeB,
+  propDiff
+) {
+  A <- blockSizeA
+  B <- blockSizeB
+  coefficients <- c(
+    -A * thetaStarA * propDiff * (1 - propDiff),
+    A * (
+      propDiff * (1 - propDiff) -
+        thetaStarA * (1 - 2 * propDiff)
+    ) + B * (propDiff - thetaStarB),
+    A * (1 - 2 * propDiff + thetaStarA) +
+      B * (1 - propDiff + thetaStarB),
+    -(A + B)
+  )
+  roots <- base::polyroot(coefficients)
+  tolerance <- sqrt(.Machine$double.eps)
+  realRoots <- Re(roots)[abs(Im(roots)) < tolerance]
+  feasibleLower <- max(0, -propDiff)
+  feasibleUpper <- min(1, 1 - propDiff)
+  feasibleRoots <- realRoots[
+    realRoots > feasibleLower + tolerance &
+      realRoots < feasibleUpper - tolerance
+  ]
+  if (length(feasibleRoots) != 1L) {
+    stop("Could not identify a unique feasible propDiff RIPr.")
+  }
+  feasibleRoots
+}
+
+# Solve the reverse information projection onto thetaB - thetaA = propDiff
 # at every data block.
 solvePropDiffRIPr <- function(
   numeratorThetaA,
@@ -397,43 +435,27 @@ solvePropDiffRIPr <- function(
     stop("propDiff must be finite and strictly between -1 and 1.")
   }
 
-  solveOne <- function(thetaStarA, thetaStarB, blockSizeA, blockSizeB) {
-    A <- blockSizeA
-    B <- blockSizeB
-    coefficients <- c(
-      -A * thetaStarA * propDiff * (1 - propDiff),
-      A * (
-        propDiff * (1 - propDiff) -
-          thetaStarA * (1 - 2 * propDiff)
-      ) + B * (propDiff - thetaStarB),
-      A * (1 - 2 * propDiff + thetaStarA) +
-        B * (1 - propDiff + thetaStarB),
-      -(A + B)
-    )
-    roots <- base::polyroot(coefficients)
-    tolerance <- sqrt(.Machine$double.eps)
-    realRoots <- Re(roots)[abs(Im(roots)) < tolerance]
-    feasibleLower <- max(0, -propDiff)
-    feasibleUpper <- min(1, 1 - propDiff)
-    feasibleRoots <- realRoots[
-      realRoots > feasibleLower + tolerance &
-        realRoots < feasibleUpper - tolerance
-    ]
-    if (length(feasibleRoots) != 1L) {
-      stop("Could not identify a unique feasible propDiff RIPr.")
-    }
-    feasibleRoots
-  }
-
   thetaA <- mapply(
-    solveOne,
+    solveOnePropDiffRIPr,
     numeratorThetaA,
     numeratorThetaB,
     na,
     nb,
+    MoreArgs = list(propDiff = propDiff),
     USE.NAMES = FALSE
   )
   list(thetaA = thetaA, thetaB = thetaA + propDiff)
+}
+
+# The candidate proportion differences: gridSize equally spaced values in
+# (0, 1), mirrored so the grid is symmetric and never contains zero.
+propDiffCandidateGrid <- function(gridSize) {
+  if (length(gridSize) != 1L || !is.finite(gridSize) ||
+      gridSize < 1L || gridSize %% 1 != 0) {
+    stop("gridSize must be a positive integer.")
+  }
+  positiveGrid <- seq_len(gridSize) / (gridSize + 1)
+  c(-rev(positiveGrid), positiveGrid)
 }
 
 #' Calculate e-processes over a grid of proportion differences
@@ -469,10 +491,7 @@ calculateEValuesForPropDiffGrid <- function(
   if (!all(c(length(yb), length(na), length(nb)) == nSteps)) {
     stop("ya, yb, na, and nb must have the same length.")
   }
-  if (length(gridSize) != 1L || !is.finite(gridSize) ||
-      gridSize < 1L || gridSize %% 1 != 0) {
-    stop("gridSize must be a positive integer.")
-  }
+  propDiffGrid <- propDiffCandidateGrid(gridSize)
 
   predictiveThetas <- learnPredictiveThetas(
     ya = ya,
@@ -482,9 +501,6 @@ calculateEValuesForPropDiffGrid <- function(
     priorParameters = priorParameters,
     restriction = "none"
   )
-  # gridSize equally spaced candidates in (0, 1), mirrored so 0 is never one.
-  positiveGrid <- seq_len(gridSize) / (gridSize + 1)
-  propDiffGrid <- c(-rev(positiveGrid), positiveGrid)
 
   logEProcesses <- matrix(
     NA_real_,
