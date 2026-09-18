@@ -238,7 +238,7 @@ elementwise. Unlike `solvePropDiffRIPr()` it is closed form, so the
 wrapper needs no inner loop over candidates. **done** 2026-09-18
 
 **R3.1a — The log-space quadratic solve must read as one.** The mean-matching
-condition `na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB`
+condition `na*nullThetaA + nb*nullThetaB = na*thetaA + nb*thetaB`
 under the log-odds-ratio constraint is a plain quadratic, and the code should
 look like it. `logPositiveQuadraticRoot()` spelled its two log-sum-exp steps
 out inline with `max`/`exp`/`log` arithmetic, which buried that. The repeated

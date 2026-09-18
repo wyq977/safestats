@@ -594,12 +594,14 @@ logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
 }
 
 # Solve the reverse information projection onto
-# logit(thetaB) - logit(thetaA) = logOR.
+# logit(thetaB) - logit(thetaA) = logOR. As in solvePropDiffRIPr, thetaA and
+# thetaB are the predictor's Bernoulli probabilities being projected and na and
+# nb the group sizes.
 #
 # As with solvePropDiffRIPr, the KL projection's first-order condition reduces
-# to matching the numerator's weighted mean of successes,
+# to matching the predictor's weighted mean of successes,
 #
-#   na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB =: successes
+#   na*nullThetaA + nb*nullThetaB = na*thetaA + nb*thetaB =: successes
 #
 # subject to the constraint. Writing each theta as odds/(1 + odds) and clearing
 # the two denominators turns that into a quadratic in one group's odds; the
@@ -618,19 +620,19 @@ logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
 # 0 < successes < na + nb, leaving exactly one positive root.
 #
 # Every argument is elementwise and recycled to a common length, so one call
-# solves a single candidate over many blocks (numerator theta vectors with a
-# scalar logOR) or many candidates at a single block (scalar numerator thetas
-# with a logOR vector), which is how the confidence sequence uses it.
+# solves a single candidate over many blocks (theta vectors with a scalar
+# logOR) or many candidates at a single block (scalar thetas with a logOR
+# vector), which is how the confidence sequence uses it.
 solveLogORRIPr <- function(
-  numeratorThetaA,
-  numeratorThetaB,
+  thetaA,
+  thetaB,
   na,
   nb,
   logOR
 ) {
   argumentLengths <- c(
-    length(numeratorThetaA),
-    length(numeratorThetaB),
+    length(thetaA),
+    length(thetaB),
     length(na),
     length(nb),
     length(logOR)
@@ -638,32 +640,32 @@ solveLogORRIPr <- function(
   nSolves <- max(argumentLengths)
   if (!all(argumentLengths == 1L | argumentLengths == nSolves)) {
     stop(
-      "Numerator thetas, group sizes, and logOR must have length one or a ",
-      "common length."
+      "Thetas, group sizes, and logOR must have length one or a common ",
+      "length."
     )
   }
   if (any(!is.finite(logOR))) {
     stop("logOR must be finite.")
   }
-  numeratorThetaA <- rep_len(numeratorThetaA, nSolves)
-  numeratorThetaB <- rep_len(numeratorThetaB, nSolves)
+  thetaA <- rep_len(thetaA, nSolves)
+  thetaB <- rep_len(thetaB, nSolves)
   na <- rep_len(na, nSolves)
   nb <- rep_len(nb, nSolves)
   logOR <- rep_len(logOR, nSolves)
 
   totalSize <- na + nb
-  successes <- na * numeratorThetaA + nb * numeratorThetaB
-  thetaA <- thetaB <- numeric(nSolves)
+  successes <- na * thetaA + nb * thetaB
+  nullThetaA <- nullThetaB <- numeric(nSolves)
 
   # At these boundaries the mean-matching condition only holds at theta = 0
   # or 1; theta = 0 is already the default value set above.
   atLowerBoundary <- successes == 0
   atUpperBoundary <- successes == totalSize
-  thetaA[atUpperBoundary] <- thetaB[atUpperBoundary] <- 1
+  nullThetaA[atUpperBoundary] <- nullThetaB[atUpperBoundary] <- 1
   interior <- !atLowerBoundary & !atUpperBoundary
 
   if (!any(interior)) {
-    return(list(thetaA = thetaA, thetaB = thetaB))
+    return(list(thetaA = nullThetaA, thetaB = nullThetaB))
   }
 
   interiorLogOR <- logOR[interior]
@@ -707,9 +709,9 @@ solveLogORRIPr <- function(
     interiorSuccesses[pooled] /
       (interiorSuccesses[pooled] + interiorFailures[pooled])
 
-  thetaA[interior] <- interiorThetaA
-  thetaB[interior] <- interiorThetaB
-  list(thetaA = thetaA, thetaB = thetaB)
+  nullThetaA[interior] <- interiorThetaA
+  nullThetaB[interior] <- interiorThetaB
+  list(thetaA = nullThetaA, thetaB = nullThetaB)
 }
 
 #' Confidence sequence for the log odds ratio
@@ -824,8 +826,8 @@ computeConfidenceSequenceForLogORTwoProportions <- function(
     toSolve <- which(lowerNeedsSolve | upperNeedsSolve)
     if (length(toSolve) > 0L) {
       nullTheta <- solveLogORRIPr(
-        numeratorThetaA = thetaStarA,
-        numeratorThetaB = thetaStarB,
+        thetaA = thetaStarA,
+        thetaB = thetaStarB,
         na = na[block],
         nb = nb[block],
         logOR = candidateGrid[toSolve]

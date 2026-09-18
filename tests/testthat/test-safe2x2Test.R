@@ -807,8 +807,8 @@ testthat::test_that("logOR sequence inverts the full e-processes with permanent 
     vapply(grid, function(logOR) {
       inside <- insideNull(logOR)
       ripr <- solveLogORRIPr(
-        numeratorThetaA = predictiveThetas[["thetaA"]],
-        numeratorThetaB = predictiveThetas[["thetaB"]],
+        thetaA = predictiveThetas[["thetaA"]],
+        thetaB = predictiveThetas[["thetaB"]],
         na = 1,
         nb = 1,
         logOR = logOR
@@ -991,8 +991,8 @@ testthat::test_that("log-odds-ratio RIPr satisfies the score equation", {
   nb <- c(2, 1, 4)
   logOR <- 0.8
   ripr <- solveLogORRIPr(
-    numeratorThetaA = thetaA,
-    numeratorThetaB = thetaB,
+    thetaA = thetaA,
+    thetaB = thetaB,
     na = na,
     nb = nb,
     logOR = logOR
@@ -1022,8 +1022,8 @@ testthat::test_that("analytic log-odds-ratio RIPr matches numerical minimization
   for (case in seq_len(nrow(cases))) {
     values <- cases[case, ]
     ripr <- solveLogORRIPr(
-      numeratorThetaA = values$thetaA,
-      numeratorThetaB = values$thetaB,
+      thetaA = values$thetaA,
+      thetaB = values$thetaB,
       na = values$na,
       nb = values$nb,
       logOR = values$logOR
@@ -1053,15 +1053,15 @@ testthat::test_that("analytic log-odds-ratio RIPr matches numerical minimization
 
 testthat::test_that("log-odds-ratio RIPr handles pooled and boundary cases", {
   zeroEffect <- solveLogORRIPr(
-    numeratorThetaA = 0.2,
-    numeratorThetaB = 0.8,
+    thetaA = 0.2,
+    thetaB = 0.8,
     na = 1,
     nb = 3,
     logOR = 0
   )
   boundaries <- solveLogORRIPr(
-    numeratorThetaA = c(0, 1),
-    numeratorThetaB = c(0, 1),
+    thetaA = c(0, 1),
+    thetaB = c(0, 1),
     na = 1,
     nb = 2,
     logOR = 0.8
@@ -1155,16 +1155,16 @@ testthat::test_that("logOR bounds mirror under a group swap", {
 testthat::test_that("log-odds-ratio RIPr recycles over candidates and blocks", {
   candidates <- c(-7, -2, -0.3, 0, 0.3, 2, 7)
   atOneBlock <- solveLogORRIPr(
-    numeratorThetaA = 0.23,
-    numeratorThetaB = 0.61,
+    thetaA = 0.23,
+    thetaB = 0.61,
     na = 2,
     nb = 3,
     logOR = candidates
   )
   oneAtATime <- lapply(candidates, function(logOR) {
     solveLogORRIPr(
-      numeratorThetaA = 0.23,
-      numeratorThetaB = 0.61,
+      thetaA = 0.23,
+      thetaB = 0.61,
       na = 2,
       nb = 3,
       logOR = logOR
@@ -1186,8 +1186,8 @@ testthat::test_that("log-odds-ratio RIPr recycles over candidates and blocks", {
   )
   testthat::expect_error(
     solveLogORRIPr(
-      numeratorThetaA = c(0.2, 0.3),
-      numeratorThetaB = 0.5,
+      thetaA = c(0.2, 0.3),
+      thetaB = 0.5,
       na = 1,
       nb = 1,
       logOR = c(-1, 0, 1)
