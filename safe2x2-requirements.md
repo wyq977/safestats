@@ -78,6 +78,23 @@ Two crashes surfaced while doing this and were fixed:
   calling it with its own default switched on a length-three vector and
   errored.
 
+**R0.4 — One signature for both RIPr solvers.** **[stated]** The two reverse
+information projections differ only in the effect they project onto, so
+their signatures differ only in that argument:
+`solvePropDiffRIPr(thetaA, thetaB, na, nb, propDiff)` and
+`solveLogORRIPr(thetaA, thetaB, na, nb, logOR)`. `thetaA` and `thetaB` are
+the predictor's Bernoulli probabilities being projected and `na`, `nb` the
+group sizes, matching `learnPredictiveThetas()` (R1.2) and the rest of both
+files. The earlier names — `thetaStarA` / `thetaStarB` / `blockSizeA` /
+`blockSizeB` on one and `numeratorThetaA` / `numeratorThetaB` / `na` / `nb`
+on the other — named the same two quantities three different ways.
+`numeratorTheta*` is kept only in `logLikelihoodRatioIncrements()` and
+`logLikelihoodRatioProcess()`, where the numerator/denominator distinction
+is what the arguments are for. Inside `solveLogORRIPr()` the returned
+projection is held in `nullThetaA` / `nullThetaB`, freeing `thetaA` /
+`thetaB` for the arguments; the returned list keeps its `thetaA` / `thetaB`
+element names. **done** 2026-09-18
+
 ---
 
 ## 1. Numerical helpers
@@ -164,7 +181,7 @@ retired together with R2.2, its last caller; where a whole-sequence solve is
 wanted, `mapply` the scalar solver at the call site, as the tests do. With
 the wrapper gone the scalar solver was `solveOnePropDiffRIPr()` for a while,
 but there is nothing left for the `One` to distinguish it from, so it took
-the plain name on 2026-09-18. **done** 2026-09-18
+the plain name on 2026-09-18 as part of R0.4. **done** 2026-09-18
 
 **R2.2 — Grid of e-processes.** **[stated]** Learn the unrestricted theta, find
 the null thetas for every candidate via the solver, return a `gridSize × L`
