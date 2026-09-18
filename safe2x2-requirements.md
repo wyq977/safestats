@@ -338,13 +338,16 @@ This is the part flagged as both **the biggest time sink** and **incorrect**.
 → `makeSimulationThetaGrid()`, which now also returns the `restriction` and
 `delta` so they travel with the grid. **done**
 
-**R4.2 — Simulate per pair.** **[stated]** For each theta pair, simulate
-`nSim` trajectories up to `maxBlocks`. **done**
+**R4.2 — Simulate per pair, one path at a time.** **[stated]** For each theta
+pair, simulate `nSim` independent paths up to `maxBlocks`. → every path is one
+call to `simulateStoppingTimeWithRestriction()` (R4.9);
+`sampleStoppingTimesSaviTwoProportions()` only loops over pairs and paths and
+fills the two result matrices. **done**
 
 **R4.3 — Record stopping times and e-values.** **[stated]** The stopping time is
 the index at which the process crosses `1 / alpha`; record the e-value there.
-**A path that never crosses gets stopping time `Inf`** (not the horizon).
-**done**
+**A path that never crosses gets stopping time `Inf`** (not the horizon) and
+e-value `NA`. **done**
 
 **R4.4 — The numerator must be restricted.** **[stated]** The core correctness
 requirement. The process was built on the *unrestricted* case, with thetas
@@ -361,28 +364,51 @@ continues to support `"none"` outside this worst-case restricted simulation.
 **done**
 
 Chunk-by-chunk evaluation was judged not possible, or too complicated, under
-this requirement. **[stated]** → confirmed: `turnerLogEProcessChunk` and its
-`chunkSize` argument were removed, and the simulator now advances one block at
-a time. **done**
+this requirement. **[stated]** → confirmed twice. `turnerLogEProcessChunk` and
+its `chunkSize` argument were removed because they restarted from the prior at
+every chunk. A second, correct chunked design (chunks warm-started from the
+carried posterior log weights) was built and then dropped as well: once
+`turnerEProcess()` is not reused for the simulation, a chunk boundary is pure
+bookkeeping, and a plain block loop that exits at the crossing measured no
+slower. The simulator now evaluates one block at a time inside
+`simulateStoppingTimeWithRestriction()` (R4.9). `turnerEProcess()` itself was
+left untouched. **done**
 
 Verified against the legacy `upstream/futility88:R/safe2x2Test.R`'s `calculateSequential2x2E()` — final
 e-values agree to ~1e-15 for both restricted effect measures.
 
 **R4.5 — Do not simulate past the stopping time.** **[stated]** Out of one theta
 pair, one effect and `maxBlocks`, it is very likely the process ends well
-before the horizon. Neither the data generation nor the e-process evaluation
-should run past a path's own crossing. → paths are dropped from the active set
-the moment they cross. **done**
+before the horizon. → the e-process is evaluated block by block and the loop
+returns at the first crossing, so no block past a path's stopping time is
+evaluated. The data for all `maxBlocks` blocks are drawn up front, because two
+`rbinom()` calls of 10 000 draws cost about 0.2 ms per path, under two seconds
+over a whole 8 000-path design. **done**
 
 **R4.6 — Accuracy before speed.** **[stated]** A `for` loop is acceptable for
-now; correctness first. → the block loop is sequential; paths are vectorised
-within a block. **done**
+now; correctness first. → the block loop inside
+`simulateStoppingTimeWithRestriction()` is sequential and each path is
+simulated on its own. Nothing is vectorised across paths. Measured on 8 pairs ×
+1000 paths, `na = nb = 1`:
 
-**R4.7 — Direct sufficient-statistic posterior update; no learner object.**
-**[stated]** The prior update must remain visible in the simulation rather than
-being hidden behind a stateful learner abstraction. → `newTurnerThetaLearner()`
-was deleted and the calculation is written directly in
-`sampleStoppingTimesSaviTwoProportions()`. **done**
+| Effect | `maxBlocks = 1e3` | `maxBlocks = 1e4` | previous vectorised sampler (`1e4`) |
+| --- | --- | --- | --- |
+| `propDiff = 0.2` | 11.6 s | 12.9 s | 5.0 s |
+| `logOR = 0.8` | 22.6 s | 23.4 s | 4.0 s |
+
+The cost is about 20 µs per evaluated block, so the runtime is the total of
+the stopping times plus `maxBlocks` for every path that never crosses. At
+`propDiff = 0.05` the previous sampler was slower than the per-path loop
+(28.6 s against 19.3 s for one pair capped at 2000 blocks), because its
+across-path state sharing collapses once paths diverge. Readability was chosen
+over the factor lost at the default effects. **done**
+
+**R4.7 — Direct posterior update; no learner object.** **[stated]** The prior
+update must remain visible in the simulation rather than being hidden behind a
+stateful learner abstraction. → `newTurnerThetaLearner()` was deleted and the
+update is written out in the block loop of
+`simulateStoppingTimeWithRestriction()`; the posterior is a plain vector of
+log weights local to that loop, not an object. **done**
 
 The restricted posterior depends on the data **only through
 `(blocks, sum ya, sum yb)`** — the binomial coefficients cancel in the
@@ -399,27 +425,20 @@ $$
 \end{aligned}
 $$
 
-The simulation stores only cumulative successes for active paths. It
-constructs and normalises this log likelihood immediately before generating
-the next block, so the numerator for block `t + 1` uses blocks `1, ..., t`
-only. The new observations are added to the cumulative counts only after that
-block's e-factor is evaluated. There is no persistent `nWeight × nPaths`
-posterior matrix.
-
-Paths sharing a state are evaluated once:
-
-- `propDiff` keys on the pair `(sum ya, sum yb)`.
-- `logOR` keys on `sum ya + sum yb` alone. The extra collapse is valid because
-  the term that distinguishes them, `sum yb · delta`, is constant across the
-  support grid and cancels in the normalisation.
+The block loop accumulates these weights with the same four terms, and
+after every block pins their maximum at zero so they stay
+representable over any number of blocks; only ratios of weights matter. The
+numerator for block `t + 1` uses blocks `1, ..., t` only: a block is added to
+the weights after its e-factor is evaluated. There is one `nWeight` vector per
+path in flight, never a `nWeight × nPaths` matrix. Paths do not share
+evaluations: the state-key deduplication across paths went with the
+vectorised sampler.
 
 **R4.7.1 — Keep the likelihood update readable.** **[stated]** Both effects
-must use the same four-term log-likelihood formula displayed above. The
-`logOR` total-success optimization applies only when constructing the state
-key; one representative `(sum ya, sum yb)` pair from each state is evaluated
-with the common formula. Do not introduce a separate algebraic likelihood
-branch for `logOR`, and do not hide the update behind a stateful object.
-**done**
+use the same four-term log-likelihood formula displayed above; the former
+`logOR` total-success shortcut no longer exists. Do not introduce a separate
+algebraic likelihood branch for `logOR`, and do not hide the update behind a
+stateful object. **done**
 
 The restricted branch of `learnPredictiveThetas()` first calculates the
 posterior mean of `thetaA`, then obtains `thetaB` with
@@ -438,6 +457,22 @@ it. → warning raised from `computeNPlanSaviTwoProportions()`, naming the
 horizon, the observed crossing fraction, the worst-case baseline and the
 fraction needed. `maxBlocks` was added to `designSaviTwoProportions()` so the
 advice is actionable from there. **done**
+
+**R4.9 — One standalone function per path.** **[stated]** The unit of the
+simulation is a single path, so that it can be read, tested and replayed on
+its own, and `turnerEProcess()` is not modified for it. →
+`simulateStoppingTimeWithRestriction(thetaA, thetaB, na, nb, restriction,
+delta, alpha, priorParameters, nWeight, maxBlocks)` draws the data for
+`maxBlocks` blocks (group A first, then group B, so a seed regenerates them),
+then for each block predicts the numerator from the posterior over the
+previous blocks, adds the block's log e-factor, returns if the threshold is
+reached, and only then adds the block to the posterior. It returns
+`stoppingTime` and `eValue` only, and validates nothing: it is an internal
+helper and `sampleStoppingTimesSaviTwoProportions()`, its only caller,
+validates the arguments once, resolves the prior, and calls it `nSim` times
+per theta pair. The horizon is the fixed `maxBlocks`; stopping a theta pair
+early once enough paths have crossed for the `1 - beta` quantile is a possible
+follow-up and is not implemented. **done**
 
 ---
 
@@ -512,7 +547,7 @@ testing (`saviRelevanceTStatNEffNu` and the `relevanceTest` / `relevanceSize`
 | A7 | Argument vocabulary. | **done** — `M` and `nSimulations` are now `nSim`, and the design function takes `nBoot`. `maxBlocks` and `nBlocksPlan` are kept: they carry more information in this scope than `nMax`/`nPlan` would. `thetaGridSize` and `gridSize` became `nTheta` and `nWeight` on 2026-09-18 (S1). |
 | A8 | `alternative` is hardcoded to `"twoSided"`. | **declined** |
 | A9 | Roxygen/export hygiene, `addCite()` references. | **declined** |
-| A10 | No `generateTwoProportionData()` to match `generateNormalData()`; data is generated inline with `rbinom()` inside the sampler. No `pb`, `seed`, `wantSamplePaths` or `wantSimData` arguments. | **open** |
+| A10 | No `generateTwoProportionData()` to match `generateNormalData()`; data is generated inline with `rbinom()` inside `simulateStoppingTimeWithRestriction()`. No `pb`, `seed`, `wantSamplePaths` or `wantSimData` arguments. | **open** |
 | A11 | `logSumExp()` lives in `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file — together with the pairwise `logAddExp()` added in R3.1a. Its `#'` title also emits `man/logSumExp.Rd` with a `\usage` section but no `\arguments` or `\value`, as several other internals of that file do; `@noRd` on the move would settle both. | **agreed, open** |
 | A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`, and — the rest of that file's inventory, none of them named anywhere in this document until now — `saviFutilityTwoPropCondStat()`, `conditionalEValueFixedAlternative()`, `fnchMle()`, `fnchPsi()`, `isValid2x2Vec()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
 
