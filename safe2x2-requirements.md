@@ -147,29 +147,44 @@ normalized. **done**
 
 **R2.1 — Cubic solver.** **[stated]** Given `theta`, `na`, `nb` and the
 difference, solve the third-degree polynomial and return the solution.
-→ `solvePropDiffRIPr()`. **done** (pre-existing)
+→ `solveOnePropDiffRIPr()` solves one block; `solvePropDiffRIPr()` is the
+vectorised wrapper over blocks (`mapply`). The scalar solver exists so the
+confidence sequence (R2.3) can call it directly inside its block loop without
+the wrapper's validation and recycling overhead, which cost ~3x when the
+wrapper was called once per block per candidate. **done** 2026-09-18
 
 **R2.2 — Grid of e-processes.** **[stated]** Learn the unrestricted theta, find
 the null thetas for every candidate via the solver, return a `gridSize × L`
 matrix. → `calculateEValuesForPropDiffGrid()`, returning `L × gridSize`
-(blocks as rows). **done** (pre-existing)
+(blocks as rows). Since 2026-09-18 the confidence sequence (R2.3) no longer
+calls it; it remains as the diagnostic view of the complete e-process matrix
+and as the reference the tests compare the sequence against. The candidate
+grid itself comes from `propDiffCandidateGrid()`, shared with R2.3. **done**
+(pre-existing)
 
 **R2.3 — Confidence interval at each time.** **[stated]** A wrapper returning a
 bound at every one of the `L` blocks.
 → `computeConfidenceSequenceForPropDiffTwoProportions()`. Each candidate is a
-two-sided point null tested at `alpha`. Running intersection: a candidate is
-rejected from the first block at which its log e-process reaches
-`log(1/alpha)` onward, and the confidence set at a block is every candidate
-not yet rejected, with the lower and upper bounds its smallest and largest
-members. `runningIntersection = FALSE` instead reads each block's set from
-the cumulative e-process value at that block only, with no memory of earlier
-rejections, as the old `calculateEValuesForLinearDeltaGrid()`
-flag did; it is kept for inspection only and is `TRUE` by default. The
-bounds are read off inline from the first rejection block of each candidate;
-the former shared helper `confidenceBoundsFromLogEProcesses()` is gone
-(R3.2a). The propDiff construction (one two-sided family) and the
-log-odds-ratio construction (two one-sided families, see §3) are different
-and are kept separate on purpose. **done** 2026-09-17
+two-sided point null tested at `alpha`. The function walks the data block by
+block: at block `t` it takes the predictor learned from blocks before `t`,
+and for every candidate still in the confidence set solves the RIPr
+(R2.1, scalar), adds one log-likelihood-ratio increment to that candidate's
+running log e-process, and drops the candidate once the total reaches
+`log(1/alpha)`. The bounds at block `t` are the smallest and largest
+candidates remaining, `-1`/`1` while an edge candidate remains, `NA` when
+none does. This is a direct transcription of the running-intersection
+definition, and it never revisits a rejected candidate, so it skips 60–90 %
+of the `polyroot()` solves the former matrix version performed (P1).
+`runningIntersection = FALSE` uses the same loop but updates every candidate
+at every block and reads each block's set from the cumulative values at that
+block only, with no memory of earlier rejections, as the old
+`calculateEValuesForLinearDeltaGrid()` flag did; it is kept for inspection
+only and is `TRUE` by default. The former matrix version (all `L × gridSize`
+e-processes via R2.2, then first rejection blocks per column) gave identical
+bounds and is gone; R2.2 remains as the reference the tests compare against.
+The propDiff construction (one two-sided family) and the log-odds-ratio
+construction (two one-sided families, see §3) are different and are kept
+separate on purpose. **done** 2026-09-18
 
 **R2.4 — Candidates must exclude zero.** **[stated]** The old grid contained `0`
 only when `gridSize` was odd, so whether the null value was testable depended
@@ -393,7 +408,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 | S2 | `designSaviTwoProportions()` is a ~220-line four-case branch; the package already splits these (`designSaviT1aWantNPlan`, `designSaviT2WantBeta`, …). | **open** |
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
 | S4 | `simulateWorstCaseStoppingTimes()` and `simulateWorstCasePower()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
-| P1 | `solvePropDiffRIPr()` calls `polyroot()` once per block per candidate (120k calls for a 600-block, 200-candidate sequence), making the propDiff sequence ~5x slower than the logOR one. | **open** |
+| P1 | `solvePropDiffRIPr()` calls `polyroot()` once per block per candidate (120k calls for a 600-block, 200-candidate sequence), making the propDiff sequence ~5x slower than the logOR one. | **partly done** 2026-09-18 — the block-by-block sequence (R2.3) stops solving for a candidate once it is rejected, skipping 60–90 % of the solves; measured 2.6x (100 blocks) to 8x (2000 blocks) faster at 40 candidates, 5x at 500 blocks × 200 candidates, with `runningIntersection = FALSE` at parity (0.8–1.0x). One `polyroot()` per surviving (block, candidate) pair remains. |
 | P2 | `confidenceBoundsFromLogEProcesses()` computed the running maximum twice when `upperLogEProcesses` defaulted to `lowerLogEProcesses`, as it did for propDiff. | **done** 2026-09-18 — helper removed; both sequences read their bounds off first rejection blocks inline (R2.3, R3.2a) |
 | P3 | The propDiff simulation state key is built with `paste()` every block; an integer key is ~4x faster. | **open** |
 | C1 | `simulateTurnerStoppingGrid()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
