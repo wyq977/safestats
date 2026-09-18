@@ -415,38 +415,6 @@ solveOnePropDiffRIPr <- function(
   feasibleRoots
 }
 
-# Solve the reverse information projection onto thetaB - thetaA = propDiff
-# at every data block.
-solvePropDiffRIPr <- function(
-  numeratorThetaA,
-  numeratorThetaB,
-  na,
-  nb,
-  propDiff
-) {
-  nSteps <- length(numeratorThetaA)
-  if (length(na) == 1L) na <- rep(na, nSteps)
-  if (length(nb) == 1L) nb <- rep(nb, nSteps)
-  if (!all(c(length(numeratorThetaB), length(na), length(nb)) == nSteps)) {
-    stop("Numerator theta vectors and group sizes must align by block.")
-  }
-  if (length(propDiff) != 1L || !is.finite(propDiff) ||
-      abs(propDiff) >= 1) {
-    stop("propDiff must be finite and strictly between -1 and 1.")
-  }
-
-  thetaA <- mapply(
-    solveOnePropDiffRIPr,
-    numeratorThetaA,
-    numeratorThetaB,
-    na,
-    nb,
-    MoreArgs = list(propDiff = propDiff),
-    USE.NAMES = FALSE
-  )
-  list(thetaA = thetaA, thetaB = thetaA + propDiff)
-}
-
 # The candidate proportion differences: gridSize equally spaced values in
 # (0, 1), mirrored so the grid is symmetric and never contains zero.
 propDiffCandidateGrid <- function(gridSize) {
@@ -456,81 +424,6 @@ propDiffCandidateGrid <- function(gridSize) {
   }
   positiveGrid <- seq_len(gridSize) / (gridSize + 1)
   c(-rev(positiveGrid), positiveGrid)
-}
-
-#' Calculate e-processes over a grid of proportion differences
-#'
-#' For every candidate `propDiff = thetaB - thetaA`, computes the Turner
-#' likelihood-ratio process whose denominator is the reverse information
-#' projection onto that candidate null curve. Every process is calculated once
-#' over the complete data sequence and returned on the log scale.
-#'
-#' @param ya,yb Number of successes in groups A and B in each data block.
-#' @param na,nb Number of observations in groups A and B in each data block.
-#'   A scalar is recycled over all blocks.
-#' @param priorParameters Named list with `betaA1`, `betaA2`, `betaB1`, and
-#'   `betaB2` for the Turner predictor.
-#' @param gridSize Number of candidate proportion differences on each side of
-#'   zero. The grid is symmetric, never contains zero, and holds
-#'   `2 * gridSize` values in the open interval `(-1, 1)`.
-#'
-#' @return A list containing `propDiff` and `logEProcesses`. Rows of the log
-#'   e-process matrix are data blocks and columns are candidate proportion
-#'   differences.
-calculateEValuesForPropDiffGrid <- function(
-  ya,
-  yb,
-  na,
-  nb,
-  priorParameters,
-  gridSize = 100
-) {
-  nSteps <- length(ya)
-  if (length(na) == 1L) na <- rep(na, nSteps)
-  if (length(nb) == 1L) nb <- rep(nb, nSteps)
-  if (!all(c(length(yb), length(na), length(nb)) == nSteps)) {
-    stop("ya, yb, na, and nb must have the same length.")
-  }
-  propDiffGrid <- propDiffCandidateGrid(gridSize)
-
-  predictiveThetas <- learnPredictiveThetas(
-    ya = ya,
-    yb = yb,
-    na = na,
-    nb = nb,
-    priorParameters = priorParameters,
-    restriction = "none"
-  )
-
-  logEProcesses <- matrix(
-    NA_real_,
-    nrow = nSteps,
-    ncol = length(propDiffGrid),
-    dimnames = list(NULL, as.character(propDiffGrid))
-  )
-
-  for (propDiffIndex in seq_along(propDiffGrid)) {
-    propDiff <- propDiffGrid[propDiffIndex]
-    denominatorTheta <- solvePropDiffRIPr(
-      numeratorThetaA = predictiveThetas[["thetaA"]],
-      numeratorThetaB = predictiveThetas[["thetaB"]],
-      na = na,
-      nb = nb,
-      propDiff = propDiff
-    )
-    logEProcesses[, propDiffIndex] <- logLikelihoodRatioProcess(
-      ya = ya,
-      yb = yb,
-      na = na,
-      nb = nb,
-      numeratorThetaA = predictiveThetas[["thetaA"]],
-      numeratorThetaB = predictiveThetas[["thetaB"]],
-      denominatorThetaA = denominatorTheta[["thetaA"]],
-      denominatorThetaB = denominatorTheta[["thetaB"]]
-    )
-  }
-
-  list(propDiff = propDiffGrid, logEProcesses = logEProcesses)
 }
 
 #' Confidence sequence for the proportion difference
@@ -695,7 +588,7 @@ logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
 # Solve the reverse information projection onto
 # logit(thetaB) - logit(thetaA) = logOR.
 #
-# As with solvePropDiffRIPr, the KL projection's first-order condition reduces
+# As with solveOnePropDiffRIPr, the KL projection's first-order condition reduces
 # to matching the numerator's weighted mean of successes,
 #
 #   na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB =: successes

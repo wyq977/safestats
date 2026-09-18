@@ -654,7 +654,7 @@ testthat::test_that("minimum detectable effect uses boundary-checked binary sear
   )
 })
 
-testthat::test_that("e-process grid produces the prefix confidence sequence", {
+testthat::test_that("propDiff confidence sequence is a prefix property", {
   design <- designSaviTwoProportions(
     na = 1,
     nb = 1,
@@ -672,42 +672,18 @@ testthat::test_that("e-process grid produces the prefix confidence sequence", {
       confidenceBoundGridPrecision = 21,
       saviDesign = design
     )
-  completeGrid <- calculateEValuesForPropDiffGrid(
-    ya = ya,
-    yb = yb,
-    na = design[["nPlan"]][["na"]],
-    nb = design[["nPlan"]][["nb"]],
-    priorParameters = design[["betaPriorParameterValues"]],
-    gridSize = 21
-  )
+  # The bounds at block t may depend on the data up to t only, so running
+  # the sequence on every prefix must reproduce the full sequence row by row.
   prefixBounds <- t(vapply(seq_along(ya), function(block) {
-    gridResult <- calculateEValuesForPropDiffGrid(
+    prefixSequence <- computeConfidenceSequenceForPropDiffTwoProportions(
       ya = ya[seq_len(block)],
       yb = yb[seq_len(block)],
-      na = design[["nPlan"]][["na"]],
-      nb = design[["nPlan"]][["nb"]],
-      priorParameters = design[["betaPriorParameterValues"]],
-      gridSize = 21
+      confidenceBoundGridPrecision = 21,
+      saviDesign = design
     )
-    retained <- colSums(
-      gridResult[["logEProcesses"]] >= log(1 / design[["alpha"]])
-    ) == 0L
-    included <- gridResult[["propDiff"]][retained]
-    if (length(included) == 0L) {
-      c(NA_real_, NA_real_)
-    } else {
-      c(
-        if (retained[1L]) -1 else min(included),
-        if (retained[length(retained)]) 1 else max(included)
-      )
-    }
+    unlist(prefixSequence[block, c("lowerBound", "upperBound")])
   }, numeric(2)))
 
-  testthat::expect_length(completeGrid[["propDiff"]], 42)
-  testthat::expect_identical(
-    dim(completeGrid[["logEProcesses"]]),
-    c(12L, 42L)
-  )
   testthat::expect_identical(confidenceSequence[["block"]], seq_along(ya))
   testthat::expect_equal(
     as.matrix(confidenceSequence[c("lowerBound", "upperBound")]),
@@ -715,40 +691,26 @@ testthat::test_that("e-process grid produces the prefix confidence sequence", {
     tolerance = 0,
     ignore_attr = TRUE
   )
+  testthat::expect_true(all(
+    confidenceSequence[["lowerBound"]] <= confidenceSequence[["upperBound"]],
+    na.rm = TRUE
+  ))
 })
 
 testthat::test_that("propDiff grid covers the feasible interior", {
-  priorParameters <- list(
-    betaA1 = 0.18,
-    betaA2 = 0.18,
-    betaB1 = 0.18,
-    betaB2 = 0.18
-  )
-  gridResult <- calculateEValuesForPropDiffGrid(
-    ya = c(0, 1, 0),
-    yb = c(1, 1, 0),
-    na = 1,
-    nb = 1,
-    priorParameters = priorParameters,
-    gridSize = 7
-  )
-
   testthat::expect_equal(
-    gridResult[["propDiff"]],
+    propDiffCandidateGrid(7),
     c(-rev(seq_len(7) / 8), seq_len(7) / 8)
   )
-  testthat::expect_identical(dim(gridResult[["logEProcesses"]]), c(3L, 14L))
+  testthat::expect_length(propDiffCandidateGrid(21), 42)
+  testthat::expect_error(propDiffCandidateGrid(0), "gridSize")
+  testthat::expect_error(propDiffCandidateGrid(2.5), "gridSize")
+  testthat::expect_error(propDiffCandidateGrid(c(3, 4)), "gridSize")
 })
 
 testthat::test_that("propDiff candidates exclude zero and stay symmetric", {
-  priorParameters <- list(
-    betaA1 = 0.18, betaA2 = 0.18, betaB1 = 0.18, betaB2 = 0.18
-  )
   for (gridSize in c(1, 2, 7, 8, 100, 101)) {
-    candidates <- calculateEValuesForPropDiffGrid(
-      ya = c(0, 1), yb = c(1, 1), na = 1, nb = 1,
-      priorParameters = priorParameters, gridSize = gridSize
-    )[["propDiff"]]
+    candidates <- propDiffCandidateGrid(gridSize)
 
     testthat::expect_false(any(candidates == 0))
     testthat::expect_gt(min(abs(candidates)), 0)
@@ -764,13 +726,15 @@ testthat::test_that("propDiff RIPr is feasible and stationary", {
   na <- c(1, 3, 2)
   nb <- c(2, 1, 5)
   propDiff <- 0.2
-  ripr <- solvePropDiffRIPr(
-    numeratorThetaA = numeratorThetaA,
-    numeratorThetaB = numeratorThetaB,
-    na = na,
-    nb = nb,
-    propDiff = propDiff
+  riprThetaA <- mapply(
+    solveOnePropDiffRIPr,
+    thetaStarA = numeratorThetaA,
+    thetaStarB = numeratorThetaB,
+    blockSizeA = na,
+    blockSizeB = nb,
+    MoreArgs = list(propDiff = propDiff)
   )
+  ripr <- list(thetaA = riprThetaA, thetaB = riprThetaA + propDiff)
   score <-
     na * (ripr$thetaA - numeratorThetaA) /
       (ripr$thetaA * (1 - ripr$thetaA)) +
@@ -850,16 +814,38 @@ testthat::test_that("propDiff running intersection can be switched off", {
   set.seed(20260917)
   ya <- stats::rbinom(12, size = 1, prob = 0.2)
   yb <- stats::rbinom(12, size = 1, prob = 0.8)
-  gridResult <- calculateEValuesForPropDiffGrid(
+  # Reference: every candidate's complete log e-process, built from the
+  # same predictor, solver, and increments the sequence uses block by block.
+  predictiveThetas <- learnPredictiveThetas(
     ya = ya,
     yb = yb,
-    na = 1,
-    nb = 1,
+    na = rep(1, length(ya)),
+    nb = rep(1, length(ya)),
     priorParameters = design[["betaPriorParameterValues"]],
-    gridSize = 10
+    restriction = "none"
   )
+  grid <- propDiffCandidateGrid(10)
+  logEProcesses <- vapply(grid, function(propDiff) {
+    nullThetaA <- mapply(
+      solveOnePropDiffRIPr,
+      thetaStarA = predictiveThetas[["thetaA"]],
+      thetaStarB = predictiveThetas[["thetaB"]],
+      blockSizeA = 1,
+      blockSizeB = 1,
+      MoreArgs = list(propDiff = propDiff)
+    )
+    logLikelihoodRatioProcess(
+      ya = ya,
+      yb = yb,
+      na = 1,
+      nb = 1,
+      numeratorThetaA = predictiveThetas[["thetaA"]],
+      numeratorThetaB = predictiveThetas[["thetaB"]],
+      denominatorThetaA = nullThetaA,
+      denominatorThetaB = nullThetaA + propDiff
+    )
+  }, numeric(length(ya)))
   logThreshold <- log(1 / design[["alpha"]])
-  grid <- gridResult[["propDiff"]]
   boundsFrom <- function(inSetMatrix) {
     t(apply(inSetMatrix, 1L, function(inSet) {
       if (!any(inSet)) return(c(NA_real_, NA_real_))
@@ -887,13 +873,13 @@ testthat::test_that("propDiff running intersection can be switched off", {
   )
   testthat::expect_equal(
     as.matrix(withoutIntersection[c("lowerBound", "upperBound")]),
-    boundsFrom(gridResult[["logEProcesses"]] < logThreshold),
+    boundsFrom(logEProcesses < logThreshold),
     ignore_attr = TRUE
   )
   testthat::expect_equal(
     as.matrix(withIntersection[c("lowerBound", "upperBound")]),
     boundsFrom(
-      apply(gridResult[["logEProcesses"]], 2L, cummax) < logThreshold
+      apply(logEProcesses, 2L, cummax) < logThreshold
     ),
     ignore_attr = TRUE
   )
