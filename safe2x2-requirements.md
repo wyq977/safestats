@@ -131,14 +131,6 @@ clause inside `learnPredictiveThetas()`. **done**
 **Predictability is a hard requirement.** The pair used for block `i` must be
 computed from blocks `1 … i-1` only.
 
-**R1.4 — Restricted supports must stay strictly interior.** **[stated]**
-`plogis()` saturates to exactly `1` once its argument reaches about 37, so a
-large enough `logOR` puts a support point at exactly `0` or `1`, where a zero
-count gives `0 * -Inf = NaN` that then spreads through the posterior
-normalisation. `restrictedThetaSupport()` now refuses to build such a curve
-and says which `delta` and `gridSize` caused it, rather than returning `NaN`
-(`turnerEProcess()`) or dying at an unrelated `if` (the sampler). **done**
-
 **R1.3 — `resolveTurnerPriorParameters`.** **[stated]** Keep or drop; if kept,
 rename to `resolveBetaPriorParameters`. → kept and renamed. **done**
 
@@ -167,6 +159,15 @@ the count is zero or the two log probabilities are equal and the plain
 product otherwise. Interior values are unchanged bit for bit. The Beta-prior
 predictors never reach a boundary, so this only matters for callers that
 supply boundary probabilities directly. **done** 2026-09-18
+
+**R1.5 — Restricted supports must stay strictly interior.** **[stated]**
+`plogis()` saturates to exactly `1` once its argument reaches about 37, so a
+large enough `logOR` puts a support point at exactly `0` or `1`, where a zero
+count gives `0 * -Inf = NaN` that then spreads through the posterior
+normalisation. `restrictedThetaSupport()` now refuses to build such a curve
+and says which `delta` and `gridSize` caused it, rather than returning `NaN`
+(`turnerEProcess()`) or dying at an unrelated `if` (the sampler). This
+requirement was written as a second `R1.4` and is renumbered here. **done**
 
 ---
 
