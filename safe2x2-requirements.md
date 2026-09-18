@@ -27,13 +27,8 @@ Effect measures, both signed as **B minus A**:
 - `propDiff = thetaB - thetaA`, in `(-1, 1)`.
 - `logOR = logit(thetaB) - logit(thetaA)`, on the whole real line.
 
-**R0.2 — No zero in any candidate grid.** **[stated]** Neither confidence
-sequence offers `0` as a candidate effect, so a reported bound of exactly `0`
-is impossible and a finite bound always falls strictly on one side of the
-null. See R2.4 and R3.2 for how each grid achieves this.
-
 `gridSize` is the resolution of the discrete grid used to learn a restricted
-theta; `nSimulations` and `maxBlocks` size the simulation.
+theta; `nSim` and `maxBlocks` size the simulation.
 
 **R0.1 — One vocabulary.** **[stated]** `propDiff` and `logOR` are used
 throughout. The legacy spellings `difference`, `linearDifference` and
@@ -42,6 +37,11 @@ maps them on entry; they are never stored or passed on. Every other function
 validates with `match.arg()` against the canonical names and rejects the old
 ones. The `normalizeTwoProportionEffect()` translator this used to require has
 been deleted. **done**
+
+**R0.2 — No zero in any candidate grid.** **[stated]** Neither confidence
+sequence offers `0` as a candidate effect, so a reported bound of exactly `0`
+is impossible and a finite bound always falls strictly on one side of the
+null. See R2.4 and R3.2 for how each grid achieves this. **done**
 
 **R0.3 — One naming scheme across both files.** **[stated]**
 `R/safe2x2TestCond.R` follows `R/safe2x2Test.R`, not its own conventions:
