@@ -141,6 +141,16 @@ on a shared probability-zero event. Restricted posterior and Beta-prior grid
 weights likewise omit normalizing constants that cancel when the weights are
 normalized. **done**
 
+The two boundary rules were stated here and tested from the start but not
+implemented until 2026-09-18: the helper formed `count * (log p - log q)`
+directly, which is `0 * Inf` or `(-Inf) - (-Inf)`, i.e. `NaN`, at a boundary,
+and the shared-boundary test failed. Each term now goes through
+`countWeightedLogRatio(count, logP, logQ)`, which returns exactly `0` when
+the count is zero or the two log probabilities are equal and the plain
+product otherwise. Interior values are unchanged bit for bit. The Beta-prior
+predictors never reach a boundary, so this only matters for callers that
+supply boundary probabilities directly. **done** 2026-09-18
+
 ---
 
 ## 2. Proportion difference

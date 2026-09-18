@@ -1,5 +1,13 @@
 # Likelihood-ratio calculations ----
 
+# One term of a log likelihood ratio: count * (logP - logQ). A zero count
+# contributes nothing and equal log probabilities cancel exactly, and both
+# rules hold at a probability boundary, where the plain arithmetic would give
+# 0 * Inf or (-Inf) - (-Inf), i.e. NaN.
+countWeightedLogRatio <- function(count, logP, logQ) {
+  ifelse(count == 0 | logP == logQ, 0, count * (logP - logQ))
+}
+
 # Calculate blockwise log-likelihood-ratio increments. Arguments may be
 # vectors or conformable matrices; callers own predictability and accumulation.
 logLikelihoodRatioIncrements <- function(
@@ -12,13 +20,17 @@ logLikelihoodRatioIncrements <- function(
   denominatorThetaA,
   denominatorThetaB
 ) {
-  successesA <- ya * (log(numeratorThetaA) - log(denominatorThetaA))
-  successesB <- yb * (log(numeratorThetaB) - log(denominatorThetaB))
-  failuresA <- (na - ya) * (
-    log1p(-numeratorThetaA) - log1p(-denominatorThetaA)
+  successesA <- countWeightedLogRatio(
+    ya, log(numeratorThetaA), log(denominatorThetaA)
   )
-  failuresB <- (nb - yb) * (
-    log1p(-numeratorThetaB) - log1p(-denominatorThetaB)
+  successesB <- countWeightedLogRatio(
+    yb, log(numeratorThetaB), log(denominatorThetaB)
+  )
+  failuresA <- countWeightedLogRatio(
+    na - ya, log1p(-numeratorThetaA), log1p(-denominatorThetaA)
+  )
+  failuresB <- countWeightedLogRatio(
+    nb - yb, log1p(-numeratorThetaB), log1p(-denominatorThetaB)
   )
 
   successesA + failuresA + successesB + failuresB
