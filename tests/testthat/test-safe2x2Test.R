@@ -1093,52 +1093,86 @@ testthat::test_that("log-odds-ratio grid produces the prefix confidence sequence
   )
 })
 
-testthat::test_that("log-odds-ratio grid respects bound direction and group swaps", {
-  priorParameters <- list(
-    betaA1 = 0.18,
-    betaA2 = 0.18,
-    betaB1 = 0.18,
-    betaB2 = 0.18
-  )
-  ya <- c(0, 1, 0, 1)
-  yb <- c(1, 0, 1, 1)
-  positiveGrid <- c(0, 0.5, 1)
-  lowerGrid <- calculateEValuesForLogORGrid(
-    ya = ya,
-    yb = yb,
+testthat::test_that("logOR bounds mirror under a group swap", {
+  # Swapping the groups negates the log odds ratio, so the lower family of one
+  # ordering is the upper family of the other at the mirrored candidate. With
+  # symmetric priors and a symmetric grid the two sequences must mirror.
+  nBlocks <- 30
+  design <- designSaviTwoProportions(
     na = 1,
     nb = 1,
-    priorParameters = priorParameters,
-    logORGrid = positiveGrid,
-    bound = "lower"
+    nBlocksPlan = nBlocks,
+    alpha = 0.05
   )
-  upperGrid <- calculateEValuesForLogORGrid(
+  set.seed(20260918)
+  ya <- stats::rbinom(nBlocks, size = 1, prob = 0.2)
+  yb <- stats::rbinom(nBlocks, size = 1, prob = 0.7)
+
+  forward <- computeConfidenceSequenceForLogORTwoProportions(
+    ya = ya,
+    yb = yb,
+    confidenceBoundGridPrecision = 15L,
+    logORConfidenceSearchBounds = c(0.05, 4),
+    saviDesign = design
+  )
+  swapped <- computeConfidenceSequenceForLogORTwoProportions(
     ya = yb,
     yb = ya,
-    na = 1,
-    nb = 1,
-    priorParameters = priorParameters,
-    logORGrid = -positiveGrid,
-    bound = "upper"
+    confidenceBoundGridPrecision = 15L,
+    logORConfidenceSearchBounds = c(0.05, 4),
+    saviDesign = design
   )
 
-  testthat::expect_equal(
-    unname(lowerGrid[["logEProcesses"]]),
-    unname(upperGrid[["logEProcesses"]]),
-    tolerance = 1e-10
+  testthat::expect_true(any(is.finite(forward[["lowerBound"]])))
+  testthat::expect_equal(forward[["lowerBound"]], -swapped[["upperBound"]])
+  testthat::expect_equal(forward[["upperBound"]], -swapped[["lowerBound"]])
+})
+
+testthat::test_that("log-odds-ratio RIPr recycles over candidates and blocks", {
+  candidates <- c(-7, -2, -0.3, 0, 0.3, 2, 7)
+  atOneBlock <- solveLogORRIPr(
+    numeratorThetaA = 0.23,
+    numeratorThetaB = 0.61,
+    na = 2,
+    nb = 3,
+    logOR = candidates
   )
-  signedGrid <- calculateEValuesForLogORGrid(
-    ya = ya,
-    yb = yb,
-    na = 1,
-    nb = 1,
-    priorParameters = priorParameters,
-    logORGrid = c(-1, 0, 1),
-    bound = "lower"
+  oneAtATime <- lapply(candidates, function(logOR) {
+    solveLogORRIPr(
+      numeratorThetaA = 0.23,
+      numeratorThetaB = 0.61,
+      na = 2,
+      nb = 3,
+      logOR = logOR
+    )
+  })
+
+  testthat::expect_identical(
+    atOneBlock[["thetaA"]],
+    vapply(oneAtATime, `[[`, numeric(1), "thetaA")
   )
   testthat::expect_identical(
-    dim(signedGrid[["logEProcesses"]]),
-    c(4L, 3L)
+    atOneBlock[["thetaB"]],
+    vapply(oneAtATime, `[[`, numeric(1), "thetaB")
+  )
+  testthat::expect_equal(
+    stats::qlogis(atOneBlock[["thetaB"]]) - stats::qlogis(atOneBlock[["thetaA"]]),
+    candidates,
+    tolerance = 1e-10
+  )
+  testthat::expect_error(
+    solveLogORRIPr(
+      numeratorThetaA = c(0.2, 0.3),
+      numeratorThetaB = 0.5,
+      na = 1,
+      nb = 1,
+      logOR = c(-1, 0, 1)
+    ),
+    "common length"
+  )
+  testthat::expect_error(
+    solveLogORRIPr(0.2, 0.5, 1, 1, logOR = c(1, Inf)),
+    "finite"
   )
 })
 
