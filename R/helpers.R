@@ -36,7 +36,7 @@ addCite <- function(..., breakLine=TRUE) {
     if (i == refLength && base::isFALSE(breakLine)) {
       res <- paste(res, refs[[i]])
     } else {
-      res <- paste(res, refs[[i]], "</br> </br>")
+      res <- paste(res, refs[[i]], "\n \n")
     }
   }
 

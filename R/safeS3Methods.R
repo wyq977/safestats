@@ -151,6 +151,9 @@ getNameAlternative <- function(alternative=c("twoSided", "greater", "less"), tes
 #' @param x a saviTest object.
 #' @param digits number of significant digits to be used.
 #' @param prefix string, passed to strwrap for displaying the method components.
+#' @param runningIntersection logical, if \code{TRUE} then report the minimum
+#' of the upper confidence sequence across time, and the maximum of the lower
+#' confidence sequence across time
 #' @param ... further arguments to be passed to or from methods.
 #'
 #' @return No returned value, called for side effects.
@@ -158,13 +161,20 @@ getNameAlternative <- function(alternative=c("twoSided", "greater", "less"), tes
 #'
 #' @examples
 #' saviTTest(rnorm(19))
-print.saviTest <- function(x, digits = getOption("digits"), prefix = "\t", ...) {
+print.saviTest <- function(x, digits = getOption("digits"), prefix = "\t",
+                           runningIntersection=NULL, ...) {
   designObj <- x[["designObj"]]
 
   if (is.null(designObj)) {
     print.default(x)
     return()
   }
+
+  if (is.null(runningIntersection)) {
+    if (is.null(designObj[["runningIntersection"]]))
+      runningIntersection <- FALSE
+  }
+
 
   if (!is.null(x[["testType"]]) && x[["testType"]] != designObj[["testType"]])
     designObj[["testType"]] <- x[["testType"]]
@@ -201,8 +211,13 @@ print.saviTest <- function(x, digits = getOption("digits"), prefix = "\t", ...) 
   confSeq <- x[["confSeq"]]
 
   if (!is.null(confSeq) && !is.null(ciValue)) {
+    if (runningIntersection && !is.null(x[["confSeqMatrix"]])) {
+      confSeq <- c(max(x[["confSeqMatrix"]][, 1]),
+                   min(x[["confSeqMatrix"]][, 2]))
+    }
+
     cat(format(100*(ciValue)), " percent confidence sequence:\n",
-        " ", paste(format(x[["confSeq"]][1:2], digits = digits),
+        " ", paste(format(confSeq, digits = digits),
                    collapse = " "), "\n", sep = "")
   }
   cat("\n")
@@ -1036,15 +1051,15 @@ plot.saviDesign <- function(x, main=NULL, xlab=NULL, ylab=NULL,
 #' (anti-clockwise).
 #' @param fillOddEven logical controlling the polygon shading mode: see
 #' \code{\link[graphics]{polygon}()} for details. Default \code{FALSE}.
-#' @param runInt logical, if \code{TRUE} (default), then shows the running
-#' intersection of the confidence sequence.
+#' @param runningIntersection logical, if \code{TRUE} then plot the running
+#' minimum of the upper confidence sequence across time, and the running
+#' maximum of the lower confidence sequence across time
 #' @param wantRelevance logical, if \code{FALSE}, then don't show the
 #' e-values for relevanceTest. Default \code{wantRelevance==NULL}, if
 #' \code{designObj[["relevanceTest"]]==TRUE} then relevance e-values tests are shown
 #' automatically.
 #' @param xaxt default NULL. If "n" then suppresses plotting of the x-axis.
 #' @param yaxt default NULL. If "n" then suppresses plotting of the y-axis.
-#'
 #'
 #' @return Returns nothing just plots
 #' @export
@@ -1065,7 +1080,7 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
                           wantConfSeqPlot=FALSE, add=FALSE,
                           density=NULL, angle=45,
                           xaxt=NULL, yaxt=NULL,
-                          fillOddEven=FALSE, runInt=TRUE,
+                          fillOddEven=FALSE, runningIntersection=NULL,
                           wantRelevance=NULL,
                           ...) {
   eValueVec <- x[["eValueVec"]]
@@ -1074,6 +1089,11 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
   n1Vec <- x[["n1Vec"]]
 
   designObj <- x[["designObj"]]
+
+  if (is.null(runningIntersection)) {
+    if (is.null(designObj[["runningIntersection"]]))
+      runningIntersection <- FALSE
+  }
 
   relevanceTest <- FALSE
 
@@ -1165,7 +1185,7 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
     if (is.null(fillPlot))
       fillPlot <- if (maxX <= switchNFill) TRUE else FALSE
 
-    if (runInt) {
+    if (runningIntersection) {
       upperLine <- makeRunningIntersection(upperLine)
       lowerLine <- makeRunningIntersection(lowerLine,
                                            upper=FALSE)
