@@ -338,7 +338,7 @@ This is the part flagged as both **the biggest time sink** and **incorrect**.
 `delta` so they travel with the grid. **done**
 
 **R4.2 — Simulate per pair.** **[stated]** For each theta pair, simulate
-`nSimulations` trajectories up to `maxBlocks`. **done**
+`nSim` trajectories up to `maxBlocks`. **done**
 
 **R4.3 — Record stopping times and e-values.** **[stated]** The stopping time is
 the index at which the process crosses `1 / alpha`; record the e-value there.
@@ -353,10 +353,11 @@ plugged in by `turnerLogEProcessChunk`. It must instead:
 2. compute `denominatorTheta` as the pooled predictable probability (as before),
 3. form the log-likelihood ratio from those.
 
-`simulateTurnerStoppingGrid()` is therefore restricted-only: its `restriction`
-argument accepts exactly `"propDiff"` or `"logOR"`, never `"none"`. Its
-unrestricted code path has been removed. `turnerEProcess()` continues to
-support `"none"` outside this worst-case restricted simulation. **done**
+`sampleStoppingTimesSaviTwoProportions()` is therefore restricted-only: its
+`restriction` argument accepts exactly `"propDiff"` or `"logOR"`, never
+`"none"`. Its unrestricted code path has been removed. `turnerEProcess()`
+continues to support `"none"` outside this worst-case restricted simulation.
+**done**
 
 Chunk-by-chunk evaluation was judged not possible, or too complicated, under
 this requirement. **[stated]** → confirmed: `turnerLogEProcessChunk` and its
@@ -380,7 +381,7 @@ within a block. **done**
 **[stated]** The prior update must remain visible in the simulation rather than
 being hidden behind a stateful learner abstraction. → `newTurnerThetaLearner()`
 was deleted and the calculation is written directly in
-`simulateTurnerStoppingGrid()`. **done**
+`sampleStoppingTimesSaviTwoProportions()`. **done**
 
 The restricted posterior depends on the data **only through
 `(blocks, sum ya, sum yb)`** — the binomial coefficients cancel in the
@@ -432,7 +433,7 @@ both effect measures and unequal block sizes: relative differences 0 to 7e-15.
 **R4.8 — Explicit failure when the horizon is too short.** **[stated]** When too
 few paths cross for the `1 - beta` quantile to exist, say so plainly: the
 worst-case stopping time cannot be found at this `maxBlocks`, try increasing
-it. → warning raised from `simulateWorstCaseStoppingTimes()`, naming the
+it. → warning raised from `computeNPlanSaviTwoProportions()`, naming the
 horizon, the observed crossing fraction, the worst-case baseline and the
 fraction needed. `maxBlocks` was added to `designSaviTwoProportions()` so the
 advice is actionable from there. **done**
@@ -470,16 +471,16 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 | S1 | `gridSize` names three different things (posterior resolution, candidate count, baseline count) alongside `thetaGridSize`, `confidenceBoundGridPrecision` and `effectGridSize`. | **open** |
 | S2 | `designSaviTwoProportions()` is a ~220-line four-case branch; the package already splits these (`designSaviT1aWantNPlan`, `designSaviT2WantBeta`, …). | **open** |
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
-| S4 | `simulateWorstCaseStoppingTimes()` and `simulateWorstCasePower()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
+| S4 | `computeNPlanSaviTwoProportions()` and `computePowerSaviTwoProportions()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
 | P1 | The propDiff RIPr solver (now `solvePropDiffRIPr()`) calls `polyroot()` once per block per candidate (120k calls for a 600-block, 200-candidate sequence), making the propDiff sequence ~5x slower than the logOR one. | **partly done** 2026-09-18 — the block-by-block sequence (R2.3) stops solving for a candidate once it is rejected, skipping 60–90 % of the solves; measured 2.6x (100 blocks) to 8x (2000 blocks) faster at 40 candidates, 5x at 500 blocks × 200 candidates, with `runningIntersection = FALSE` at parity (0.8–1.0x). One `polyroot()` per surviving (block, candidate) pair remains. |
 | P2 | `confidenceBoundsFromLogEProcesses()` computed the running maximum twice when `upperLogEProcesses` defaulted to `lowerLogEProcesses`, as it did for propDiff. | **done** 2026-09-18 — helper removed; both sequences read their bounds off first rejection blocks inline (R2.3, R3.2a) |
 | P3 | The propDiff simulation state key is built with `paste()` every block; an integer key is ~4x faster. | **open** |
-| C1 | `simulateTurnerStoppingGrid()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
+| C1 | `sampleStoppingTimesSaviTwoProportions()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
 | — | `propDiff` inverts at `alpha`, `logOR` at `alpha/2` (Bonferroni). Different coverage semantics between the two sequences. | **deferred** — "not the major concern now" |
 | C2 | `vignettes/contingency-tables-vignette.Rmd` still calls six removed functions (`simulateTwoProportions`, `simulateOptionalStoppingScenarioTwoProportions`, `simulateIncorrectStoppingTimesFisher`, `plotConfidenceSequenceTwoProportions`, `simulateCoverageDifferenceTwoProportions`, `computeConfidenceBoundForLogOddsTwoProportions`) and loads `savi2x2Sim` objects whose print/plot methods are gone, so `R CMD build` fails on vignettes. | **open** — rewrite or retire the vignette (known gap as of 2026-09-17) |
 | C3 | The roxygen-documented helpers of `R/safe2x2TestCond.R`, plus `logLikelihoodRatioProcess` and `computeConfidenceSequenceFor*TwoProportions` in `R/safe2x2Test.R`, are not exported, which `R CMD check` flags. | **open** — decide per function between `@export` and `@noRd` |
 | C4 | Deprecated wrappers in `R/deprecate.R` (`designSafeTwoProportions`, `safeTwoProportionsTest`, `safe.prop.test`) forward to the new signatures: `M` → `nSim`, `alternativeRestriction` → `effectMeasure` (`"none"` → `"propDiff"`, restriction then comes only from `delta`), `logOddsConfidenceSearchBounds` → `logORConfidenceSearchBounds`; `pilot`, `simThetaAMin`, `simThetaAMax` are dropped on the test side / ignored with a warning. Covered by a test. | **done** 2026-09-17 |
-| — | `simulateMinimumDetectableEffect()` binary-searches on noisy evaluations; Monte Carlo noise can break the monotonicity the search assumes, and the returned effect carries no error estimate. | **deferred** — marked with a `TODO` in the source, left as is |
+| — | `computeMinEsSaviTwoProportions()` binary-searches on noisy evaluations; Monte Carlo noise can break the monotonicity the search assumes, and the returned effect carries no error estimate. | **deferred** — marked with a `TODO` in the source, left as is |
 
 ## 7. Alignment with upstream `R/tTest.R`
 
@@ -533,7 +534,8 @@ Not requirements yet — listed so the omissions are deliberate rather than lost
 - `estimateImpliedTarget`: keep collecting past the stopping time to report
   `logImpliedTarget` at `nPlan`.
 - `deltaDesign`: generate data at one effect and test at another, for
-  misspecification studies. `simulateTurnerStoppingGrid()` can already do this
-  — `restriction`/`delta` are separate arguments from `thetaA`/`thetaB` — but
-  `simulateWorstCaseStoppingTimes()` ties them together and does not expose it.
+  misspecification studies. `sampleStoppingTimesSaviTwoProportions()` can
+  already do this — `restriction`/`delta` are separate arguments from
+  `thetaA`/`thetaB` — but `computeNPlanSaviTwoProportions()` ties them
+  together and does not expose it.
 - `expectedStopTime`: mean instead of quantile.
