@@ -165,11 +165,11 @@ members. `runningIntersection = FALSE` instead reads each block's set from
 the cumulative e-process value at that block only, with no memory of earlier
 rejections, as the old `calculateEValuesForLinearDeltaGrid()`
 flag did; it is kept for inspection only and is `TRUE` by default. The
-propDiff sequence no longer goes through
-`confidenceBoundsFromLogEProcesses()`, which now serves only the
-log-odds-ratio sequence (two one-sided families, see §3); the two
-constructions are different and are kept separate on purpose. **done**
-2026-09-17
+bounds are read off inline from the first rejection block of each candidate;
+the former shared helper `confidenceBoundsFromLogEProcesses()` is gone
+(R3.2a). The propDiff construction (one two-sided family) and the
+log-odds-ratio construction (two one-sided families, see §3) are different
+and are kept separate on purpose. **done** 2026-09-17
 
 **R2.4 — Candidates must exclude zero.** **[stated]** The old grid contained `0`
 only when `gridSize` was odd, so whether the null value was testable depended
@@ -223,6 +223,22 @@ insertion is removed, so the grid is now
 `2 * confidenceBoundGridPrecision` candidates. Both search bounds are already
 validated positive, so the positive half never reaches zero on its own and a
 finite bound always sits strictly on one side of the null. **done**
+
+**R3.2a — Confidence bounds are read off inline.**
+`computeConfidenceSequenceForLogORTwoProportions()` inverts two one-sided
+families, each at `alpha / 2`: the lower family tests `logOR <= candidate`,
+the upper family `logOR >= candidate`, and both run over the full signed
+grid. As in R2.3, a candidate is rejected by a family from the first block at
+which its log e-process reaches `log(2/alpha)` onward (running intersection).
+At each block the lower bound is the smallest candidate the lower family has
+not yet rejected and the upper bound the largest candidate the upper family
+has not yet rejected; a bound is `-Inf`/`Inf` while the outermost candidate
+on its side remains and `NA` once a family has rejected every candidate. The
+wrapper used to hand its two matrices to `confidenceBoundsFromLogEProcesses()`,
+whose input validation, running-maximum matrices and sentinel handling made
+the inversion harder to read than the rule above; that helper is removed and
+the inversion sits in the wrapper next to the grid construction, mirroring the
+propDiff wrapper. Outputs are identical. **done** 2026-09-18
 
 **R3.3 — Sequential conditional Gaussian mixture.** `computeEGaussGrid()`
 represents a standard-normal prior on the A-minus-B conditional log odds ratio
@@ -378,7 +394,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
 | S4 | `simulateWorstCaseStoppingTimes()` and `simulateWorstCasePower()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
 | P1 | `solvePropDiffRIPr()` calls `polyroot()` once per block per candidate (120k calls for a 600-block, 200-candidate sequence), making the propDiff sequence ~5x slower than the logOR one. | **open** |
-| P2 | `confidenceBoundsFromLogEProcesses()` computed the running maximum twice when `upperLogEProcesses` defaulted to `lowerLogEProcesses`, as it did for propDiff. | **done** 2026-09-17 — propDiff no longer calls it (R2.3) |
+| P2 | `confidenceBoundsFromLogEProcesses()` computed the running maximum twice when `upperLogEProcesses` defaulted to `lowerLogEProcesses`, as it did for propDiff. | **done** 2026-09-18 — helper removed; both sequences read their bounds off first rejection blocks inline (R2.3, R3.2a) |
 | P3 | The propDiff simulation state key is built with `paste()` every block; an integer key is ~4x faster. | **open** |
 | C1 | `simulateTurnerStoppingGrid()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
 | — | `propDiff` inverts at `alpha`, `logOR` at `alpha/2` (Bonferroni). Different coverage semantics between the two sequences. | **deferred** — "not the major concern now" |
