@@ -535,11 +535,13 @@ calculateEValuesForPropDiffGrid <- function(
 
 #' Confidence sequence for the proportion difference
 #'
-#' Computes every candidate proportion difference's e-process once over the
-#' full data sequence. Each candidate is a two-sided point null tested at
-#' level `alpha`; the confidence set at a block is every candidate whose
-#' e-process has not yet reached `1 / alpha`, and the reported bounds are its
-#' smallest and largest members.
+#' Walks through the data one block at a time. At every block the predictor
+#' learned from the earlier blocks is projected onto each candidate
+#' `propDiff = thetaB - thetaA` still in the confidence set, and that
+#' candidate's log e-process is advanced by one likelihood-ratio increment.
+#' Each candidate is a two-sided point null tested at level `alpha`: it
+#' leaves the set once its e-process reaches `1 / alpha`. The reported bounds
+#' are the smallest and largest candidates remaining after each block.
 #'
 #' @param ya,yb Number of successes in groups A and B in each data block.
 #' @param confidenceBoundGridPrecision Number of candidate proportion
@@ -550,11 +552,12 @@ calculateEValuesForPropDiffGrid <- function(
 #'   [designSaviTwoProportions()].
 #' @param runningIntersection Logical. If `TRUE` (default), a candidate
 #'   rejected at some block stays rejected at every later block, so the sets
-#'   are nested. If `FALSE`, each block's set is read from the cumulative
-#'   e-process value at that block only, with no memory of earlier
-#'   rejections, so a rejected candidate may re-enter later. Both
-#'   versions have the same time-uniform coverage; the intersection is never
-#'   wider.
+#'   are nested and a rejected candidate's e-process is no longer updated. If
+#'   `FALSE`, every candidate is updated at every block and each block's set
+#'   is read from the cumulative e-process values at that block only, with no
+#'   memory of earlier rejections, so a rejected candidate may re-enter
+#'   later. Both versions have the same time-uniform coverage; the
+#'   intersection is never wider.
 #'
 #' @return A data frame with `block`, `lowerBound`, and `upperBound`. Bounds
 #'   remain at `-1` or `1` while their corresponding edge candidate remains;
@@ -577,47 +580,72 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
     stop("runningIntersection must be TRUE or FALSE.")
   }
 
-  gridProcesses <- calculateEValuesForPropDiffGrid(
+  nBlocks <- length(ya)
+  na <- rep_len(saviDesign[["nPlan"]][["na"]], nBlocks)
+  nb <- rep_len(saviDesign[["nPlan"]][["nb"]], nBlocks)
+  if (length(yb) != nBlocks) {
+    stop("ya and yb must have the same length.")
+  }
+  logThreshold <- log(1 / saviDesign[["alpha"]])
+
+  # The predictor for block t depends on the data before t only, so it can be
+  # learned for every block up front.
+  predictiveThetas <- learnPredictiveThetas(
     ya = ya,
     yb = yb,
-    na = saviDesign[["nPlan"]][["na"]],
-    nb = saviDesign[["nPlan"]][["nb"]],
+    na = na,
+    nb = nb,
     priorParameters = saviDesign[["betaPriorParameterValues"]],
-    gridSize = confidenceBoundGridPrecision
+    restriction = "none"
   )
-  propDiffGrid <- gridProcesses[["propDiff"]]
-  logEProcesses <- gridProcesses[["logEProcesses"]]
-  nBlocks <- nrow(logEProcesses)
+
+  propDiffGrid <- propDiffCandidateGrid(confidenceBoundGridPrecision)
   nCandidates <- length(propDiffGrid)
-
-  # A candidate is rejected at a block when its e-process reaches 1 / alpha.
-  # With the running intersection it then stays rejected at every later
-  # block, so what matters is the first block where that happens; candidates
-  # that never reach the threshold are never rejected.
-  logThreshold <- log(1 / saviDesign[["alpha"]])
-  firstRejectionBlock <- apply(logEProcesses, 2L, function(logEProcess) {
-    rejectedAt <- which(logEProcess >= logThreshold)
-    if (length(rejectedAt) == 0L) Inf else rejectedAt[1L]
-  })
-
-  # At each block the confidence set is the candidates not rejected, and the
-  # bounds are its smallest and largest members. If the outermost candidate
-  # is still in, the true value may lie beyond the grid, so the bound stays
-  # at the parameter limit. If no candidate is left, both bounds are NA.
+  logEProcess <- numeric(nCandidates)
+  inSet <- rep(TRUE, nCandidates)
   lowerBound <- upperBound <- rep(NA_real_, nBlocks)
+
   for (block in seq_len(nBlocks)) {
-    inSet <- if (runningIntersection) {
-      firstRejectionBlock > block
-    } else {
-      logEProcesses[block, ] < logThreshold
+    thetaStarA <- predictiveThetas[["thetaA"]][block]
+    thetaStarB <- predictiveThetas[["thetaB"]][block]
+
+    # With the running intersection a rejected candidate never returns, so
+    # its e-process need not be advanced any further.
+    toUpdate <- if (runningIntersection) which(inSet) else seq_len(nCandidates)
+    for (candidate in toUpdate) {
+      propDiff <- propDiffGrid[candidate]
+      nullThetaA <- solveOnePropDiffRIPr(
+        thetaStarA = thetaStarA,
+        thetaStarB = thetaStarB,
+        blockSizeA = na[block],
+        blockSizeB = nb[block],
+        propDiff = propDiff
+      )
+      logEProcess[candidate] <- logEProcess[candidate] +
+        logLikelihoodRatioIncrements(
+          ya = ya[block],
+          yb = yb[block],
+          na = na[block],
+          nb = nb[block],
+          numeratorThetaA = thetaStarA,
+          numeratorThetaB = thetaStarB,
+          denominatorThetaA = nullThetaA,
+          denominatorThetaB = nullThetaA + propDiff
+        )
     }
-    if (!any(inSet)) {
-      next
+
+    notRejected <- logEProcess < logThreshold
+    inSet <- if (runningIntersection) inSet & notRejected else notRejected
+
+    # If the outermost candidate is still in, the true value may lie beyond
+    # the grid, so the bound stays at the parameter limit. If no candidate is
+    # left, both bounds stay NA.
+    if (any(inSet)) {
+      lowerBound[block] <-
+        if (inSet[1L]) -1 else min(propDiffGrid[inSet])
+      upperBound[block] <-
+        if (inSet[nCandidates]) 1 else max(propDiffGrid[inSet])
     }
-    lowerBound[block] <-
-      if (inSet[1L]) -1 else min(propDiffGrid[inSet])
-    upperBound[block] <-
-      if (inSet[nCandidates]) 1 else max(propDiffGrid[inSet])
   }
 
   data.frame(

@@ -25,11 +25,12 @@ bound of exactly zero is never reported; the grid holds
 
 \item{runningIntersection}{Logical. If \code{TRUE} (default), a candidate
 rejected at some block stays rejected at every later block, so the sets
-are nested. If \code{FALSE}, each block's set is read from the cumulative
-e-process value at that block only, with no memory of earlier
-rejections, so a rejected candidate may re-enter later. Both
-versions have the same time-uniform coverage; the intersection is never
-wider.}
+are nested and a rejected candidate's e-process is no longer updated. If
+\code{FALSE}, every candidate is updated at every block and each block's set
+is read from the cumulative e-process values at that block only, with no
+memory of earlier rejections, so a rejected candidate may re-enter
+later. Both versions have the same time-uniform coverage; the
+intersection is never wider.}
 }
 \value{
 A data frame with \code{block}, \code{lowerBound}, and \code{upperBound}. Bounds
@@ -37,9 +38,11 @@ remain at \code{-1} or \code{1} while their corresponding edge candidate remains
 if no grid point remains at a block, both bounds are \code{NA}.
 }
 \description{
-Computes every candidate proportion difference's e-process once over the
-full data sequence. Each candidate is a two-sided point null tested at
-level \code{alpha}; the confidence set at a block is every candidate whose
-e-process has not yet reached \code{1 / alpha}, and the reported bounds are its
-smallest and largest members.
+Walks through the data one block at a time. At every block the predictor
+learned from the earlier blocks is projected onto each candidate
+\code{propDiff = thetaB - thetaA} still in the confidence set, and that
+candidate's log e-process is advanced by one likelihood-ratio increment.
+Each candidate is a two-sided point null tested at level \code{alpha}: it
+leaves the set once its e-process reaches \code{1 / alpha}. The reported bounds
+are the smallest and largest candidates remaining after each block.
 }
