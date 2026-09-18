@@ -207,8 +207,17 @@ never be reported. `gridSize` therefore counts candidates per side, exactly as
 **R3.1 — Same overall structure as §2.** **[stated]** Solver → grid of
 e-processes → confidence-sequence wrapper.
 → `solveLogORRIPr()` (quadratic in the base group's odds, solved in log space
-via `logPositiveQuadraticRoot()`), `calculateEValuesForLogORGrid()`,
-`computeConfidenceSequenceForLogORTwoProportions()`. **done** (pre-existing)
+via `logPositiveQuadraticRoot()`) and
+`computeConfidenceSequenceForLogORTwoProportions()`. As in §2 the middle
+layer is gone: `calculateEValuesForLogORGrid()`, which built the two
+`L × gridSize` matrices (one per one-sided family), was **retired**
+2026-09-18 once the wrapper walked the data block by block (R3.2a) and it
+had no caller left. The solver now recycles all of its arguments
+elementwise, so one call solves a single candidate over many blocks (how the
+grid helper used it) or every candidate at a single block (how the wrapper
+uses it); the zero-effect and boundary special cases are handled
+elementwise. Unlike `solveOnePropDiffRIPr()` it is closed form, so the
+wrapper needs no inner loop over candidates. **done** 2026-09-18
 
 **R3.1a — The log-space quadratic solve must read as one.** The mean-matching
 condition `na*thetaA + nb*thetaB = na*numeratorThetaA + nb*numeratorThetaB`
@@ -234,25 +243,42 @@ most one ULP (2.2e-16), and the score equation holds to 2.3e-15 relative.
 
 **R3.1b — `logAddExp()` is a sibling of `logSumExp()` (A11).** The pairwise
 helper sits beside its caller in `R/safe2x2Test.R` while the reducing
-`logSumExp()` sits in `R/safe2x2TestCond.R`. Both belong in the shared helper
-file that A11 asks for; whoever does that move should take both. **open**
-
-**R3.2 — Candidates must exclude zero.** **[stated]** R2.4 applies here too.
-The grid used to insert `0` explicitly between the mirrored halves; that
-insertion is removed, so the grid is now
-`c(-rev(positiveGrid), positiveGrid)` and holds
-`2 * confidenceBoundGridPrecision` candidates. Both search bounds are already
-validated positive, so the positive half never reaches zero on its own and a
-finite bound always sits strictly on one side of the null. **done**
-
-**R3.2a — Confidence bounds are read off inline.**
+`logSumExp()` sits in **R3.2a — Confidence bounds are read off inline, block by block.**
 `computeConfidenceSequenceForLogORTwoProportions()` inverts two one-sided
 families, each at `alpha / 2`: the lower family tests `logOR <= candidate`,
 the upper family `logOR >= candidate`, and both run over the full signed
-grid. As in R2.3, a candidate is rejected by a family from the first block at
-which its log e-process reaches `log(2/alpha)` onward (running intersection).
-At each block the lower bound is the smallest candidate the lower family has
-not yet rejected and the upper bound the largest candidate the upper family
+grid. The wrapper walks the data block by block, as R2.3 does, with one
+active set and one running log e-process per family. At block `t` the
+predictor learned from blocks before `t` lies inside one family's null for
+each candidate, where that family's increment is exactly zero, and outside
+the other family's null, where it is projected onto the candidate and the
+increment is added to that family's process. The projection does not depend
+on the family, so each candidate is solved at most once per block, and only
+while the family that needs it still holds the candidate; the solves for one
+block are a single vectorised `solveLogORRIPr()` call. A candidate leaves a
+family from the first block at which its log e-process reaches
+`log(2/alpha)` onward (running intersection). At each block the lower bound
+is the smallest candidate the lower family still holds and the upper bound
+the largest the upper family still holds; a bound is `-Inf`/`Inf` while the
+outermost candidate on its side remains and `NA` once a family has rejected
+every candidate.
+
+History, both steps 2026-09-18: the wrapper first handed two matrices to
+`confidenceBoundsFromLogEProcesses()`, whose input validation,
+running-maximum matrices and sentinel handling obscured the rule above; that
+helper was removed and the inversion inlined next to the grid construction.
+Then the matrices themselves went (R3.1). The block loop gives `identical()`
+bounds on 60 random datasets, skips 57 % (100 blocks) to 88 % (2000 blocks)
+of the solves at 200 candidates and runs 1.5–3x faster. The speed-up is
+smaller than for propDiff (P1) because the closed-form solve was already
+cheap; the gain is one code shape for both effect measures and no
+`L × gridSize` matrices. The tests check the sequence against an inline
+reference built from `learnPredictiveThetas()`, `solveLogORRIPr()` and
+`logLikelihoodRatioProcess()` with first-rejection blocks per column
+(including a rejected candidate that later falls back below the threshold
+and a family that rejects every candidate), against its own prefixes, and
+against its group-swapped mirror image. **done** 2026-09-18
+rejected and the upper bound the largest candidate the upper family
 has not yet rejected; a bound is `-Inf`/`Inf` while the outermost candidate
 on its side remains and `NA` once a family has rejected every candidate. The
 wrapper used to hand its two matrices to `confidenceBoundsFromLogEProcesses()`,
@@ -420,7 +446,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 | C1 | `simulateTurnerStoppingGrid()` no longer accepts `restriction = "none"`, so the unrestricted process can no longer be simulated for comparison. | **open** — deliberate? |
 | — | `propDiff` inverts at `alpha`, `logOR` at `alpha/2` (Bonferroni). Different coverage semantics between the two sequences. | **deferred** — "not the major concern now" |
 | C2 | `vignettes/contingency-tables-vignette.Rmd` still calls six removed functions (`simulateTwoProportions`, `simulateOptionalStoppingScenarioTwoProportions`, `simulateIncorrectStoppingTimesFisher`, `plotConfidenceSequenceTwoProportions`, `simulateCoverageDifferenceTwoProportions`, `computeConfidenceBoundForLogOddsTwoProportions`) and loads `savi2x2Sim` objects whose print/plot methods are gone, so `R CMD build` fails on vignettes. | **open** — rewrite or retire the vignette (known gap as of 2026-09-17) |
-| C3 | Ten roxygen-documented helpers are not exported (all of `R/safe2x2TestCond.R` plus `logLikelihoodRatioProcess`, `calculateEValuesFor*Grid`, `computeConfidenceSequenceFor*TwoProportions`), which `R CMD check` flags. | **open** — decide per function between `@export` and `@noRd` |
+| C3 | The roxygen-documented helpers of `R/safe2x2TestCond.R`, plus `logLikelihoodRatioProcess` and `computeConfidenceSequenceFor*TwoProportions` in `R/safe2x2Test.R`, are not exported, which `R CMD check` flags. | **open** — decide per function between `@export` and `@noRd` |
 | C4 | Deprecated wrappers in `R/deprecate.R` (`designSafeTwoProportions`, `safeTwoProportionsTest`, `safe.prop.test`) forward to the new signatures: `M` → `nSim`, `alternativeRestriction` → `effectMeasure` (`"none"` → `"propDiff"`, restriction then comes only from `delta`), `logOddsConfidenceSearchBounds` → `logORConfidenceSearchBounds`; `pilot`, `simThetaAMin`, `simThetaAMax` are dropped on the test side / ignored with a warning. Covered by a test. | **done** 2026-09-17 |
 | — | `simulateMinimumDetectableEffect()` binary-searches on noisy evaluations; Monte Carlo noise can break the monotonicity the search assumes, and the returned effect carries no error estimate. | **deferred** — marked with a `TODO` in the source, left as is |
 
