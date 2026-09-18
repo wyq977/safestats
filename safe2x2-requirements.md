@@ -173,9 +173,14 @@ keeping a second implementation of the same e-processes as a diagnostic was
 judged not worth the upkeep. The test for the `runningIntersection` switch
 builds the matrix inline from `learnPredictiveThetas()`,
 `solveOnePropDiffRIPr()` and `logLikelihoodRatioProcess()` as its reference.
-What survives is the candidate grid itself, `propDiffCandidateGrid()`:
-`gridSize` equally spaced values in `(0, 1)`, mirrored, never containing
-zero (R2.4).
+The candidate grid outlived the matrix for a while as
+`propDiffCandidateGrid()`, but a one-line `seq_len()` behind an argument
+check that its only caller already performed is not worth a named function,
+so it too was **retired** 2026-09-18: the confidence sequence (R2.3) now
+builds the grid inline, exactly as the log-odds-ratio sequence builds its
+own (R3.2). The tests rebuild it inline as well, and check the property that
+matters — no reported bound is ever exactly zero (R2.4) — through the
+wrapper.
 
 **R2.3 — Confidence interval at each time.** **[stated]** A wrapper returning a
 bound at every one of the `L` blocks.
@@ -203,12 +208,13 @@ construction (two one-sided families, see §3) are different and are kept
 separate on purpose. **done** 2026-09-18
 
 **R2.4 — Candidates must exclude zero.** **[stated]** The old grid contained `0`
-only when `gridSize` was odd, so whether the null value was testable depended
-on the parity of a resolution argument. Resolved by *excluding* zero at every
-parity: `gridSize` equally spaced candidates in `(0, 1)` are mirrored about
-zero, so the grid holds `2 * gridSize` values and a bound of exactly `0` can
-never be reported. `gridSize` therefore counts candidates per side, exactly as
-`confidenceBoundGridPrecision` does for the log-odds-ratio grid (R3.2). **done**
+only when the resolution was odd, so whether the null value was testable
+depended on the parity of an argument. Resolved by *excluding* zero at every
+parity: `confidenceBoundGridPrecision` equally spaced candidates in `(0, 1)`
+are mirrored about zero, so the grid holds
+`2 * confidenceBoundGridPrecision` values and a bound of exactly `0` can
+never be reported. `confidenceBoundGridPrecision` therefore counts candidates per side, exactly
+as it does for the log-odds-ratio grid (R3.2). **done**
 
 ---
 

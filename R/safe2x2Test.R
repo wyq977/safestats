@@ -427,17 +427,6 @@ solveOnePropDiffRIPr <- function(
   feasibleRoots
 }
 
-# The candidate proportion differences: gridSize equally spaced values in
-# (0, 1), mirrored so the grid is symmetric and never contains zero.
-propDiffCandidateGrid <- function(gridSize) {
-  if (length(gridSize) != 1L || !is.finite(gridSize) ||
-      gridSize < 1L || gridSize %% 1 != 0) {
-    stop("gridSize must be a positive integer.")
-  }
-  positiveGrid <- seq_len(gridSize) / (gridSize + 1)
-  c(-rev(positiveGrid), positiveGrid)
-}
-
 #' Confidence sequence for the proportion difference
 #'
 #' Walks through the data one block at a time. At every block the predictor
@@ -504,7 +493,13 @@ computeConfidenceSequenceForPropDiffTwoProportions <- function(
     restriction = "none"
   )
 
-  propDiffGrid <- propDiffCandidateGrid(confidenceBoundGridPrecision)
+  # Equally spaced candidates in (0, 1), mirrored about zero. Zero is
+  # deliberately not a candidate, matching the log-odds-ratio grid: a bound of
+  # exactly 0 has no unambiguous reading, so a finite bound always sits
+  # strictly on one side of the null.
+  positiveGrid <- seq_len(confidenceBoundGridPrecision) /
+    (confidenceBoundGridPrecision + 1)
+  propDiffGrid <- c(-rev(positiveGrid), positiveGrid)
   nCandidates <- length(propDiffGrid)
   logEProcess <- numeric(nCandidates)
   inSet <- rep(TRUE, nCandidates)

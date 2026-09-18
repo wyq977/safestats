@@ -697,26 +697,49 @@ testthat::test_that("propDiff confidence sequence is a prefix property", {
   ))
 })
 
-testthat::test_that("propDiff grid covers the feasible interior", {
-  testthat::expect_equal(
-    propDiffCandidateGrid(7),
-    c(-rev(seq_len(7) / 8), seq_len(7) / 8)
-  )
-  testthat::expect_length(propDiffCandidateGrid(21), 42)
-  testthat::expect_error(propDiffCandidateGrid(0), "gridSize")
-  testthat::expect_error(propDiffCandidateGrid(2.5), "gridSize")
-  testthat::expect_error(propDiffCandidateGrid(c(3, 4)), "gridSize")
-})
-
 testthat::test_that("propDiff candidates exclude zero and stay symmetric", {
-  for (gridSize in c(1, 2, 7, 8, 100, 101)) {
-    candidates <- propDiffCandidateGrid(gridSize)
+  # Rebuild the grid the wrapper builds inline, and confirm it never reports a
+  # bound of exactly zero.
+  for (precision in c(1L, 2L, 7L, 8L, 100L, 101L)) {
+    positiveGrid <- seq_len(precision) / (precision + 1)
+    candidates <- c(-rev(positiveGrid), positiveGrid)
 
+    testthat::expect_length(candidates, 2 * precision)
     testthat::expect_false(any(candidates == 0))
     testthat::expect_gt(min(abs(candidates)), 0)
     testthat::expect_equal(candidates, -rev(candidates))
     testthat::expect_false(is.unsorted(candidates, strictly = TRUE))
     testthat::expect_true(all(abs(candidates) < 1))
+  }
+
+  design <- designSaviTwoProportions(
+    nBlocksPlan = 40, na = 1, nb = 1, alpha = 0.05
+  )
+  set.seed(20260918)
+  ya <- stats::rbinom(40, size = 1, prob = 0.15)
+  yb <- stats::rbinom(40, size = 1, prob = 0.75)
+  confidenceSequence <- computeConfidenceSequenceForPropDiffTwoProportions(
+    ya = ya, yb = yb,
+    confidenceBoundGridPrecision = 20L,
+    saviDesign = design
+  )
+  bounds <- unlist(confidenceSequence[, c("lowerBound", "upperBound")])
+  testthat::expect_false(any(bounds == 0, na.rm = TRUE))
+})
+
+testthat::test_that("confidence sequence rejects a non-integer grid precision", {
+  design <- designSaviTwoProportions(
+    nBlocksPlan = 40, na = 1, nb = 1, alpha = 0.05
+  )
+  for (precision in list(0, 2.5, c(3, 4))) {
+    testthat::expect_error(
+      computeConfidenceSequenceForPropDiffTwoProportions(
+        ya = c(0, 1), yb = c(1, 1),
+        confidenceBoundGridPrecision = precision,
+        saviDesign = design
+      ),
+      "confidenceBoundGridPrecision"
+    )
   }
 })
 
@@ -864,7 +887,8 @@ testthat::test_that("propDiff running intersection can be switched off", {
     priorParameters = design[["betaPriorParameterValues"]],
     restriction = "none"
   )
-  grid <- propDiffCandidateGrid(10)
+  positiveGrid <- seq_len(10) / 11
+  grid <- c(-rev(positiveGrid), positiveGrid)
   logEProcesses <- vapply(grid, function(propDiff) {
     nullThetaA <- mapply(
       solveOnePropDiffRIPr,
