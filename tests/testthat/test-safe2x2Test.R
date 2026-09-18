@@ -1432,7 +1432,7 @@ testthat::test_that("restricted supports reject a degenerate delta", {
     "too extreme"
   )
   testthat::expect_error(
-    restrictedThetaSupport("logOR", delta = 800, nWeight = 101),
+    restrictedThetaWeightGrid("logOR", delta = 800, nWeight = 101),
     "too extreme"
   )
   moderate <- turnerEProcess(

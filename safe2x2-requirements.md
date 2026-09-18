@@ -121,7 +121,7 @@ Given `thetaA`, the effect type and its value, return `thetaB`.
 
 | Function | Role |
 | --- | --- |
-| `restrictedThetaSupport()` | The one-dimensional support curve for a fixed effect. |
+| `restrictedThetaWeightGrid()` | The one-dimensional weight grid on the curve for a fixed effect. |
 | `restrictedPriorLogWeights()` | Normalised Beta log prior on that curve. |
 | `learnPredictiveThetas()` | Independent Beta posterior means when unrestricted; grid posterior when restricted. |
 
@@ -165,7 +165,7 @@ supply boundary probabilities directly. **done** 2026-09-18
 `plogis()` saturates to exactly `1` once its argument reaches about 37, so a
 large enough `logOR` puts a support point at exactly `0` or `1`, where a zero
 count gives `0 * -Inf = NaN` that then spreads through the posterior
-normalisation. `restrictedThetaSupport()` now refuses to build such a curve
+normalisation. `restrictedThetaWeightGrid()` now refuses to build such a curve
 and says which `delta` and `nWeight` caused it, rather than returning `NaN`
 (`turnerEProcess()`) or dying at an unrelated `if` (the sampler). This
 requirement was written as a second `R1.4` and is renumbered here. **done**
@@ -469,7 +469,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 
 | Ref | Item | Decision |
 | --- | --- | --- |
-| S1 | `gridSize` named three different things (posterior resolution, candidate count, baseline count) alongside `thetaGridSize`, `confidenceBoundGridPrecision` and `effectGridSize`. | **partly done** 2026-09-18 — in `R/safe2x2Test.R` the two counts are now `nWeight` (weight-grid resolution) and `nTheta` (data-generating theta pairs), and the object holding the weight grid is `weightGrid` while `thetaGrid` keeps the simulation theta pairs. `effectGridSize`, `confidenceBoundGridPrecision` and the unrelated local `gridSize` in `R/safe2x2TestCond.R` are untouched. |
+| S1 | `gridSize` named three different things (posterior resolution, candidate count, baseline count) alongside `thetaGridSize`, `confidenceBoundGridPrecision` and `effectGridSize`. | **partly done** 2026-09-18 — in `R/safe2x2Test.R` the two counts are now `nWeight` (weight-grid resolution) and `nTheta` (data-generating theta pairs), and the object holding the weight grid is `weightGrid` (built by `restrictedThetaWeightGrid()`, formerly `restrictedThetaSupport()`) while `thetaGrid` keeps the simulation theta pairs. `effectGridSize`, `confidenceBoundGridPrecision` and the unrelated local `gridSize` in `R/safe2x2TestCond.R` are untouched. |
 | S2 | `designSaviTwoProportions()` is a ~220-line four-case branch; the package already splits these (`designSaviT1aWantNPlan`, `designSaviT2WantBeta`, …). | **open** |
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
 | S4 | `computeNPlanSaviTwoProportions()` and `computePowerSaviTwoProportions()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |

@@ -127,7 +127,7 @@ resolveBetaPriorParameters <- function(
 # `nWeight` points. The free coordinate rho is thetaA rescaled to its feasible
 # interval under a propDiff restriction and thetaA itself under a logOR one;
 # either way rho stays in (0, 1), so the same Beta prior applies to both.
-restrictedThetaSupport <- function(restriction, delta, nWeight = 1000L) {
+restrictedThetaWeightGrid <- function(restriction, delta, nWeight = 1000L) {
   restriction <- match.arg(restriction, c("propDiff", "logOR"))
   if (length(delta) != 1L || !is.numeric(delta) || !is.finite(delta)) {
     stop("delta must be a finite numeric scalar for a restricted e-process.")
@@ -175,7 +175,7 @@ thetaBFromRestriction <- function(thetaA, restriction, delta) {
   }
 }
 
-# Normalised log prior weights on restrictedThetaSupport()'s free coordinate.
+# Normalised log prior weights on restrictedThetaWeightGrid()'s free coordinate.
 # Only the betaA* parameters are used: fixing the effect leaves one free
 # probability, so the second Beta prior has nothing left to describe.
 restrictedPriorLogWeights <- function(priorParameters, rhoGrid) {
@@ -220,7 +220,7 @@ learnPredictiveThetas <- function(
     ))
   }
 
-  weightGrid <- restrictedThetaSupport(restriction, delta, nWeight)
+  weightGrid <- restrictedThetaWeightGrid(restriction, delta, nWeight)
   logWeights <- restrictedPriorLogWeights(priorParameters, weightGrid[["rho"]])
   logThetaA <- log(weightGrid[["thetaA"]])
   logOneMinusThetaA <- log1p(-weightGrid[["thetaA"]])
@@ -940,7 +940,7 @@ sampleStoppingTimesSaviTwoProportions <- function(
     ncol = nSim
   )
 
-  weightGrid <- restrictedThetaSupport(restriction, delta, nWeight)
+  weightGrid <- restrictedThetaWeightGrid(restriction, delta, nWeight)
   weightGridThetaA <- weightGrid[["thetaA"]]
   weightGridThetaB <- weightGrid[["thetaB"]]
   priorLogWeights <- restrictedPriorLogWeights(
