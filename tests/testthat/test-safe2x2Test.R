@@ -51,6 +51,8 @@ testthat::test_that("restricted simulations match turnerEProcess paths", {
   )
   na <- 2
   nb <- 1
+  maxBlocks <- 200
+  logThreshold <- log(1 / 0.05)
 
   for (setting in settings) {
     set.seed(4242)
@@ -65,31 +67,32 @@ testthat::test_that("restricted simulations match turnerEProcess paths", {
       delta = setting$delta,
       nWeight = 101,
       nSim = 1,
-      maxBlocks = 200
+      maxBlocks = maxBlocks
     )
     stoppingTime <- simulated$stoppingTimes[1, 1]
     testthat::expect_true(is.finite(stoppingTime))
 
+    # The path draws all maxBlocks blocks up front, group A then group B, so
+    # the same seed regenerates its data; the test statistic on that data must
+    # reproduce the simulated crossing.
     set.seed(4242)
-    ya <- yb <- numeric(stoppingTime)
-    for (block in seq_len(stoppingTime)) {
-      ya[block] <- stats::rbinom(1, na, 0.2)
-      yb[block] <- stats::rbinom(1, nb, 0.8)
-    }
+    ya <- stats::rbinom(maxBlocks, na, 0.2)
+    yb <- stats::rbinom(maxBlocks, nb, 0.8)
     replayed <- turnerEProcess(
       ya = ya, yb = yb, na = na, nb = nb,
       priorParameters = priorParameters,
+      log = TRUE,
       restriction = setting$restriction,
       delta = setting$delta,
       nWeight = 101
     )
-
     testthat::expect_equal(
-      replayed[stoppingTime],
       simulated$eValuesAtStopping[1, 1],
-      tolerance = 1e-10
+      exp(replayed[stoppingTime]),
+      tolerance = 1e-12
     )
-    testthat::expect_true(all(replayed[-stoppingTime] < 1 / 0.05))
+    testthat::expect_true(all(replayed[seq_len(stoppingTime - 1)] < logThreshold))
+    testthat::expect_gte(replayed[stoppingTime], logThreshold)
   }
 })
 

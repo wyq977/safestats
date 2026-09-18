@@ -874,17 +874,83 @@ computeConfidenceSequenceForLogORTwoProportions <- function(
 
 # Stopping-time simulation ----
 
-# Simulate stopping times for G fixed data-generating theta pairs. Rows of each
-# output matrix correspond to theta-pair indices and columns to independent
-# simulation paths. Non-crossing paths have stopping time Inf and e-value NA.
-#
-# The numerator is the grid posterior on the supplied effect curve, so the
-# simulated stopping times describe the restricted process being designed for.
-# The denominator is the pooled predictable probability, as in
-# turnerEProcess().
-#
-# One block is generated at a time and crossing paths are dropped immediately,
-# so no data is generated or evaluated past a path's own stopping time.
+# Simulate one path of the restricted Turner e-process until it crosses
+# 1 / alpha or reaches maxBlocks. All maxBlocks blocks are drawn up front,
+# which is cheap; the process is then evaluated block by block and the loop
+# returns at the first crossing, so no block past the stopping time is
+# evaluated. The numerator is the grid posterior on the effect curve, predicted
+# from the blocks before the current one; the denominator is the pooled
+# predictable probability, as in turnerEProcess(). Returns the stopping time
+# (Inf if the path never crosses) and the e-value there (NA if it never
+# crosses). Arguments are validated by the caller.
+simulateStoppingTimeWithRestriction <- function(
+  thetaA,
+  thetaB,
+  na,
+  nb,
+  restriction,
+  delta,
+  alpha,
+  priorParameters,
+  nWeight,
+  maxBlocks
+) {
+  weightGrid <- restrictedThetaWeightGrid(restriction, delta, nWeight)
+  weightGridThetaA <- weightGrid[["thetaA"]]
+  logThetaA <- log(weightGridThetaA)
+  logOneMinusThetaA <- log1p(-weightGridThetaA)
+  logThetaB <- log(weightGrid[["thetaB"]])
+  logOneMinusThetaB <- log1p(-weightGrid[["thetaB"]])
+  logWeights <- restrictedPriorLogWeights(priorParameters, weightGrid[["rho"]])
+  logThreshold <- log(1 / alpha)
+
+  ya <- stats::rbinom(maxBlocks, na, thetaA)
+  yb <- stats::rbinom(maxBlocks, nb, thetaB)
+  logEValue <- 0
+
+  for (block in seq_len(maxBlocks)) {
+    # Predict this block from the posterior over the blocks before it.
+    weights <- exp(logWeights)
+    numeratorThetaA <- sum(weightGridThetaA * weights) / sum(weights)
+    numeratorThetaB <- thetaBFromRestriction(
+      numeratorThetaA,
+      restriction,
+      delta
+    )
+    pooledTheta <- (na * numeratorThetaA + nb * numeratorThetaB) / (na + nb)
+
+    logEValue <- logEValue + logLikelihoodRatioIncrements(
+      ya = ya[block],
+      yb = yb[block],
+      na = na,
+      nb = nb,
+      numeratorThetaA = numeratorThetaA,
+      numeratorThetaB = numeratorThetaB,
+      denominatorThetaA = pooledTheta,
+      denominatorThetaB = pooledTheta
+    )
+    if (logEValue >= logThreshold) {
+      return(list(stoppingTime = block, eValue = exp(logEValue)))
+    }
+
+    # Only now add the block to the posterior, so the next block is predicted
+    # from the past alone. Only ratios of weights matter; pinning the maximum
+    # at zero keeps the weights representable over arbitrarily many blocks.
+    logWeights <- logWeights +
+      ya[block] * logThetaA +
+      (na - ya[block]) * logOneMinusThetaA +
+      yb[block] * logThetaB +
+      (nb - yb[block]) * logOneMinusThetaB
+    logWeights <- logWeights - max(logWeights)
+  }
+
+  list(stoppingTime = Inf, eValue = NA_real_)
+}
+
+# Simulate stopping times for G fixed data-generating theta pairs: nSim
+# independent calls to simulateStoppingTimeWithRestriction() per pair. Rows of
+# each output matrix correspond to theta-pair indices and columns to paths.
+# Non-crossing paths have stopping time Inf and e-value NA.
 sampleStoppingTimesSaviTwoProportions <- function(
   thetaA,
   thetaB,
@@ -920,123 +986,25 @@ sampleStoppingTimesSaviTwoProportions <- function(
       any(c(nSim, maxBlocks) %% 1 != 0)) {
     stop("nSim and maxBlocks must be positive integers.")
   }
-
   restriction <- match.arg(restriction)
   priorParameters <- resolveBetaPriorParameters(
     na = na,
     nb = nb,
     priorParameters = priorParameters
   )
-  nTheta <- length(thetaA)
-  logThreshold <- log(1 / alpha)
-  stoppingTimes <- matrix(
-    Inf,
-    nrow = nTheta,
-    ncol = nSim
-  )
-  eValuesAtStopping <- matrix(
-    NA_real_,
-    nrow = nTheta,
-    ncol = nSim
-  )
 
-  weightGrid <- restrictedThetaWeightGrid(restriction, delta, nWeight)
-  weightGridThetaA <- weightGrid[["thetaA"]]
-  weightGridThetaB <- weightGrid[["thetaB"]]
-  priorLogWeights <- restrictedPriorLogWeights(
-    priorParameters,
-    weightGrid[["rho"]]
-  )
-  logThetaA <- log(weightGridThetaA)
-  logOneMinusThetaA <- log1p(-weightGridThetaA)
-  logThetaB <- log(weightGridThetaB)
-  logOneMinusThetaB <- log1p(-weightGridThetaB)
+  nTheta <- length(thetaA)
+  stoppingTimes <- matrix(Inf, nrow = nTheta, ncol = nSim)
+  eValuesAtStopping <- matrix(NA_real_, nrow = nTheta, ncol = nSim)
 
   for (thetaIndex in seq_len(nTheta)) {
-    logEValues <- numeric(nSim)
-    active <- seq_len(nSim)
-    pastSuccessesA <- numeric(nSim)
-    pastSuccessesB <- numeric(nSim)
-
-    for (block in seq_len(maxBlocks)) {
-      nPastBlocks <- block - 1L
-
-      # Paths with the same sufficient statistics have the same posterior.
-      # Under logOR the split between A and B contributes only a constant that
-      # cancels on normalisation, so total successes identify the state.
-      stateKey <- if (restriction == "logOR") {
-        pastSuccessesA + pastSuccessesB
-      } else {
-        paste(pastSuccessesA, pastSuccessesB, sep = ":")
-      }
-      firstPathInState <- !duplicated(stateKey)
-      pathToState <- match(stateKey, stateKey[firstPathInState])
-
-      successesA <- pastSuccessesA[firstPathInState]
-      successesB <- pastSuccessesB[firstPathInState]
-      failuresA <- nPastBlocks * na - successesA
-      failuresB <- nPastBlocks * nb - successesB
-
-      # The binomial coefficients do not depend on the support point and
-      # therefore cancel when the posterior weights are normalised.
-      logLikelihood <-
-        outer(logThetaA, successesA, "*") +
-        outer(logOneMinusThetaA, failuresA, "*") +
-        outer(logThetaB, successesB, "*") +
-        outer(logOneMinusThetaB, failuresB, "*")
-
-      logPosteriorWeights <- sweep(
-        logLikelihood,
-        1L,
-        priorLogWeights,
-        "+"
+    for (path in seq_len(nSim)) {
+      simulated <- simulateStoppingTimeWithRestriction(
+        thetaA[thetaIndex], thetaB[thetaIndex], na, nb,
+        restriction, delta, alpha, priorParameters, nWeight, maxBlocks
       )
-      logPosteriorWeights <- sweep(
-        logPosteriorWeights,
-        2L,
-        apply(logPosteriorWeights, 2L, max),
-        "-"
-      )
-      posteriorWeights <- exp(logPosteriorWeights)
-      thetaAByState <- colSums(posteriorWeights * weightGridThetaA) /
-        colSums(posteriorWeights)
-
-      numeratorThetaA <- thetaAByState[pathToState]
-      numeratorThetaB <- thetaBFromRestriction(
-        numeratorThetaA,
-        restriction,
-        delta
-      )
-
-      pooledTheta <- (
-        na * numeratorThetaA + nb * numeratorThetaB
-      ) / (na + nb)
-      yaBlock <- stats::rbinom(length(active), na, thetaA[thetaIndex])
-      ybBlock <- stats::rbinom(length(active), nb, thetaB[thetaIndex])
-
-      logEValues[active] <- logEValues[active] + logLikelihoodRatioIncrements(
-        ya = yaBlock,
-        yb = ybBlock,
-        na = na,
-        nb = nb,
-        numeratorThetaA = numeratorThetaA,
-        numeratorThetaB = numeratorThetaB,
-        denominatorThetaA = pooledTheta,
-        denominatorThetaB = pooledTheta
-      )
-
-      crossed <- logEValues[active] >= logThreshold
-      if (any(crossed)) {
-        crossedPaths <- active[crossed]
-        stoppingTimes[thetaIndex, crossedPaths] <- block
-        eValuesAtStopping[thetaIndex, crossedPaths] <-
-          exp(logEValues[crossedPaths])
-      }
-
-      pastSuccessesA <- (pastSuccessesA + yaBlock)[!crossed]
-      pastSuccessesB <- (pastSuccessesB + ybBlock)[!crossed]
-      active <- active[!crossed]
-      if (length(active) == 0L) break
+      stoppingTimes[thetaIndex, path] <- simulated[["stoppingTime"]]
+      eValuesAtStopping[thetaIndex, path] <- simulated[["eValue"]]
     }
   }
 
