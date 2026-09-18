@@ -34,6 +34,7 @@ every candidate on that side has been rejected.
 Constructs a symmetric candidate grid from the supplied resolution and
 search bounds. The grid excludes zero. Every candidate e-process is computed once over the full data
 sequence in each direction. Both one-sided inversions use the full signed
-grid, and each side uses alpha/2.
+grid, and each side uses alpha/2. Each side keeps a running intersection:
+a candidate rejected at some block stays rejected at every later block.
 The log odds ratio is \code{logit(thetaB) - logit(thetaA)}.
 }

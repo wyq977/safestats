@@ -910,7 +910,8 @@ calculateEValuesForLogORGrid <- function(
 #' Constructs a symmetric candidate grid from the supplied resolution and
 #' search bounds. The grid excludes zero. Every candidate e-process is computed once over the full data
 #' sequence in each direction. Both one-sided inversions use the full signed
-#' grid, and each side uses alpha/2.
+#' grid, and each side uses alpha/2. Each side keeps a running intersection:
+#' a candidate rejected at some block stays rejected at every later block.
 #' The log odds ratio is `logit(thetaB) - logit(thetaA)`.
 #'
 #' @param ya,yb Number of successes in groups A and B in each data block.
@@ -965,33 +966,61 @@ computeConfidenceSequenceForLogORTwoProportions <- function(
   # always sits strictly on one side of the null.
   candidateGrid <- c(-rev(positiveGrid), positiveGrid)
 
-  lowerGridProcesses <- calculateEValuesForLogORGrid(
-    ya = ya,
-    yb = yb,
-    na = saviDesign[["nPlan"]][["na"]],
-    nb = saviDesign[["nPlan"]][["nb"]],
-    priorParameters = saviDesign[["betaPriorParameterValues"]],
-    logORGrid = candidateGrid,
-    bound = "lower"
-  )
-  upperGridProcesses <- calculateEValuesForLogORGrid(
-    ya = ya,
-    yb = yb,
-    na = saviDesign[["nPlan"]][["na"]],
-    nb = saviDesign[["nPlan"]][["nb"]],
-    priorParameters = saviDesign[["betaPriorParameterValues"]],
-    logORGrid = candidateGrid,
-    bound = "upper"
-  )
+  # Each side is its own one-sided family tested at alpha / 2: the lower
+  # family tests logOR <= candidate, the upper family logOR >= candidate.
+  logEProcessesFor <- function(bound) {
+    calculateEValuesForLogORGrid(
+      ya = ya,
+      yb = yb,
+      na = saviDesign[["nPlan"]][["na"]],
+      nb = saviDesign[["nPlan"]][["nb"]],
+      priorParameters = saviDesign[["betaPriorParameterValues"]],
+      logORGrid = candidateGrid,
+      bound = bound
+    )[["logEProcesses"]]
+  }
+  lowerLogEProcesses <- logEProcessesFor("lower")
+  upperLogEProcesses <- logEProcessesFor("upper")
+  nBlocks <- nrow(lowerLogEProcesses)
+  nCandidates <- length(candidateGrid)
 
-  lowerLogEProcesses <- lowerGridProcesses[["logEProcesses"]]
-  upperLogEProcesses <- upperGridProcesses[["logEProcesses"]]
-  confidenceBoundsFromLogEProcesses(
-    candidateGrid = candidateGrid,
-    lowerLogEProcesses = lowerLogEProcesses,
-    upperLogEProcesses = upperLogEProcesses,
-    logThreshold = log(2 / saviDesign[["alpha"]]),
-    parameterLimits = c(-Inf, Inf)
+  # A candidate is rejected by a family at a block when its e-process reaches
+  # 2 / alpha, and with the running intersection it then stays rejected at
+  # every later block, so what matters is the first block where that happens;
+  # candidates that never reach the threshold are never rejected.
+  logThreshold <- log(2 / saviDesign[["alpha"]])
+  firstRejectionBlock <- function(logEProcesses) {
+    apply(logEProcesses, 2L, function(logEProcess) {
+      rejectedAt <- which(logEProcess >= logThreshold)
+      if (length(rejectedAt) == 0L) Inf else rejectedAt[1L]
+    })
+  }
+  lowerFirstRejection <- firstRejectionBlock(lowerLogEProcesses)
+  upperFirstRejection <- firstRejectionBlock(upperLogEProcesses)
+
+  # At each block the lower bound is the smallest candidate the lower family
+  # has not yet rejected and the upper bound the largest candidate the upper
+  # family has not yet rejected. If the outermost candidate is still in, the
+  # true value may lie beyond the grid, so the bound stays infinite. If a
+  # family has rejected every candidate, its bound is NA.
+  lowerBound <- upperBound <- rep(NA_real_, nBlocks)
+  for (block in seq_len(nBlocks)) {
+    lowerInSet <- lowerFirstRejection > block
+    if (any(lowerInSet)) {
+      lowerBound[block] <-
+        if (lowerInSet[1L]) -Inf else min(candidateGrid[lowerInSet])
+    }
+    upperInSet <- upperFirstRejection > block
+    if (any(upperInSet)) {
+      upperBound[block] <-
+        if (upperInSet[nCandidates]) Inf else max(candidateGrid[upperInSet])
+    }
+  }
+
+  data.frame(
+    block = seq_len(nBlocks),
+    lowerBound = lowerBound,
+    upperBound = upperBound
   )
 }
 
