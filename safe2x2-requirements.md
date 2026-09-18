@@ -27,8 +27,9 @@ Effect measures, both signed as **B minus A**:
 - `propDiff = thetaB - thetaA`, in `(-1, 1)`.
 - `logOR = logit(thetaB) - logit(thetaA)`, on the whole real line.
 
-`gridSize` is the resolution of the discrete grid used to learn a restricted
-theta; `nSim` and `maxBlocks` size the simulation.
+`nWeight` is the resolution of the discrete grid used to learn a restricted
+theta and `nTheta` the number of data-generating theta pairs simulated over;
+`nSim` and `maxBlocks` size the simulation.
 
 **R0.1 — One vocabulary.** **[stated]** `propDiff` and `logOR` are used
 throughout. The legacy spellings `difference`, `linearDifference` and
@@ -165,7 +166,7 @@ supply boundary probabilities directly. **done** 2026-09-18
 large enough `logOR` puts a support point at exactly `0` or `1`, where a zero
 count gives `0 * -Inf = NaN` that then spreads through the posterior
 normalisation. `restrictedThetaSupport()` now refuses to build such a curve
-and says which `delta` and `gridSize` caused it, rather than returning `NaN`
+and says which `delta` and `nWeight` caused it, rather than returning `NaN`
 (`turnerEProcess()`) or dying at an unrelated `if` (the sampler). This
 requirement was written as a second `R1.4` and is renumbered here. **done**
 
@@ -402,7 +403,7 @@ The simulation stores only cumulative successes for active paths. It
 constructs and normalises this log likelihood immediately before generating
 the next block, so the numerator for block `t + 1` uses blocks `1, ..., t`
 only. The new observations are added to the cumulative counts only after that
-block's e-factor is evaluated. There is no persistent `gridSize × nPaths`
+block's e-factor is evaluated. There is no persistent `nWeight × nPaths`
 posterior matrix.
 
 Paths sharing a state are evaluated once:
@@ -468,7 +469,7 @@ a `savi.prop.test` alias. Built on `constructSaviTestObj("Two Proportions")`.
 
 | Ref | Item | Decision |
 | --- | --- | --- |
-| S1 | `gridSize` names three different things (posterior resolution, candidate count, baseline count) alongside `thetaGridSize`, `confidenceBoundGridPrecision` and `effectGridSize`. | **open** |
+| S1 | `gridSize` named three different things (posterior resolution, candidate count, baseline count) alongside `thetaGridSize`, `confidenceBoundGridPrecision` and `effectGridSize`. | **partly done** 2026-09-18 — in `R/safe2x2Test.R` the two counts are now `nWeight` (weight-grid resolution) and `nTheta` (data-generating theta pairs), and the object holding the weight grid is `weightGrid` while `thetaGrid` keeps the simulation theta pairs. `effectGridSize`, `confidenceBoundGridPrecision` and the unrelated local `gridSize` in `R/safe2x2TestCond.R` are untouched. |
 | S2 | `designSaviTwoProportions()` is a ~220-line four-case branch; the package already splits these (`designSaviT1aWantNPlan`, `designSaviT2WantBeta`, …). | **open** |
 | S3 | Two-stream input validation (`na`/`nb` recycling plus length checks) is repeated in six places. | **open** |
 | S4 | `computeNPlanSaviTwoProportions()` and `computePowerSaviTwoProportions()` are near-duplicates: same grid, same simulator call, same worst-row bootstrap. | **open** |
@@ -508,7 +509,7 @@ testing (`saviRelevanceTStatNEffNu` and the `relevanceTest` / `relevanceSize`
 | A4 | Bootstrapping is reimplemented with `replicate(nBoot, quantile(sample(...)))` instead of `computeBootObj()` / `computeNPlanBootstrapper()` / `computeBetaBootstrapper()`. | **open** — proposal to review before implementing; depends on A5, since the shared bootstrappers read `breakVector` and `eValuesAtNMax`. |
 | A5 | The sampler returns only `stoppingTimes` and `eValuesAtStopping`. The template's `constructSampleStoppingTimesList()` also carries `breakVector`, `eValuesStopped`, `eValuesAtNMax`, `samplePaths` and `stoppedVector`. `computeBetaBootstrapper()` expects `breakVector`; `plot.saviDesign()` expects `samplePaths`. | **open** |
 | A6 | Sampling-function naming. | **done** — `sampleStoppingTimesSaviTwoProportions()`, `computePowerSaviTwoProportions()`, `computeNPlanSaviTwoProportions()`, `computeMinEsSaviTwoProportions()`. |
-| A7 | Argument vocabulary. | **done** — `M` and `nSimulations` are now `nSim`, and the design function takes `nBoot`. `maxBlocks`, `nBlocksPlan`, `thetaGridSize` and `gridSize` are kept: they carry more information in this scope than `nMax`/`nPlan` would. |
+| A7 | Argument vocabulary. | **done** — `M` and `nSimulations` are now `nSim`, and the design function takes `nBoot`. `maxBlocks` and `nBlocksPlan` are kept: they carry more information in this scope than `nMax`/`nPlan` would. `thetaGridSize` and `gridSize` became `nTheta` and `nWeight` on 2026-09-18 (S1). |
 | A8 | `alternative` is hardcoded to `"twoSided"`. | **declined** |
 | A9 | Roxygen/export hygiene, `addCite()` references. | **declined** |
 | A10 | No `generateTwoProportionData()` to match `generateNormalData()`; data is generated inline with `rbinom()` inside the sampler. No `pb`, `seed`, `wantSamplePaths` or `wantSimData` arguments. | **open** |

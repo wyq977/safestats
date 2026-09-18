@@ -14,9 +14,9 @@ computeNPlanSaviTwoProportions(
   priorParameters = NULL,
   nSim = 1000,
   maxBlocks = 10000,
-  thetaGridSize = 8L,
+  nTheta = 8L,
   nBoot = 1000,
-  gridSize = 1000L
+  nWeight = 1000L
 )
 }
 \arguments{
@@ -38,20 +38,20 @@ Supply exactly one of \code{propDiff} and \code{logOR}.}
 
 \item{maxBlocks}{Maximum number of blocks simulated per path.}
 
-\item{thetaGridSize}{Number of equally spaced feasible baseline theta pairs
+\item{nTheta}{Number of equally spaced feasible baseline theta pairs
 generated for this effect.}
 
 \item{nBoot}{Number of nonparametric bootstrap samples used to estimate the
 standard error of the worst-case stopping-time quantile; must be at least
 two.}
 
-\item{gridSize}{Number of points in the restricted numerator's posterior
-grid. It should match the \code{gridSize} the test itself will use; lowering it
+\item{nWeight}{Number of points in the restricted numerator's posterior
+grid. It should match the \code{nWeight} the test itself will use; lowering it
 trades numerator accuracy for simulation speed.}
 }
 \value{
 A list with the worst-case baseline probabilities, stopping-time
-quantiles, and \code{thetaGridSize} by \code{nSim} matrices containing
+quantiles, and \code{nTheta} by \code{nSim} matrices containing
 the per-path stopping results. Non-crossing paths have stopping time \code{Inf}
 and stopping e-value \code{NA}.
 \code{worstCaseStoppingTimeBootstrapSe} is the bootstrap standard error of the
@@ -76,6 +76,6 @@ of \code{thetaA} for which both probabilities implied by the effect are in
 \code{(1 - beta)} quantile over this grid. The bootstrap resamples only the
 already-identified worst-case row: with \code{nSim} paths already spent
 on that theta pair, its own Monte Carlo noise is the relevant uncertainty.
-To refine which baseline is worst, increase \code{thetaGridSize} rather than
+To refine which baseline is worst, increase \code{nTheta} rather than
 re-deriving the worst case inside the bootstrap.
 }

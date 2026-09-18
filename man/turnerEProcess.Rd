@@ -13,7 +13,7 @@ turnerEProcess(
   log = FALSE,
   restriction = c("none", "propDiff", "logOR"),
   delta = NULL,
-  gridSize = 1000L
+  nWeight = 1000L
 )
 }
 \arguments{
@@ -34,7 +34,7 @@ their one-dimensional grid.}
 \item{delta}{The restricted numerator's value of \code{thetaB - thetaA} or
 \code{logit(thetaB) - logit(thetaA)}, according to \code{restriction}.}
 
-\item{gridSize}{Number of points in the restricted-alternative posterior
+\item{nWeight}{Number of points in the restricted-alternative posterior
 grid.}
 }
 \value{

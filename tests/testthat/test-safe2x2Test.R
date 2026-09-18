@@ -63,7 +63,7 @@ testthat::test_that("restricted simulations match turnerEProcess paths", {
       priorParameters = priorParameters,
       restriction = setting$restriction,
       delta = setting$delta,
-      gridSize = 101,
+      nWeight = 101,
       nSim = 1,
       maxBlocks = 200
     )
@@ -81,7 +81,7 @@ testthat::test_that("restricted simulations match turnerEProcess paths", {
       priorParameters = priorParameters,
       restriction = setting$restriction,
       delta = setting$delta,
-      gridSize = 101
+      nWeight = 101
     )
 
     testthat::expect_equal(
@@ -257,12 +257,12 @@ testthat::test_that("Turner predictors use past data and B-minus-A restrictions"
   propDiff <- learnPredictiveThetas(
     ya, yb, na = c(1, 1), nb = c(1, 1),
     priorParameters = priorParameters,
-    restriction = "propDiff", delta = 0.25, gridSize = 101
+    restriction = "propDiff", delta = 0.25, nWeight = 101
   )
   logOdds <- learnPredictiveThetas(
     ya, yb, na = c(1, 1), nb = c(1, 1),
     priorParameters = priorParameters,
-    restriction = "logOR", delta = 0.7, gridSize = 101
+    restriction = "logOR", delta = 0.7, nWeight = 101
   )
 
   testthat::expect_equal(unrestricted$thetaA, c(0.5, 2 / 3))
@@ -288,12 +288,12 @@ testthat::test_that("restricted Turner processes use likelihood-updated predicto
   propDiffProcess <- turnerEProcess(
     ya, yb, na = 1, nb = 1,
     priorParameters = priorParameters,
-    restriction = "propDiff", delta = 0.25, gridSize = 101
+    restriction = "propDiff", delta = 0.25, nWeight = 101
   )
   logORProcess <- turnerEProcess(
     ya, yb, na = 1, nb = 1,
     priorParameters = priorParameters,
-    restriction = "logOR", delta = 0.7, gridSize = 101
+    restriction = "logOR", delta = 0.7, nWeight = 101
   )
 
   testthat::expect_equal(
@@ -311,7 +311,7 @@ testthat::test_that("restricted Turner processes use likelihood-updated predicto
     turnerEProcess(
       ya, yb, na = 1, nb = 1,
       priorParameters = priorParameters,
-      restriction = "propDiff", delta = 0.25, gridSize = 101,
+      restriction = "propDiff", delta = 0.25, nWeight = 101,
       log = TRUE
     ),
     tolerance = 1e-12
@@ -334,7 +334,7 @@ testthat::test_that("legacy public effect names map to propDiff and logOR", {
       priorParameters = priorParameters,
       restriction = restriction,
       delta = 0.25,
-      gridSize = 101
+      nWeight = 101
     )
   }
 
@@ -421,7 +421,7 @@ testthat::test_that("fixed propDiff simulation returns baseline-grid matrices", 
   set.seed(20260817)
   thetaGrid <- makeSimulationThetaGrid(
     propDiff = 0.6,
-    thetaGridSize = 3
+    nTheta = 3
   )
   result <- sampleStoppingTimesSaviTwoProportions(
     thetaA = thetaGrid$thetaA,
@@ -448,15 +448,15 @@ testthat::test_that("fixed propDiff simulation returns baseline-grid matrices", 
 testthat::test_that("simulation theta grids use the B-minus-A convention", {
   negativeGrid <- makeSimulationThetaGrid(
     propDiff = -0.6,
-    thetaGridSize = 3
+    nTheta = 3
   )
   logOddsGrid <- makeSimulationThetaGrid(
     logOR = 0.8,
-    thetaGridSize = 3
+    nTheta = 3
   )
   negativeLogOddsGrid <- makeSimulationThetaGrid(
     logOR = -0.8,
-    thetaGridSize = 3
+    nTheta = 3
   )
 
   testthat::expect_equal(negativeGrid$thetaA, c(0.7, 0.8, 0.9))
@@ -523,7 +523,7 @@ testthat::test_that("worst-case wrapper simulates and bootstraps the grid", {
     beta = 0.2,
     nSim = 4,
     maxBlocks = 51,
-    thetaGridSize = 3,
+    nTheta = 3,
     nBoot = 2
   )
 
@@ -1427,17 +1427,17 @@ testthat::test_that("restricted supports reject a degenerate delta", {
   testthat::expect_error(
     turnerEProcess(
       c(0, 1), c(1, 0), na = 1, nb = 1, priorParameters = priorParameters,
-      restriction = "logOR", delta = 60, gridSize = 101
+      restriction = "logOR", delta = 60, nWeight = 101
     ),
     "too extreme"
   )
   testthat::expect_error(
-    restrictedThetaSupport("logOR", delta = 800, gridSize = 101),
+    restrictedThetaSupport("logOR", delta = 800, nWeight = 101),
     "too extreme"
   )
   moderate <- turnerEProcess(
     c(0, 1), c(1, 0), na = 1, nb = 1, priorParameters = priorParameters,
-    restriction = "logOR", delta = 25, gridSize = 101
+    restriction = "logOR", delta = 25, nWeight = 101
   )
   testthat::expect_true(all(is.finite(moderate)))
 })

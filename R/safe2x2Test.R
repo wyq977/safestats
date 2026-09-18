@@ -124,10 +124,10 @@ resolveBetaPriorParameters <- function(
 }
 
 # The one-dimensional set of theta pairs with a fixed effect, discretised on
-# `gridSize` points. The free coordinate rho is thetaA rescaled to its feasible
+# `nWeight` points. The free coordinate rho is thetaA rescaled to its feasible
 # interval under a propDiff restriction and thetaA itself under a logOR one;
 # either way rho stays in (0, 1), so the same Beta prior applies to both.
-restrictedThetaSupport <- function(restriction, delta, gridSize = 1000L) {
+restrictedThetaSupport <- function(restriction, delta, nWeight = 1000L) {
   restriction <- match.arg(restriction, c("propDiff", "logOR"))
   if (length(delta) != 1L || !is.numeric(delta) || !is.finite(delta)) {
     stop("delta must be a finite numeric scalar for a restricted e-process.")
@@ -135,12 +135,12 @@ restrictedThetaSupport <- function(restriction, delta, gridSize = 1000L) {
   if (restriction == "propDiff" && abs(delta) >= 1) {
     stop("delta must lie strictly between -1 and 1 for a propDiff restriction.")
   }
-  if (length(gridSize) != 1L || !is.finite(gridSize) ||
-      gridSize < 2L || gridSize %% 1 != 0) {
-    stop("gridSize must be an integer greater than or equal to 2.")
+  if (length(nWeight) != 1L || !is.finite(nWeight) ||
+      nWeight < 2L || nWeight %% 1 != 0) {
+    stop("nWeight must be an integer greater than or equal to 2.")
   }
 
-  rhoGrid <- seq(1 / gridSize, 1 - 1 / gridSize, length.out = gridSize)
+  rhoGrid <- seq(1 / nWeight, 1 - 1 / nWeight, length.out = nWeight)
   if (restriction == "propDiff") {
     thetaA <- rhoGrid * (1 - abs(delta)) + max(-delta, 0)
   } else {
@@ -156,7 +156,7 @@ restrictedThetaSupport <- function(restriction, delta, gridSize = 1000L) {
   if (any(thetaA <= 0 | thetaA >= 1 | thetaB <= 0 | thetaB >= 1)) {
     stop(paste0(
       "delta = ", format(delta), " is too extreme for a ", restriction,
-      " restriction at gridSize = ", gridSize, ": it places a support point ",
+      " restriction at nWeight = ", nWeight, ": it places a support point ",
       "at exactly 0 or 1, where the likelihood is degenerate. Use a delta ",
       "closer to zero."
     ))
@@ -197,7 +197,7 @@ learnPredictiveThetas <- function(
   priorParameters,
   restriction = c("none", "propDiff", "logOR"),
   delta = NULL,
-  gridSize = 1000L
+  nWeight = 1000L
 ) {
   restriction <- match.arg(restriction)
   nSteps <- length(ya)
@@ -220,16 +220,16 @@ learnPredictiveThetas <- function(
     ))
   }
 
-  support <- restrictedThetaSupport(restriction, delta, gridSize)
-  logWeights <- restrictedPriorLogWeights(priorParameters, support[["rho"]])
-  logThetaA <- log(support[["thetaA"]])
-  logOneMinusThetaA <- log1p(-support[["thetaA"]])
-  logThetaB <- log(support[["thetaB"]])
-  logOneMinusThetaB <- log1p(-support[["thetaB"]])
+  weightGrid <- restrictedThetaSupport(restriction, delta, nWeight)
+  logWeights <- restrictedPriorLogWeights(priorParameters, weightGrid[["rho"]])
+  logThetaA <- log(weightGrid[["thetaA"]])
+  logOneMinusThetaA <- log1p(-weightGrid[["thetaA"]])
+  logThetaB <- log(weightGrid[["thetaB"]])
+  logOneMinusThetaB <- log1p(-weightGrid[["thetaB"]])
   thetaA <- thetaB <- numeric(nSteps)
 
   for (block in seq_along(ya)) {
-    thetaA[block] <- sum(support[["thetaA"]] * exp(logWeights))
+    thetaA[block] <- sum(weightGrid[["thetaA"]] * exp(logWeights))
     thetaB[block] <- thetaBFromRestriction(thetaA[block], restriction, delta)
 
     logWeights <- logWeights +
@@ -249,7 +249,7 @@ learnPredictiveThetas <- function(
 makeSimulationThetaGrid <- function(
   propDiff = NULL,
   logOR = NULL,
-  thetaGridSize = 8L
+  nTheta = 8L
 ) {
   if (is.null(propDiff) == is.null(logOR)) {
     stop("Supply exactly one of propDiff and logOR.")
@@ -263,12 +263,12 @@ makeSimulationThetaGrid <- function(
       (length(logOR) != 1L || !is.finite(logOR) || logOR == 0)) {
     stop("logOR must be a nonzero finite scalar.")
   }
-  if (length(thetaGridSize) != 1L || !is.finite(thetaGridSize) ||
-      thetaGridSize < 1L || thetaGridSize %% 1 != 0) {
-    stop("thetaGridSize must be a positive integer.")
+  if (length(nTheta) != 1L || !is.finite(nTheta) ||
+      nTheta < 1L || nTheta %% 1 != 0) {
+    stop("nTheta must be a positive integer.")
   }
 
-  rho <- seq_len(thetaGridSize) / (thetaGridSize + 1)
+  rho <- seq_len(nTheta) / (nTheta + 1)
   restriction <- if (is.null(propDiff)) "logOR" else "propDiff"
   delta <- if (is.null(propDiff)) logOR else propDiff
   thetaA <- if (restriction == "propDiff") {
@@ -312,7 +312,7 @@ makeSimulationThetaGrid <- function(
 #'   (default), `"propDiff"`, or `"logOR"`.
 #' @param delta The restricted numerator's value of `thetaB - thetaA` or
 #'   `logit(thetaB) - logit(thetaA)`, according to `restriction`.
-#' @param gridSize Number of points in the restricted-alternative posterior
+#' @param nWeight Number of points in the restricted-alternative posterior
 #'   grid.
 #' @param log Return the cumulative log e-process instead of the e-process.
 #'
@@ -328,7 +328,7 @@ turnerEProcess <- function(
   log = FALSE,
   restriction = c("none", "propDiff", "logOR"),
   delta = NULL,
-  gridSize = 1000L
+  nWeight = 1000L
 ) {
   restriction <- match.arg(restriction)
   nSteps <- length(ya)
@@ -364,7 +364,7 @@ turnerEProcess <- function(
     priorParameters = priorParameters,
     restriction = restriction,
     delta = delta,
-    gridSize = gridSize
+    nWeight = nWeight
   )
   pooledPredictiveTheta <- (
     na * predictiveThetas[["thetaA"]] + nb * predictiveThetas[["thetaB"]]
@@ -894,7 +894,7 @@ sampleStoppingTimesSaviTwoProportions <- function(
   priorParameters = NULL,
   restriction = c("propDiff", "logOR"),
   delta = NULL,
-  gridSize = 1000L,
+  nWeight = 1000L,
   nSim = 1e3,
   maxBlocks = 1e4
 ) {
@@ -927,32 +927,32 @@ sampleStoppingTimesSaviTwoProportions <- function(
     nb = nb,
     priorParameters = priorParameters
   )
-  nThetaPairs <- length(thetaA)
+  nTheta <- length(thetaA)
   logThreshold <- log(1 / alpha)
   stoppingTimes <- matrix(
     Inf,
-    nrow = nThetaPairs,
+    nrow = nTheta,
     ncol = nSim
   )
   eValuesAtStopping <- matrix(
     NA_real_,
-    nrow = nThetaPairs,
+    nrow = nTheta,
     ncol = nSim
   )
 
-  support <- restrictedThetaSupport(restriction, delta, gridSize)
-  supportThetaA <- support[["thetaA"]]
-  supportThetaB <- support[["thetaB"]]
+  weightGrid <- restrictedThetaSupport(restriction, delta, nWeight)
+  weightGridThetaA <- weightGrid[["thetaA"]]
+  weightGridThetaB <- weightGrid[["thetaB"]]
   priorLogWeights <- restrictedPriorLogWeights(
     priorParameters,
-    support[["rho"]]
+    weightGrid[["rho"]]
   )
-  logThetaA <- log(supportThetaA)
-  logOneMinusThetaA <- log1p(-supportThetaA)
-  logThetaB <- log(supportThetaB)
-  logOneMinusThetaB <- log1p(-supportThetaB)
+  logThetaA <- log(weightGridThetaA)
+  logOneMinusThetaA <- log1p(-weightGridThetaA)
+  logThetaB <- log(weightGridThetaB)
+  logOneMinusThetaB <- log1p(-weightGridThetaB)
 
-  for (gridIndex in seq_len(nThetaPairs)) {
+  for (thetaIndex in seq_len(nTheta)) {
     logEValues <- numeric(nSim)
     active <- seq_len(nSim)
     pastSuccessesA <- numeric(nSim)
@@ -998,7 +998,7 @@ sampleStoppingTimesSaviTwoProportions <- function(
         "-"
       )
       posteriorWeights <- exp(logPosteriorWeights)
-      thetaAByState <- colSums(posteriorWeights * supportThetaA) /
+      thetaAByState <- colSums(posteriorWeights * weightGridThetaA) /
         colSums(posteriorWeights)
 
       numeratorThetaA <- thetaAByState[pathToState]
@@ -1011,8 +1011,8 @@ sampleStoppingTimesSaviTwoProportions <- function(
       pooledTheta <- (
         na * numeratorThetaA + nb * numeratorThetaB
       ) / (na + nb)
-      yaBlock <- stats::rbinom(length(active), na, thetaA[gridIndex])
-      ybBlock <- stats::rbinom(length(active), nb, thetaB[gridIndex])
+      yaBlock <- stats::rbinom(length(active), na, thetaA[thetaIndex])
+      ybBlock <- stats::rbinom(length(active), nb, thetaB[thetaIndex])
 
       logEValues[active] <- logEValues[active] + logLikelihoodRatioIncrements(
         ya = yaBlock,
@@ -1028,8 +1028,8 @@ sampleStoppingTimesSaviTwoProportions <- function(
       crossed <- logEValues[active] >= logThreshold
       if (any(crossed)) {
         crossedPaths <- active[crossed]
-        stoppingTimes[gridIndex, crossedPaths] <- block
-        eValuesAtStopping[gridIndex, crossedPaths] <-
+        stoppingTimes[thetaIndex, crossedPaths] <- block
+        eValuesAtStopping[thetaIndex, crossedPaths] <-
           exp(logEValues[crossedPaths])
       }
 
@@ -1064,7 +1064,7 @@ sampleStoppingTimesSaviTwoProportions <- function(
 #' `(1 - beta)` quantile over this grid. The bootstrap resamples only the
 #' already-identified worst-case row: with `nSim` paths already spent
 #' on that theta pair, its own Monte Carlo noise is the relevant uncertainty.
-#' To refine which baseline is worst, increase `thetaGridSize` rather than
+#' To refine which baseline is worst, increase `nTheta` rather than
 #' re-deriving the worst case inside the bootstrap.
 #'
 #' @param na,nb Number of observations in groups A and B per block.
@@ -1077,17 +1077,17 @@ sampleStoppingTimesSaviTwoProportions <- function(
 #' @param priorParameters Optional Turner Beta prior parameters.
 #' @param nSim Number of simulated paths at each baseline probability.
 #' @param maxBlocks Maximum number of blocks simulated per path.
-#' @param thetaGridSize Number of equally spaced feasible baseline theta pairs
+#' @param nTheta Number of equally spaced feasible baseline theta pairs
 #'   generated for this effect.
 #' @param nBoot Number of nonparametric bootstrap samples used to estimate the
 #'   standard error of the worst-case stopping-time quantile; must be at least
 #'   two.
-#' @param gridSize Number of points in the restricted numerator's posterior
-#'   grid. It should match the `gridSize` the test itself will use; lowering it
+#' @param nWeight Number of points in the restricted numerator's posterior
+#'   grid. It should match the `nWeight` the test itself will use; lowering it
 #'   trades numerator accuracy for simulation speed.
 #'
 #' @return A list with the worst-case baseline probabilities, stopping-time
-#'   quantiles, and `thetaGridSize` by `nSim` matrices containing
+#'   quantiles, and `nTheta` by `nSim` matrices containing
 #'   the per-path stopping results. Non-crossing paths have stopping time `Inf`
 #'   and stopping e-value `NA`.
 #'   `worstCaseStoppingTimeBootstrapSe` is the bootstrap standard error of the
@@ -1104,9 +1104,9 @@ computeNPlanSaviTwoProportions <- function(
   priorParameters = NULL,
   nSim = 1e3,
   maxBlocks = 1e4,
-  thetaGridSize = 8L,
+  nTheta = 8L,
   nBoot = 1e3,
-  gridSize = 1000L
+  nWeight = 1000L
 ) {
   if (length(beta) != 1L || !is.finite(beta) || beta <= 0 || beta >= 1) {
     stop("beta must be strictly between 0 and 1.")
@@ -1119,7 +1119,7 @@ computeNPlanSaviTwoProportions <- function(
   thetaGrid <- makeSimulationThetaGrid(
     propDiff = propDiff,
     logOR = logOR,
-    thetaGridSize = thetaGridSize
+    nTheta = nTheta
   )
   gridSimulation <- sampleStoppingTimesSaviTwoProportions(
     thetaA = thetaGrid[["thetaA"]],
@@ -1130,7 +1130,7 @@ computeNPlanSaviTwoProportions <- function(
     priorParameters = priorParameters,
     restriction = thetaGrid[["restriction"]],
     delta = thetaGrid[["delta"]],
-    gridSize = gridSize,
+    nWeight = nWeight,
     nSim = nSim,
     maxBlocks = maxBlocks
   )
@@ -1149,7 +1149,7 @@ computeNPlanSaviTwoProportions <- function(
   # nSim paths already spent there, that row's own Monte Carlo noise
   # is what we want the SE to reflect. A grid resampled every replicate would
   # also fold in "which baseline is worst" selection noise; if that's a
-  # concern, increase thetaGridSize instead of picking it up here.
+  # concern, increase nTheta instead of picking it up here.
   bootstrapStoppingTimes <- replicate(nBoot, {
     stats::quantile(
       sample(
@@ -1211,9 +1211,9 @@ computePowerSaviTwoProportions <- function(
   priorParameters = NULL,
   nSim = 1e3,
   maxBlocks,
-  thetaGridSize = 8L,
+  nTheta = 8L,
   nBoot = 1e3,
-  gridSize = 1000L
+  nWeight = 1000L
 ) {
   if (!is.null(nBoot) &&
       (length(nBoot) != 1L || !is.finite(nBoot) ||
@@ -1224,7 +1224,7 @@ computePowerSaviTwoProportions <- function(
   thetaGrid <- makeSimulationThetaGrid(
     propDiff = propDiff,
     logOR = logOR,
-    thetaGridSize = thetaGridSize
+    nTheta = nTheta
   )
   gridSimulation <- sampleStoppingTimesSaviTwoProportions(
     thetaA = thetaGrid[["thetaA"]],
@@ -1235,7 +1235,7 @@ computePowerSaviTwoProportions <- function(
     priorParameters = priorParameters,
     restriction = thetaGrid[["restriction"]],
     delta = thetaGrid[["delta"]],
-    gridSize = gridSize,
+    nWeight = nWeight,
     nSim = nSim,
     maxBlocks = maxBlocks
   )
@@ -1290,8 +1290,8 @@ computeMinEsSaviTwoProportions <- function(
   effectGridSize = 10L,
   effectMax = NULL,
   effectMin = 0.01,
-  thetaGridSize = 8L,
-  gridSize = 1000L
+  nTheta = 8L,
+  nWeight = 1000L
 ) {
   effectMeasure <- match.arg(effectMeasure)
   if (length(beta) != 1L || !is.finite(beta) || beta <= 0 || beta >= 1) {
@@ -1328,9 +1328,9 @@ computeMinEsSaviTwoProportions <- function(
       priorParameters = priorParameters,
       nSim = nSim,
       maxBlocks = maxBlocks,
-      thetaGridSize = thetaGridSize,
+      nTheta = nTheta,
       nBoot = NULL,
-      gridSize = gridSize
+      nWeight = nWeight
     )
     simulationArguments[[effectArgument]] <- effectGrid[effectIndex]
     do.call(
