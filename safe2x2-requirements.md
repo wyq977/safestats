@@ -513,7 +513,7 @@ testing (`saviRelevanceTStatNEffNu` and the `relevanceTest` / `relevanceSize`
 | A9 | Roxygen/export hygiene, `addCite()` references. | **declined** |
 | A10 | No `generateTwoProportionData()` to match `generateNormalData()`; data is generated inline with `rbinom()` inside the sampler. No `pb`, `seed`, `wantSamplePaths` or `wantSimData` arguments. | **open** |
 | A11 | `logSumExp()` lives in `R/safe2x2TestCond.R` while `R/safe2x2Test.R` depends on it. It belongs in a shared helper file — together with the pairwise `logAddExp()` added in R3.1a. Its `#'` title also emits `man/logSumExp.Rd` with a `\usage` section but no `\arguments` or `\value`, as several other internals of that file do; `@noRd` on the move would settle both. | **agreed, open** |
-| A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
+| A12 | Function names in `R/safe2x2TestCond.R` not yet aligned: `seqCond()` (its own title says "Sequential conditional plug-in E-values"), `computeConfidenceInterval2x2()`, `saviTwoPropCondStat()`, and — the rest of that file's inventory, none of them named anywhere in this document until now — `saviFutilityTwoPropCondStat()`, `conditionalEValueFixedAlternative()`, `fnchMle()`, `fnchPsi()`, `isValid2x2Vec()`. Variables and arguments are aligned (R0.3); function names were left alone. | **open** |
 
 **Section order.** The template's flat section order is *not* adopted wholesale.
 The existing split by effect measure — `# Proportion difference: RIPr
