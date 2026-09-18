@@ -747,61 +747,101 @@ testthat::test_that("propDiff RIPr is feasible and stationary", {
   testthat::expect_equal(score, rep(0, 3), tolerance = 1e-10)
 })
 
-testthat::test_that("logOR inversion keeps sentinels and permanent rejection", {
+testthat::test_that("logOR sequence inverts the full e-processes with permanent rejection", {
+  nBlocks <- 40
   design <- designSaviTwoProportions(
     na = 1,
     nb = 1,
-    nBlocksPlan = 4,
+    nBlocksPlan = nBlocks,
     alpha = 0.1
   )
-  threshold <- log(2 / design[["alpha"]])
-  # Four candidates c(-g2, -g1, g1, g2). Column j is candidate j; a family's
-  # e-process reaching the threshold in a block rejects that candidate there.
-  # Candidates 1 and 4 fall back below the threshold afterwards but must stay
-  # rejected, and in the last block each family has rejected everything.
-  lowerLogE <- rbind(
-    c(0, 0, 0, 0),
-    c(threshold, 0, 0, 0),
-    c(0, threshold, 0, 0),
-    c(0, 0, threshold, threshold)
+  set.seed(20260922)
+  ya <- stats::rbinom(nBlocks, size = 1, prob = 0.1)
+  yb <- stats::rbinom(nBlocks, size = 1, prob = 0.75)
+  searchBounds <- c(0.5, 2)
+  precision <- 4L
+
+  # Reference: every candidate's complete log e-process in each family, built
+  # from the same predictor, solver, and increments the sequence uses block
+  # by block. A family's increment is zero at blocks where the predictor lies
+  # inside its null.
+  predictiveThetas <- learnPredictiveThetas(
+    ya = ya,
+    yb = yb,
+    na = rep(1, nBlocks),
+    nb = rep(1, nBlocks),
+    priorParameters = design[["betaPriorParameterValues"]],
+    restriction = "none"
   )
-  upperLogE <- rbind(
-    c(0, 0, 0, 0),
-    c(0, 0, 0, threshold),
-    c(0, 0, threshold, 0),
-    c(threshold, threshold, 0, 0)
-  )
-  seenGrid <- NULL
-  testthat::local_mocked_bindings(
-    calculateEValuesForLogORGrid = function(logORGrid, bound, ...) {
-      seenGrid <<- logORGrid
-      list(
-        logOR = logORGrid,
-        logEProcesses = if (bound == "lower") lowerLogE else upperLogE
+  predictorLogOR <- stats::qlogis(predictiveThetas[["thetaB"]]) -
+    stats::qlogis(predictiveThetas[["thetaA"]])
+  transformedBounds <- tanh(searchBounds / 4)
+  positiveGrid <- 4 * atanh(seq(
+    transformedBounds[1L], transformedBounds[2L], length.out = precision
+  ))
+  grid <- c(-rev(positiveGrid), positiveGrid)
+  logEProcessesFor <- function(insideNull) {
+    vapply(grid, function(logOR) {
+      inside <- insideNull(logOR)
+      ripr <- solveLogORRIPr(
+        numeratorThetaA = predictiveThetas[["thetaA"]],
+        numeratorThetaB = predictiveThetas[["thetaB"]],
+        na = 1,
+        nb = 1,
+        logOR = logOR
       )
-    }
-  )
+      logLikelihoodRatioProcess(
+        ya = ya,
+        yb = yb,
+        na = 1,
+        nb = 1,
+        numeratorThetaA = predictiveThetas[["thetaA"]],
+        numeratorThetaB = predictiveThetas[["thetaB"]],
+        denominatorThetaA =
+          ifelse(inside, predictiveThetas[["thetaA"]], ripr[["thetaA"]]),
+        denominatorThetaB =
+          ifelse(inside, predictiveThetas[["thetaB"]], ripr[["thetaB"]])
+      )
+    }, numeric(nBlocks))
+  }
+  lowerLogEProcesses <- logEProcessesFor(function(logOR) predictorLogOR <= logOR)
+  upperLogEProcesses <- logEProcessesFor(function(logOR) predictorLogOR >= logOR)
+  logThreshold <- log(2 / design[["alpha"]])
+  # A candidate is out of a family from the first block at which its
+  # e-process reaches the threshold onward, even if it later falls back.
+  lowerInSet <- apply(lowerLogEProcesses, 2L, cummax) < logThreshold
+  upperInSet <- apply(upperLogEProcesses, 2L, cummax) < logThreshold
+  expectedLower <- apply(lowerInSet, 1L, function(inSet) {
+    if (!any(inSet)) NA_real_ else if (inSet[1L]) -Inf else min(grid[inSet])
+  })
+  expectedUpper <- apply(upperInSet, 1L, function(inSet) {
+    if (!any(inSet)) NA_real_ else if (inSet[length(grid)]) Inf else max(grid[inSet])
+  })
 
   bounds <- computeConfidenceSequenceForLogORTwoProportions(
-    ya = rep(0, 4),
-    yb = rep(1, 4),
-    confidenceBoundGridPrecision = 2,
-    logORConfidenceSearchBounds = c(0.5, 2),
+    ya = ya,
+    yb = yb,
+    confidenceBoundGridPrecision = precision,
+    logORConfidenceSearchBounds = searchBounds,
     saviDesign = design
   )
 
-  testthat::expect_length(seenGrid, 4L)
-  testthat::expect_equal(
-    as.matrix(bounds[c("lowerBound", "upperBound")]),
-    rbind(
-      c(-Inf, Inf),
-      c(seenGrid[2L], seenGrid[3L]),
-      c(seenGrid[3L], seenGrid[2L]),
-      c(NA_real_, NA_real_)
-    ),
-    tolerance = 0,
-    ignore_attr = TRUE
-  )
+  testthat::expect_equal(bounds[["lowerBound"]], expectedLower)
+  testthat::expect_equal(bounds[["upperBound"]], expectedUpper)
+  # The data must actually exercise permanent rejection: some rejected
+  # candidate's e-process falls back below the threshold afterwards.
+  testthat::expect_true(any(!lowerInSet & lowerLogEProcesses < logThreshold))
+  # With the running intersection the lower bound never decreases and the
+  # upper bound never increases.
+  finiteLower <- bounds[["lowerBound"]][!is.na(bounds[["lowerBound"]])]
+  finiteUpper <- bounds[["upperBound"]][!is.na(bounds[["upperBound"]])]
+  testthat::expect_false(is.unsorted(finiteLower))
+  testthat::expect_false(is.unsorted(rev(finiteUpper)))
+  # The true log odds ratio (about 3) lies beyond the search bounds, so the
+  # lower family eventually rejects every candidate and its bound is NA from
+  # then on, while the upper family never rejects its outermost candidate.
+  testthat::expect_true(is.na(bounds[["lowerBound"]][nBlocks]))
+  testthat::expect_equal(bounds[["upperBound"]][nBlocks], Inf)
 })
 
 testthat::test_that("propDiff running intersection can be switched off", {

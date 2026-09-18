@@ -32,9 +32,20 @@ every candidate on that side has been rejected.
 }
 \description{
 Constructs a symmetric candidate grid from the supplied resolution and
-search bounds. The grid excludes zero. Every candidate e-process is computed once over the full data
-sequence in each direction. Both one-sided inversions use the full signed
-grid, and each side uses alpha/2. Each side keeps a running intersection:
-a candidate rejected at some block stays rejected at every later block.
-The log odds ratio is \code{logit(thetaB) - logit(thetaA)}.
+search bounds; the grid excludes zero. The log odds ratio is
+\code{logit(thetaB) - logit(thetaA)}. Two one-sided families are inverted, each
+at \code{alpha / 2}: the lower family tests \code{logOR <= candidate}, the upper
+family \code{logOR >= candidate}, and both run over the full signed grid.
+}
+\details{
+The function walks through the data one block at a time. At every block
+the predictor learned from the earlier blocks lies inside one family's
+null for each candidate, where that family's likelihood-ratio increment is
+zero, and outside the other family's null, where the predictor is
+projected onto the candidate and the increment is added to that family's
+running log e-process. Each family keeps a running intersection: a
+candidate leaves a family's set once its log e-process reaches
+\code{log(2 / alpha)} and is never projected again. The lower bound after a
+block is the smallest candidate still in the lower family's set and the
+upper bound the largest candidate still in the upper family's set.
 }

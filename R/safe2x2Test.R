@@ -608,6 +608,11 @@ logPositiveQuadraticRoot <- function(logA, b, logAbsC) {
 #
 # whose leading coefficient is positive and constant term negative whenever
 # 0 < successes < na + nb, leaving exactly one positive root.
+#
+# Every argument is elementwise and recycled to a common length, so one call
+# solves a single candidate over many blocks (numerator theta vectors with a
+# scalar logOR) or many candidates at a single block (scalar numerator thetas
+# with a logOR vector), which is how the confidence sequence uses it.
 solveLogORRIPr <- function(
   numeratorThetaA,
   numeratorThetaB,
@@ -615,19 +620,32 @@ solveLogORRIPr <- function(
   nb,
   logOR
 ) {
-  nSteps <- length(numeratorThetaA)
-  if (length(na) == 1L) na <- rep(na, nSteps)
-  if (length(nb) == 1L) nb <- rep(nb, nSteps)
-  if (!all(c(length(numeratorThetaB), length(na), length(nb)) == nSteps)) {
-    stop("Numerator theta vectors and group sizes must align by block.")
+  argumentLengths <- c(
+    length(numeratorThetaA),
+    length(numeratorThetaB),
+    length(na),
+    length(nb),
+    length(logOR)
+  )
+  nSolves <- max(argumentLengths)
+  if (!all(argumentLengths == 1L | argumentLengths == nSolves)) {
+    stop(
+      "Numerator thetas, group sizes, and logOR must have length one or a ",
+      "common length."
+    )
   }
-  if (length(logOR) != 1L || !is.finite(logOR)) {
-    stop("logOR must be a finite scalar.")
+  if (any(!is.finite(logOR))) {
+    stop("logOR must be finite.")
   }
+  numeratorThetaA <- rep_len(numeratorThetaA, nSolves)
+  numeratorThetaB <- rep_len(numeratorThetaB, nSolves)
+  na <- rep_len(na, nSolves)
+  nb <- rep_len(nb, nSolves)
+  logOR <- rep_len(logOR, nSolves)
 
   totalSize <- na + nb
   successes <- na * numeratorThetaA + nb * numeratorThetaB
-  thetaA <- thetaB <- numeric(nSteps)
+  thetaA <- thetaB <- numeric(nSolves)
 
   # At these boundaries the mean-matching condition only holds at theta = 0
   # or 1; theta = 0 is already the default value set above.
@@ -640,39 +658,49 @@ solveLogORRIPr <- function(
     return(list(thetaA = thetaA, thetaB = thetaB))
   }
 
-  if (logOR == 0) {
-    # The equality null: base and shifted groups coincide.
-    pooledTheta <- successes[interior] / totalSize[interior]
-    thetaA[interior] <- thetaB[interior] <- pooledTheta
-    return(list(thetaA = thetaA, thetaB = thetaB))
-  }
+  interiorLogOR <- logOR[interior]
+  interiorNa <- na[interior]
+  interiorNb <- nb[interior]
+  interiorSuccesses <- successes[interior]
+  interiorFailures <- totalSize[interior] - interiorSuccesses
 
   # logOR = logit(thetaB) - logit(thetaA), so A is the base group exactly when
   # logOR is negative.
-  aIsBase <- logOR < 0
-  baseSize <- if (aIsBase) na[interior] else nb[interior]
-  shiftedSize <- if (aIsBase) nb[interior] else na[interior]
-  interiorSuccesses <- successes[interior]
-  interiorFailures <- totalSize[interior] - interiorSuccesses
-  r <- exp(-abs(logOR))
+  aIsBase <- interiorLogOR < 0
+  baseSize <- ifelse(aIsBase, interiorNa, interiorNb)
+  shiftedSize <- ifelse(aIsBase, interiorNb, interiorNa)
+  r <- exp(-abs(interiorLogOR))
 
   # coefA and coefC are passed as logs: r underflows to exactly 0 for a large
   # abs(logOR) even though log(r) = -abs(logOR) stays an ordinary finite
   # number, so log(r * failures) is formed as a sum rather than via log() of
   # the linear-space product.
-  logCoefA <- log(interiorFailures) - abs(logOR)
+  logCoefA <- log(interiorFailures) - abs(interiorLogOR)
   coefB <- baseSize - interiorSuccesses + r * (shiftedSize - interiorSuccesses)
   logAbsCoefC <- log(interiorSuccesses)  # coefC = -interiorSuccesses
 
   baseLogit <- logPositiveQuadraticRoot(logCoefA, coefB, logAbsCoefC)
 
-  if (aIsBase) {
-    thetaA[interior] <- stats::plogis(baseLogit)
-    thetaB[interior] <- stats::plogis(baseLogit + logOR)
-  } else {
-    thetaB[interior] <- stats::plogis(baseLogit)
-    thetaA[interior] <- stats::plogis(baseLogit - logOR)
-  }
+  interiorThetaA <- ifelse(
+    aIsBase,
+    stats::plogis(baseLogit),
+    stats::plogis(baseLogit - interiorLogOR)
+  )
+  interiorThetaB <- ifelse(
+    aIsBase,
+    stats::plogis(baseLogit + interiorLogOR),
+    stats::plogis(baseLogit)
+  )
+
+  # The equality null: base and shifted groups coincide at the pooled
+  # proportion. The quadratic has that root too; this only keeps it exact.
+  pooled <- interiorLogOR == 0
+  interiorThetaA[pooled] <- interiorThetaB[pooled] <-
+    interiorSuccesses[pooled] /
+      (interiorSuccesses[pooled] + interiorFailures[pooled])
+
+  thetaA[interior] <- interiorThetaA
+  thetaB[interior] <- interiorThetaB
   list(thetaA = thetaA, thetaB = thetaB)
 }
 
@@ -775,11 +803,21 @@ calculateEValuesForLogORGrid <- function(
 #' Confidence sequence for the log odds ratio
 #'
 #' Constructs a symmetric candidate grid from the supplied resolution and
-#' search bounds. The grid excludes zero. Every candidate e-process is computed once over the full data
-#' sequence in each direction. Both one-sided inversions use the full signed
-#' grid, and each side uses alpha/2. Each side keeps a running intersection:
-#' a candidate rejected at some block stays rejected at every later block.
-#' The log odds ratio is `logit(thetaB) - logit(thetaA)`.
+#' search bounds; the grid excludes zero. The log odds ratio is
+#' `logit(thetaB) - logit(thetaA)`. Two one-sided families are inverted, each
+#' at `alpha / 2`: the lower family tests `logOR <= candidate`, the upper
+#' family `logOR >= candidate`, and both run over the full signed grid.
+#'
+#' The function walks through the data one block at a time. At every block
+#' the predictor learned from the earlier blocks lies inside one family's
+#' null for each candidate, where that family's likelihood-ratio increment is
+#' zero, and outside the other family's null, where the predictor is
+#' projected onto the candidate and the increment is added to that family's
+#' running log e-process. Each family keeps a running intersection: a
+#' candidate leaves a family's set once its log e-process reaches
+#' `log(2 / alpha)` and is never projected again. The lower bound after a
+#' block is the smallest candidate still in the lower family's set and the
+#' upper bound the largest candidate still in the upper family's set.
 #'
 #' @param ya,yb Number of successes in groups A and B in each data block.
 #' @param confidenceBoundGridPrecision Number of candidate values on each side
@@ -819,6 +857,27 @@ computeConfidenceSequenceForLogORTwoProportions <- function(
     )
   }
 
+  nBlocks <- length(ya)
+  if (length(yb) != nBlocks) {
+    stop("ya and yb must have the same length.")
+  }
+  na <- rep_len(saviDesign[["nPlan"]][["na"]], nBlocks)
+  nb <- rep_len(saviDesign[["nPlan"]][["nb"]], nBlocks)
+  logThreshold <- log(2 / saviDesign[["alpha"]])
+
+  # The predictor for block t depends on the data before t only, so it can be
+  # learned for every block up front.
+  predictiveThetas <- learnPredictiveThetas(
+    ya = ya,
+    yb = yb,
+    na = na,
+    nb = nb,
+    priorParameters = saviDesign[["betaPriorParameterValues"]],
+    restriction = "none"
+  )
+  predictorLogOR <- stats::qlogis(predictiveThetas[["thetaB"]]) -
+    stats::qlogis(predictiveThetas[["thetaA"]])
+
   # use tanh to transform log uniform in log odds ratio
   positiveTransformedBounds <- tanh(logORConfidenceSearchBounds / 4)
 
@@ -832,52 +891,60 @@ computeConfidenceSequenceForLogORTwoProportions <- function(
   # grid: a bound of exactly 0 has no unambiguous reading, so a finite bound
   # always sits strictly on one side of the null.
   candidateGrid <- c(-rev(positiveGrid), positiveGrid)
-
-  # Each side is its own one-sided family tested at alpha / 2: the lower
-  # family tests logOR <= candidate, the upper family logOR >= candidate.
-  logEProcessesFor <- function(bound) {
-    calculateEValuesForLogORGrid(
-      ya = ya,
-      yb = yb,
-      na = saviDesign[["nPlan"]][["na"]],
-      nb = saviDesign[["nPlan"]][["nb"]],
-      priorParameters = saviDesign[["betaPriorParameterValues"]],
-      logORGrid = candidateGrid,
-      bound = bound
-    )[["logEProcesses"]]
-  }
-  lowerLogEProcesses <- logEProcessesFor("lower")
-  upperLogEProcesses <- logEProcessesFor("upper")
-  nBlocks <- nrow(lowerLogEProcesses)
   nCandidates <- length(candidateGrid)
 
-  # A candidate is rejected by a family at a block when its e-process reaches
-  # 2 / alpha, and with the running intersection it then stays rejected at
-  # every later block, so what matters is the first block where that happens;
-  # candidates that never reach the threshold are never rejected.
-  logThreshold <- log(2 / saviDesign[["alpha"]])
-  firstRejectionBlock <- function(logEProcesses) {
-    apply(logEProcesses, 2L, function(logEProcess) {
-      rejectedAt <- which(logEProcess >= logThreshold)
-      if (length(rejectedAt) == 0L) Inf else rejectedAt[1L]
-    })
-  }
-  lowerFirstRejection <- firstRejectionBlock(lowerLogEProcesses)
-  upperFirstRejection <- firstRejectionBlock(upperLogEProcesses)
-
-  # At each block the lower bound is the smallest candidate the lower family
-  # has not yet rejected and the upper bound the largest candidate the upper
-  # family has not yet rejected. If the outermost candidate is still in, the
-  # true value may lie beyond the grid, so the bound stays infinite. If a
-  # family has rejected every candidate, its bound is NA.
+  lowerLogEProcess <- upperLogEProcess <- numeric(nCandidates)
+  lowerInSet <- upperInSet <- rep(TRUE, nCandidates)
   lowerBound <- upperBound <- rep(NA_real_, nBlocks)
+
   for (block in seq_len(nBlocks)) {
-    lowerInSet <- lowerFirstRejection > block
+    thetaStarA <- predictiveThetas[["thetaA"]][block]
+    thetaStarB <- predictiveThetas[["thetaB"]][block]
+
+    # For a candidate below the predictor, the predictor lies outside the
+    # lower null logOR <= candidate and inside the upper null, so only the
+    # lower family gains a nonzero increment; above the predictor the roles
+    # swap. The projection does not depend on the family, so each candidate
+    # is solved at most once per block, and only while the family that needs
+    # it still holds the candidate.
+    lowerNeedsSolve <- lowerInSet & candidateGrid < predictorLogOR[block]
+    upperNeedsSolve <- upperInSet & candidateGrid > predictorLogOR[block]
+    toSolve <- which(lowerNeedsSolve | upperNeedsSolve)
+    if (length(toSolve) > 0L) {
+      nullTheta <- solveLogORRIPr(
+        numeratorThetaA = thetaStarA,
+        numeratorThetaB = thetaStarB,
+        na = na[block],
+        nb = nb[block],
+        logOR = candidateGrid[toSolve]
+      )
+      increments <- logLikelihoodRatioIncrements(
+        ya = ya[block],
+        yb = yb[block],
+        na = na[block],
+        nb = nb[block],
+        numeratorThetaA = thetaStarA,
+        numeratorThetaB = thetaStarB,
+        denominatorThetaA = nullTheta[["thetaA"]],
+        denominatorThetaB = nullTheta[["thetaB"]]
+      )
+      forLower <- lowerNeedsSolve[toSolve]
+      lowerLogEProcess[toSolve[forLower]] <-
+        lowerLogEProcess[toSolve[forLower]] + increments[forLower]
+      upperLogEProcess[toSolve[!forLower]] <-
+        upperLogEProcess[toSolve[!forLower]] + increments[!forLower]
+    }
+
+    lowerInSet <- lowerInSet & lowerLogEProcess < logThreshold
+    upperInSet <- upperInSet & upperLogEProcess < logThreshold
+
+    # If the outermost candidate on a side is still in, the true value may lie
+    # beyond the grid, so that bound stays infinite. If a family has rejected
+    # every candidate, its bound stays NA.
     if (any(lowerInSet)) {
       lowerBound[block] <-
         if (lowerInSet[1L]) -Inf else min(candidateGrid[lowerInSet])
     }
-    upperInSet <- upperFirstRejection > block
     if (any(upperInSet)) {
       upperBound[block] <-
         if (upperInSet[nCandidates]) Inf else max(candidateGrid[upperInSet])
