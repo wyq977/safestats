@@ -12,9 +12,11 @@ attempt and may be consulted with `git show cond:<path>`, never merged.
 
 ## Scope
 
-In scope: `R/safe2x2Test.R`, its tests under `tests/testthat/`, its roxygen
-and generated `man/` pages, and the smallest 2x2-related edits to
-`NAMESPACE`, `DESCRIPTION`, `R/safeS3Methods.R` and `R/deprecate.R`.
+In scope: `R/newsafe2x2Test.R` (all new code goes here; the legacy
+`R/safe2x2Test.R` is left untouched until the rewrite replaces it), its
+tests under `tests/testthat/`, its roxygen and generated `man/` pages, and
+the smallest 2x2-related edits to `NAMESPACE`, `DESCRIPTION`,
+`R/safeS3Methods.R` and `R/deprecate.R`.
 
 Out of scope: the t-test, z-test, log-rank test, the general design
 framework, unrelated S3 methods, vignettes unless asked, package-wide style.
