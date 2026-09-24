@@ -68,8 +68,7 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
 #' Safe anytime-valid 2x2 test
 #'
 #' Tests the equality null `thetaA = thetaB` on data that arrive in blocks of
-#' `na` observations from group A and `nb` from group B, with `na` and `nb`
-#' taken from the design. The numerator predicts each block with the Beta
+#' `na[i]` observations from group A and `nb[i]` from group B. The numerator predicts each block with the Beta
 #' posterior means of `thetaA` and `thetaB` given the earlier blocks only; the
 #' denominator uses their size-weighted average, the projection of that
 #' prediction onto the null.
@@ -82,6 +81,9 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
 #'
 #' @param ya,yb integer vectors, the number of successes in group A and group
 #'   B in each block, in the order the blocks were observed.
+#' @param na,nb the group sizes per block: `NULL` takes the planned sizes
+#'   from the design, one positive integer is used for every block, and a
+#'   vector of length `length(ya)` gives each block its own size.
 #' @param designObj a `saviDesign` object from `designSavi2x2()`. `NULL`
 #'   gives a pilot design with the default settings and a warning.
 #' @param wantCi logical, whether to compute the anytime-valid confidence
@@ -90,10 +92,13 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
 #' @return A `saviTest` object. `eValueVec[i]` is the cumulative e-process
 #'   after block `i`, using blocks `1` to `i` only, and `eValue` is its last
 #'   element. `estimate` holds the observed proportions and their difference
-#'   B minus A. `posteriorHyperParameters` holds the Beta posterior after the
-#'   last block, which is the prior the next block would use.
+#'   B minus A. `n` holds the total group sizes and the number of blocks;
+#'   `naVec` and `nbVec` the sizes used per block. `posteriorHyperParameters`
+#'   holds the Beta posterior after the last block, which is the prior the
+#'   next block would use.
 #' @noRd
-savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
+savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
+                        wantCi = TRUE) {
   result <- constructSaviTestObj("Two Proportions")
 
   if (is.null(designObj)) {
@@ -119,8 +124,6 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   if (designObj[["h0"]] != 0)
     stop("Only h0 = 0 is implemented yet.")
 
-  na <- designObj[["nPlan"]][["na"]]
-  nb <- designObj[["nPlan"]][["nb"]]
   nBlocks <- length(ya)
 
   if (nBlocks < 1L || length(yb) != nBlocks)
@@ -130,9 +133,24 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
       any(!is.finite(c(ya, yb))) || any(c(ya, yb) %% 1 != 0))
     stop("ya and yb must contain finite integer counts.")
 
+  # Observed block sizes: the planned size from the design, one size for all
+  # blocks, or one size per block. They may differ from the plan.
+  if (is.null(na)) na <- designObj[["nPlan"]][["na"]]
+  if (is.null(nb)) nb <- designObj[["nPlan"]][["nb"]]
+  if (length(na) == 1L) na <- rep(na, nBlocks)
+  if (length(nb) == 1L) nb <- rep(nb, nBlocks)
+
+  if (length(na) != nBlocks || length(nb) != nBlocks)
+    stop("na and nb must be NULL, one number, or have one entry per block.")
+
+  if (!is.numeric(na) || !is.numeric(nb) ||
+      any(!is.finite(c(na, nb))) || any(c(na, nb) < 1) ||
+      any(c(na, nb) %% 1 != 0))
+    stop("na and nb must contain positive integer block sizes.")
+
   if (any(ya < 0) || any(yb < 0) || any(ya > na) || any(yb > nb))
     stop("Success counts must lie between zero and the block sizes ",
-         "na = ", na, " and nb = ", nb, ".")
+         "na and nb of their block.")
 
   prior <- designObj[["priorHyperParameters"]]
 
@@ -180,15 +198,17 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 
   result[["eValue"]] <- eValueVec[nBlocks]
   result[["eValueVec"]] <- eValueVec
-  result[["n"]] <- c("na" = na, "nb" = nb, "nBlocks" = nBlocks)
+  result[["n"]] <- c("na" = sum(na), "nb" = sum(nb), "nBlocks" = nBlocks)
+  result[["naVec"]] <- na
+  result[["nbVec"]] <- nb
   # x-axis of plot.saviTest(): the block index.
   result[["n1Vec"]] <- seq_len(nBlocks)
   result[["estimate"]] <- 0 # TODO: decided later
   result[["posteriorHyperParameters"]] <- list(
     "betaA1" = prior[["betaA1"]] + sum(ya),
-    "betaA2" = prior[["betaA2"]] + na * nBlocks - sum(ya),
+    "betaA2" = prior[["betaA2"]] + sum(na) - sum(ya),
     "betaB1" = prior[["betaB1"]] + sum(yb),
-    "betaB2" = prior[["betaB2"]] + nb * nBlocks - sum(yb))
+    "betaB2" = prior[["betaB2"]] + sum(nb) - sum(yb))
   result[["designObj"]] <- designObj
   result[["testType"]] <- "2x2"
   result[["alternative"]] <- designObj[["alternative"]]
@@ -216,7 +236,7 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 #'   minimal relevant difference `thetaB - thetaA`. When set, the e-variable's
 #'   numerator is restricted to `thetaB - thetaA = propDiffMin` (and, for
 #'   `"twoSided"`, also to `-propDiffMin`).
-#' @param na,nb positive integers, the number of observations per block in
+#' @param na,nb positive integers, the planned number of observations per block in
 #'   group A and group B.
 #' @param nPlan integer or `NULL`, the planned number of blocks. Not used yet.
 #' @param alpha numeric in (0, 1), the tolerable type I error rate. The null
@@ -314,7 +334,7 @@ designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
 #'
 #' @param ya,yb integer vectors, the successes in group A and group B in each
 #'   block.
-#' @param na,nb positive integers, the block sizes.
+#' @param na,nb integer vectors of length `length(ya)`, the block sizes.
 #' @param priorHyperParameters list with `betaA1`, `betaA2`, `betaB1`,
 #'   `betaB2`.
 #' @param alpha numeric in (0, 1); the sequence has coverage `1 - alpha`.
@@ -347,10 +367,10 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
       propDiff <- propDiffGrid[j]
       nullThetaA <- solveRIPr2x2PropDiff(
         thetaA = thetas[["thetaA"]][i], thetaB = thetas[["thetaB"]][i],
-        na = na, nb = nb, propDiff = propDiff)
+        na = na[i], nb = nb[i], propDiff = propDiff)
 
       logEValues[j] <- logEValues[j] + savi2x2TestStat(
-        ya = ya[i], yb = yb[i], na = na, nb = nb,
+        ya = ya[i], yb = yb[i], na = na[i], nb = nb[i],
         numeratorThetaA = thetas[["thetaA"]][i],
         numeratorThetaB = thetas[["thetaB"]][i],
         denominatorThetaA = nullThetaA,
@@ -393,14 +413,15 @@ predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters) {
   betaB1 <- priorHyperParameters[["betaB1"]]
   betaB2 <- priorHyperParameters[["betaB2"]]
 
-  # cumulative data
+  # Successes and sizes accumulated over blocks 1 to i - 1.
   previousYa <- c(0, cumsum(ya))[seq_len(nBlocks)]
   previousYb <- c(0, cumsum(yb))[seq_len(nBlocks)]
-  previousBlocks <- seq_len(nBlocks) - 1
+  previousNa <- c(0, cumsum(na))[seq_len(nBlocks)]
+  previousNb <- c(0, cumsum(nb))[seq_len(nBlocks)]
 
   return(list(
-    "thetaA" = (betaA1 + previousYa) / (betaA1 + betaA2 + na * previousBlocks),
-    "thetaB" = (betaB1 + previousYb) / (betaB1 + betaB2 + nb * previousBlocks)))
+    "thetaA" = (betaA1 + previousYa) / (betaA1 + betaA2 + previousNa),
+    "thetaB" = (betaB1 + previousYb) / (betaB1 + betaB2 + previousNb)))
 }
 
 predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
@@ -439,8 +460,8 @@ predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
     thetaA[i] <- sum(thetaAGrid * weights) / sum(weights)
 
     logWeights <- logWeights +
-      ya[i] * logThetaA + (na - ya[i]) * logOneMinusThetaA +
-      yb[i] * logThetaB + (nb - yb[i]) * logOneMinusThetaB
+      ya[i] * logThetaA + (na[i] - ya[i]) * logOneMinusThetaA +
+      yb[i] * logThetaB + (nb[i] - yb[i]) * logOneMinusThetaB
     logWeights <- logWeights - max(logWeights)
   }
 

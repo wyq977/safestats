@@ -221,3 +221,22 @@ supplied by the caller (plug-in, e.g. GROW or UMP); `weightGrid` (a prior on
 `sum_k choose(na, k) choose(nb, totalSuccesses - k) exp(logOR * k)` over the
 feasible `k`, computed by a max-shifted log-sum-exp; at `logOR = 0` it
 returns `lchoose(na + nb, totalSuccesses)` exactly.
+
+### 8. Per-block group sizes
+
+Block sizes are observed data, like `ya` and `yb`. `designSavi2x2(na, nb)`
+is unchanged: one positive integer each, the planned sizes, kept in
+`nPlan = c(nBlocks, na, nb)`. `savi2x2Test(ya, yb, na = NULL, nb = NULL,
+designObj = NULL, ...)`: each of `na`, `nb` is `NULL` (the design's planned
+size), one number (broadcast to `nBlocks`) or a vector of length `nBlocks`;
+any other length errors. Sizes are positive integers with `ya[i] <= na[i]`
+and `yb[i] <= nb[i]` per block. Observed sizes may differ from the planned
+ones without a warning.
+
+Internals always receive full-length vectors and block `i` uses `na[i]`,
+`nb[i]`: the plug-in learners, the pooled projection, the RIPr solver and
+the confidence sequence. The Beta posterior means of `predictiveThetas2x2`
+divide by the cumulative size of blocks `1..i-1`, not `na * (i - 1)`.
+Output: `n = c(na = sum(na), nb = sum(nb), nBlocks)`,
+`posteriorHyperParameters` uses `sum(na)`, `sum(nb)`, and the vectors used
+are stored as `naVec`, `nbVec`. The logOR conditional e-factor is untouched.
