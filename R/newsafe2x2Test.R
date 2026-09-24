@@ -1,9 +1,7 @@
 # Testing fnts ----
 
-# Cumulative likelihood-ratio e-process for blocks of two Bernoulli streams.
-# The four theta vectors are predictable: element i uses blocks 1 to i - 1
-# only. Element i of the result is the e-process after block i, so a call on
-# a single block returns that block's e-factor.
+# Cumulative likelihood-ratio for two Bernoulli streams.
+# The four theta vectors are predictable: element i uses blocks 1 to i - 1.
 savi2x2TestStat <- function(ya, yb, na, nb,
                             numeratorThetaA, numeratorThetaB,
                             denominatorThetaA, denominatorThetaB,
@@ -19,96 +17,40 @@ savi2x2TestStat <- function(ya, yb, na, nb,
   if (log) logEValueVec else exp(logEValueVec)
 }
 
-# Predictable plug-in for the numerator, for block i given the counts of
-# blocks 1 to i - 1 only. With propDiff = NULL: the independent Beta
-# posterior means of thetaA and thetaB. Otherwise the numerator lives on the
-# curve thetaB - thetaA = propDiff, and thetaA is the posterior mean under a
-# grid posterior on that curve.
-predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters,
-                                propDiff = NULL, nWeight = 1000L) {
-  nBlocks <- length(ya)
-  prior <- priorHyperParameters
+# compute conditional e-variable for ONE BLOCK!
+# 1. given a logOR, just plug in: GROW case or UMP case
+# 2. given a prior weight, numerically integrate it (report posterior maybe later)
+savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, weightGrid = NULL,
+                            log = FALSE, ...) {
+  # if given logOR, return plugging in conditional likelihood ratio
 
-  if (is.null(propDiff)) {
-    previousYa <- c(0, cumsum(ya))[seq_len(nBlocks)]
-    previousYb <- c(0, cumsum(yb))[seq_len(nBlocks)]
-    previousBlocks <- seq_len(nBlocks) - 1
-
-    return(list(
-      "thetaA" = (prior[["betaA1"]] + previousYa) /
-        (prior[["betaA1"]] + prior[["betaA2"]] + na * previousBlocks),
-      "thetaB" = (prior[["betaB1"]] + previousYb) /
-        (prior[["betaB1"]] + prior[["betaB2"]] + nb * previousBlocks)))
-  }
-
-  if (length(propDiff) != 1L || !is.finite(propDiff) || abs(propDiff) >= 1)
-    stop("propDiff must lie strictly between -1 and 1.")
-
-  # Fixing the effect leaves one free probability. rho is thetaA rescaled to
-  # its feasible interval, so the Beta(betaA1, betaA2) prior applies to it
-  # for every propDiff; the betaB shapes have nothing left to describe.
-  rho <- seq(1 / nWeight, 1 - 1 / nWeight, length.out = nWeight)
-  thetaAGrid <- max(0, -propDiff) + rho * (1 - abs(propDiff))
-  thetaBGrid <- thetaAGrid + propDiff
-
-  # A support point at exactly 0 or 1 turns a zero count into 0 * -Inf.
-  if (any(c(thetaAGrid, thetaBGrid) <= 0 | c(thetaAGrid, thetaBGrid) >= 1))
-    stop("propDiff = ", propDiff, " is too close to -1 or 1 for a grid of ",
-         nWeight, " points.")
-
-  logThetaA <- log(thetaAGrid)
-  logOneMinusThetaA <- log1p(-thetaAGrid)
-  logThetaB <- log(thetaBGrid)
-  logOneMinusThetaB <- log1p(-thetaBGrid)
-
-  # Unnormalised log posterior weights, shifted so their maximum is 0: the
-  # largest weight is then exactly 1 and the sum can neither underflow nor
-  # overflow, however many blocks have been seen.
-  logWeights <- (prior[["betaA1"]] - 1) * log(rho) +
-    (prior[["betaA2"]] - 1) * log1p(-rho)
-  logWeights <- logWeights - max(logWeights)
-
-  thetaA <- numeric(nBlocks)
-
-  for (i in seq_len(nBlocks)) {
-    # Predict block i before its counts enter the posterior.
-    weights <- exp(logWeights)
-    thetaA[i] <- sum(thetaAGrid * weights) / sum(weights)
-
-    logWeights <- logWeights +
-      ya[i] * logThetaA + (na - ya[i]) * logOneMinusThetaA +
-      yb[i] * logThetaB + (nb - yb[i]) * logOneMinusThetaB
-    logWeights <- logWeights - max(logWeights)
-  }
-
-  list("thetaA" = thetaA, "thetaB" = thetaA + propDiff)
+  # if given weightGrid, multiplied to get the marginalized
 }
 
+
 # Cumulative log e-process against thetaA = thetaB. The numerator is the
-# predictable plug-in of predictiveThetas2x2(), restricted to
-# thetaB - thetaA = propDiff unless propDiff is NULL; the denominator is its
-# reverse information projection onto the null, the size-weighted average.
-logEProcess2x2 <- function(ya, yb, na, nb, priorHyperParameters,
-                           propDiff = NULL) {
-  thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters,
+# predictable plug-in of predictiveThetas2x2(), or of
+# predictiveThetas2x2PropDiff() on the curve thetaB - thetaA = propDiff when
+# propDiff is given; the denominator is its reverse information projection
+# onto the null, the size-weighted average.
+logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
+                                 propDiff = NULL) {
+  thetas <- if (is.null(propDiff)) {
+    predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
+  } else {
+    predictiveThetas2x2PropDiff(ya, yb, na, nb, priorHyperParameters,
                                 propDiff = propDiff)
+  }
   thetaA <- thetas[["thetaA"]]
   thetaB <- thetas[["thetaB"]]
   thetaNull <- (na * thetaA + nb * thetaB) / (na + nb)
 
-  # Every theta is strictly inside (0, 1), so no 0 * log(0) term arises.
   savi2x2TestStat(
     ya = ya, yb = yb, na = na, nb = nb,
     numeratorThetaA = thetaA, numeratorThetaB = thetaB,
     denominatorThetaA = thetaNull, denominatorThetaB = thetaNull,
     log = TRUE)
 }
-
-# compute conditional e-variable
-# 1. given a logOR, just plug in: GROW case or UMP case
-# 2. given a prior weight, numerically integrate it (report posterior maybe later)
-savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, alternative=c("twoSided", "greater", "less")) {}
-
 
 
 #' Safe anytime-valid 2x2 test
@@ -130,6 +72,8 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, alternative=c("twoSide
 #'   B in each block, in the order the blocks were observed.
 #' @param designObj a `saviDesign` object from `designSavi2x2()`. `NULL`
 #'   gives a pilot design with the default settings and a warning.
+#' @param wantCi logical, whether to compute the anytime-valid confidence
+#'   sequence for `propDiff`; its coverage is `1 - alpha` from the design.
 #'
 #' @return A `saviTest` object. `eValueVec[i]` is the cumulative e-process
 #'   after block `i`, using blocks `1` to `i` only, and `eValue` is its last
@@ -181,16 +125,18 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   prior <- designObj[["priorHyperParameters"]]
 
   if (is.null(propDiffMin)) {
-    logEValueVec <- logEProcess2x2(ya, yb, na, nb, prior)
+    logEValueVec <- logEProcess2x2PlugIn(ya, yb, na, nb, prior)
   } else if (alternative == "greater") {
-    logEValueVec <- logEProcess2x2(ya, yb, na, nb, prior,
-                                   propDiff = propDiffMin)
+    logEValueVec <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
+                                         propDiff = propDiffMin)
   } else {
     # Two-sided with a restriction: the equal-weight mixture of the two
     # cumulative e-processes at +propDiffMin and -propDiffMin, which is again
     # an e-process. Averaged on the log scale to avoid overflow.
-    logEPlus <- logEProcess2x2(ya, yb, na, nb, prior, propDiff = propDiffMin)
-    logEMinus <- logEProcess2x2(ya, yb, na, nb, prior, propDiff = -propDiffMin)
+    logEPlus <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
+                                     propDiff = propDiffMin)
+    logEMinus <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
+                                      propDiff = -propDiffMin)
     logEValueVec <- pmax(logEPlus, logEMinus) +
       log1p(exp(-abs(logEPlus - logEMinus))) - log(2)
   }
@@ -237,6 +183,9 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 
 # Design fnts ----
 
+# TODO: a function to find the root of the KL between delta and zero for UMP
+# given alpha.
+
 #' Design a safe anytime-valid 2x2 test
 #'
 #' Sets up the design object for the two-proportion test. Data arrive in
@@ -268,8 +217,9 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 #'   `nBlocks`, `na` and `nb`, and `priorHyperParameters` holds the Beta
 #'   prior used by the e-variable.
 #' @noRd
-designSavi2x2 <- function(propDiffMin=NULL, na = 1, nb = 1, nPlan=NULL, alpha = 0.05, power=NULL,
-                          h0=0, alternative=c("twoSided", "greater", "less"),
+designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
+                          alpha = 0.05, power = NULL, h0 = 0,
+                          alternative = c("twoSided", "greater", "less"),
                           eType = c("grow"),
                           priorHyperParameters = NULL) {
   alternative <- match.arg(alternative)
@@ -332,24 +282,6 @@ designSavi2x2 <- function(propDiffMin=NULL, na = 1, nb = 1, nPlan=NULL, alpha = 
 
 # Confidence Interval ----
 
-# Find the means that minimize the KL between the alternative and null
-# The alternative is usually learnt and given
-# The null is H0: thetaB - thetaA = propDiff
-solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
-  derivativeKL <- function(nullThetaA) {
-    nullThetaB <- nullThetaA + propDiff
-    na * ((1 - thetaA) / (1 - nullThetaA) - thetaA / nullThetaA) +
-      nb * ((1 - thetaB) / (1 - nullThetaB) - thetaB / nullThetaB)
-  }
-
-  # The derivative is infinite at the edges, so search just inside them.
-  lower <- max(0, -propDiff)
-  upper <- min(1, 1 - propDiff)
-  edge <- 1e-12 * (upper - lower)
-
-  stats::uniroot(derivativeKL, lower = lower + edge, upper = upper - edge,
-                 tol = 1e-12)[["root"]]
-}
 
 #' Anytime-valid confidence sequence for the proportion difference
 #'
@@ -384,7 +316,6 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
   propDiffGrid <- seq(-1, 1, length.out = precision + 2)[-c(1, precision + 2)]
   logEValues <- numeric(precision)
   inSet <- rep(TRUE, precision)
-  logThreshold <- log(1 / alpha)
 
   confSeqMatrix <- matrix(numeric(0), ncol = 3,
                           dimnames = list(NULL, c("block", "lowerBound",
@@ -407,7 +338,7 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
         log = TRUE)
     }
 
-    inSet <- inSet & logEValues < logThreshold
+    inSet <- inSet & logEValues < log(1 / alpha)
 
     # Split the non-rejected candidates into runs of neighbours on the grid;
     # each run is one interval of the union.
@@ -424,3 +355,98 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
 
   return(confSeqMatrix)
 }
+
+
+# Helpers ----
+
+## propDiff ----
+
+# Predictable plug-in for the numerator, for block i given the counts of
+# blocks 1 to i - 1 only. predictiveThetas2x2(): the independent Beta
+# posterior means of thetaA and thetaB. predictiveThetas2x2PropDiff(): the
+# numerator lives on the curve thetaB - thetaA = propDiff, and thetaA is the
+# posterior mean under a grid posterior on that curve.
+predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters) {
+  nBlocks <- length(ya)
+  betaA1 <- priorHyperParameters[["betaA1"]]
+  betaA2 <- priorHyperParameters[["betaA2"]]
+  betaB1 <- priorHyperParameters[["betaB1"]]
+  betaB2 <- priorHyperParameters[["betaB2"]]
+
+  # cumulative data
+  previousYa <- c(0, cumsum(ya))[seq_len(nBlocks)]
+  previousYb <- c(0, cumsum(yb))[seq_len(nBlocks)]
+  previousBlocks <- seq_len(nBlocks) - 1
+
+  return(list(
+    "thetaA" = (betaA1 + previousYa) / (betaA1 + betaA2 + na * previousBlocks),
+    "thetaB" = (betaB1 + previousYb) / (betaB1 + betaB2 + nb * previousBlocks)))
+}
+
+predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
+                                        propDiff, nWeight = 1000L) {
+  nBlocks <- length(ya)
+
+  # output placeholder
+  thetaA <- numeric(nBlocks)
+
+  # Only the thetaA prior is used
+  betaA1 <- priorHyperParameters[["betaA1"]]
+  betaA2 <- priorHyperParameters[["betaA2"]]
+
+  if (length(propDiff) != 1L || !is.finite(propDiff) || abs(propDiff) >= 1)
+    stop("propDiff must lie strictly between -1 and 1.")
+
+  # thetaA are restricted by propDiff
+  rho <- seq(1 / nWeight, 1 - 1 / nWeight, length.out = nWeight)
+  thetaAGrid <- max(0, -propDiff) + rho * (1 - abs(propDiff))
+  thetaBGrid <- thetaAGrid + propDiff
+
+  logThetaA <- log(thetaAGrid)
+  logOneMinusThetaA <- log1p(-thetaAGrid)
+  logThetaB <- log(thetaBGrid)
+  logOneMinusThetaB <- log1p(-thetaBGrid)
+
+  # Un-normalised log posterior weights, shifted so their maximum is 0: the
+  # largest weight is then exactly 1 and the sum can neither underflow nor
+  # overflow, however many blocks have been seen.
+  logWeights <- (betaA1 - 1) * log(rho) + (betaA2 - 1) * log1p(-rho)
+  logWeights <- logWeights - max(logWeights)
+
+  for (i in seq_len(nBlocks)) {
+    # posterior mean for thetaA
+    weights <- exp(logWeights)
+    thetaA[i] <- sum(thetaAGrid * weights) / sum(weights)
+
+    logWeights <- logWeights +
+      ya[i] * logThetaA + (na - ya[i]) * logOneMinusThetaA +
+      yb[i] * logThetaB + (nb - yb[i]) * logOneMinusThetaB
+    logWeights <- logWeights - max(logWeights)
+  }
+
+  list("thetaA" = thetaA, "thetaB" = thetaA + propDiff)
+}
+
+# Find the means that minimize the KL between the alternative and null
+# The alternative is usually learnt and given
+# The null is H0: thetaB - thetaA = propDiff
+# TODO: this can be a cubic function solver
+solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
+  derivativeKL <- function(nullThetaA) {
+    nullThetaB <- nullThetaA + propDiff
+    na * ((1 - thetaA) / (1 - nullThetaA) - thetaA / nullThetaA) +
+      nb * ((1 - thetaB) / (1 - nullThetaB) - thetaB / nullThetaB)
+  }
+
+  # The derivative is infinite at the edges, so search just inside them.
+  lower <- max(0, -propDiff)
+  upper <- min(1, 1 - propDiff)
+  edge <- 1e-12 * (upper - lower)
+
+  stats::uniroot(derivativeKL, lower = lower + edge, upper = upper - edge,
+                 tol = 1e-12)[["root"]]
+}
+
+## logOR ----
+
+

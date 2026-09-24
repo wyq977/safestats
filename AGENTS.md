@@ -174,3 +174,31 @@ separate `ciValue` argument).
   outermost `lowerBound`/`upperBound` of that block's union (`NA` for a
   fully rejected block). This fills holes in the picture only;
   `confSeq` and `confSeqMatrix` stay the exact union.
+
+### 6. Restricted alternative on propDiff
+
+Only `propDiff` restrictions; `logOR` is out of scope. `designSavi2x2`
+accepts `propDiffMin` as `NULL` or one number strictly inside `(0, 1)`,
+stored as `esMin`. Allowed combinations; everything else errors:
+
+- `propDiffMin = NULL`, `"twoSided"`: the unrestricted test of Decision 3.
+- `propDiffMin > 0`, `"greater"`: the numerator is restricted to the
+  curve `thetaB - thetaA = propDiffMin`.
+- `propDiffMin > 0`, `"twoSided"`: the e-process is the average of the
+  two cumulative e-processes restricted at `+propDiffMin` and
+  `-propDiffMin` (averaged as processes, not per block).
+- `"less"`, or `"greater"` without `propDiffMin`, is not designed yet.
+
+The restricted numerator builds on `learnPredictiveThetas` from `cond`:
+`predictiveThetas2x2PropDiff(..., propDiff, nWeight = 1000)`, next to
+`predictiveThetas2x2(...)` for the Beta posterior means of Decision 3;
+`logEProcess2x2PlugIn(..., propDiff = NULL)` picks between them. The free
+coordinate `rho` is `thetaA` rescaled to its feasible interval
+`(max(0, -propDiff), min(1, 1 - propDiff))`, on `nWeight` equally spaced
+grid points strictly inside `(0, 1)`, with the prior `Beta(betaA1, betaA2)`;
+`betaB*` are not used. Block `i` uses the posterior mean of `thetaA` given blocks `1..i-1`,
+and `thetaB = thetaA + propDiff`. The weights are updated on the log scale.
+The denominator stays the pooled projection onto `thetaA = thetaB`, so the
+null is always the point `thetaA = thetaB`; `"greater"` names the direction
+of the alternative, not a composite null. The confidence sequence keeps the
+unrestricted numerator. `nWeight` is not a design field.
