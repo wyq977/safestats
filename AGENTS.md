@@ -222,7 +222,24 @@ supplied by the caller (plug-in, e.g. GROW or UMP); `weightGrid` (a prior on
 feasible `k`, computed by a max-shifted log-sum-exp; at `logOR = 0` it
 returns `lchoose(na + nb, totalSuccesses)` exactly.
 
-### 8. Per-block group sizes
+### 8. UMP plug-in conditional e-factor on logOR
+
+`savi2x2UmpStat(ya, yb, na, nb, alpha = 0.05, alternative = c("twoSided",
+"greater", "less"), log = FALSE)` is the conditional e-factor of **one**
+block, like `savi2x2CondStat`, with `logOR` chosen by the UMP rule:
+`solveUmpLogOR2x2(na, nb, totalSuccesses, alpha, alternative, searchBound =
+100)` finds, by `uniroot` on `(0, 100)` for `"greater"` and `(-100, 0)` for
+`"less"`, the `logOR` where `KL(FNCH(logOR) || FNCH(0)) = log(1/alpha)`, with
+`KL = logOR * mean - fnchLogPartition(logOR) + lchoose(na + nb,
+totalSuccesses)`, the FNCH mean coming from
+`BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR))`. The KL is bounded,
+so when the target is out of reach (e.g. a degenerate conditional
+distribution, or tiny tables) the solver returns `NULL` and the side
+contributes the trivial e-factor `1`. `"twoSided"` is the plain average of the
+`"greater"` and `"less"` e-factors. `alpha` is the target level of the
+one-shot test, not a design field yet.
+
+### 9. Per-block group sizes
 
 Block sizes are observed data, like `ya` and `yb`. `designSavi2x2(na, nb)`
 is unchanged: one positive integer each, the planned sizes, kept in
