@@ -1130,15 +1130,6 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
     upperLine <- confSeqMatrix[, 2]
     lowerLine <- confSeqMatrix[, 1]
 
-    # The 2x2 set is a union of intervals, possibly several rows per block.
-    # Draw one band per block from its outermost bounds; a block with every
-    # candidate rejected has no band.
-    if (identical(x[["testName"]], "Two Proportions")) {
-      block <- factor(confSeqMatrix[, "block"], levels = n1Vec)
-      lowerLine <- as.vector(tapply(confSeqMatrix[, "lowerBound"], block, min))
-      upperLine <- as.vector(tapply(confSeqMatrix[, "upperBound"], block, max))
-    }
-
     upperLineFinite <- upperLine[is.finite(upperLine)]
     lowerLineFinite <- lowerLine[is.finite(lowerLine)]
 

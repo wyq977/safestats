@@ -153,10 +153,13 @@ fill holes. Returns a matrix with columns `block`, `lowerBound`,
 `upperBound`: one row per block without holes, as for the z-test, several
 rows for a block with holes, none for a block with everything rejected.
 
-`savi2x2Test(..., wantCi = TRUE)` stores that matrix as `confSeqMatrix`, the
-rows of the last block as `confSeq` (a `k x 2` matrix of `lowerBound`,
-`upperBound`; `k = 1` without holes), and `ciValue = 1 - alpha` (no
-separate `ciValue` argument).
+`savi2x2Test(..., wantCi = TRUE)` stores, as the other tests do, a two-column
+`nBlocks x 2` `confSeqMatrix` (`lowerBound`, `upperBound`; other code reads it
+by position): row `i` is the outermost bounds of block `i`'s union, `NA` for a
+fully rejected block. This hull contains the union, so coverage holds, and
+the rows stay nested. The exact union is kept only for the last block, as
+`confSeq` (a `k x 2` matrix of `lowerBound`, `upperBound`; `k = 1` without
+holes), with `ciValue = 1 - alpha` (no separate `ciValue` argument).
 `savi2x2TestStat` returns the cumulative e-process, on the log scale when
 `log = TRUE`.
 
@@ -170,10 +173,9 @@ separate `ciValue` argument).
   FALSE`; `NULL` makes the plot's `&&` error.
 - The label switches map `"Two Proportions"` to `"Number of blocks"` (x) and
   `"propDiff"` (confidence-sequence y).
-- For `wantConfSeqPlot = TRUE` the plot draws one band per block from the
-  outermost `lowerBound`/`upperBound` of that block's union (`NA` for a
-  fully rejected block). This fills holes in the picture only;
-  `confSeq` and `confSeqMatrix` stay the exact union.
+- For `wantConfSeqPlot = TRUE` the plot reads `confSeqMatrix` like any
+  other test's; no 2x2 branch. The hull per block (Decision 4) fills holes
+  in the picture; `confSeq` stays the exact union.
 
 ### 6. Restricted alternative on propDiff
 

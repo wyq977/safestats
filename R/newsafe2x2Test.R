@@ -146,15 +146,23 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   ## Confidence Sequence ----
   if (wantCi) {
     alpha <- designObj[["alpha"]]
-    confSeqMatrix <- computeConfidenceInterval2x2PropDiff(
+    confSetRuns <- computeConfidenceInterval2x2PropDiff(
       ya = ya, yb = yb, na = na, nb = nb,
       priorHyperParameters = prior, alpha = alpha)
 
-    lastBlock <- confSeqMatrix[, "block"] == nBlocks
+    # One row per block, as for the other tests: the outermost bounds of that
+    # block's union, NA when every candidate is rejected. The hull contains
+    # the union, so coverage is kept; only the last block is kept exact.
+    block <- factor(confSetRuns[, "block"], levels = seq_len(nBlocks))
+    confSeqMatrix <- cbind(
+      "lowerBound" = as.vector(tapply(confSetRuns[, "lowerBound"], block, min)),
+      "upperBound" = as.vector(tapply(confSetRuns[, "upperBound"], block, max)))
+
+    lastBlock <- confSetRuns[, "block"] == nBlocks
 
     result[["confSeqMatrix"]] <- confSeqMatrix
-    result[["confSeq"]] <- confSeqMatrix[lastBlock, c("lowerBound", "upperBound"),
-                                         drop = FALSE]
+    result[["confSeq"]] <- confSetRuns[lastBlock, c("lowerBound", "upperBound"),
+                                       drop = FALSE]
     result[["ciValue"]] <- 1 - alpha
   }
 
