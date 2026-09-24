@@ -135,6 +135,8 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   result[["eValue"]] <- eValueVec[nBlocks]
   result[["eValueVec"]] <- eValueVec
   result[["n"]] <- c("na" = na, "nb" = nb, "nBlocks" = nBlocks)
+  # x-axis of plot.saviTest(): the block index.
+  result[["n1Vec"]] <- seq_len(nBlocks)
   result[["estimate"]] <- 0 # TODO: decided later
   result[["posteriorHyperParameters"]] <- list(
     "betaA1" = prior[["betaA1"]] + sum(ya),

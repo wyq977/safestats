@@ -159,3 +159,18 @@ rows of the last block as `confSeq` (a `k x 2` matrix of `lowerBound`,
 separate `ciValue` argument).
 `savi2x2TestStat` returns the cumulative e-process, on the log scale when
 `log = TRUE`.
+
+### 5. Plotting with plot.saviTest
+
+`plot.saviTest` works on 2x2 results unchanged in its general logic:
+
+- `savi2x2Test` sets `n1Vec = seq_len(nBlocks)`, the block index, as the
+  x-axis (legacy name the plot reads).
+- `constructSaviDesignObj("Two Proportions")` defaults `relevanceTest =
+  FALSE`; `NULL` makes the plot's `&&` error.
+- The label switches map `"Two Proportions"` to `"Number of blocks"` (x) and
+  `"propDiff"` (confidence-sequence y).
+- For `wantConfSeqPlot = TRUE` the plot draws one band per block from the
+  outermost `lowerBound`/`upperBound` of that block's union (`NA` for a
+  fully rejected block). This fills holes in the picture only;
+  `confSeq` and `confSeqMatrix` stay the exact union.

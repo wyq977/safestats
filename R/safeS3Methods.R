@@ -76,6 +76,7 @@ constructSaviDesignObj <- function(testName) {
     testSpecificList <- list(
       "priorHyperParameters"=list("betaA1"=0.18, "betaA2"=0.18,
                                   "betaB1"=0.18, "betaB2"=0.18),
+      "relevanceTest"=FALSE,
       "testName"=testName)
   }
 
@@ -1118,7 +1119,8 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
     xlab <- switch(x[["testName"]],
                    "Z-Test"="n1",
                    "T-Test"="n1",
-                   "logrank"="Number of events")
+                   "logrank"="Number of events",
+                   "Two Proportions"="Number of blocks")
   }
 
   if (isTRUE(wantConfSeqPlot)) {
@@ -1127,6 +1129,15 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
 
     upperLine <- confSeqMatrix[, 2]
     lowerLine <- confSeqMatrix[, 1]
+
+    # The 2x2 set is a union of intervals, possibly several rows per block.
+    # Draw one band per block from its outermost bounds; a block with every
+    # candidate rejected has no band.
+    if (identical(x[["testName"]], "Two Proportions")) {
+      block <- factor(confSeqMatrix[, "block"], levels = n1Vec)
+      lowerLine <- as.vector(tapply(confSeqMatrix[, "lowerBound"], block, min))
+      upperLine <- as.vector(tapply(confSeqMatrix[, "upperBound"], block, max))
+    }
 
     upperLineFinite <- upperLine[is.finite(upperLine)]
     lowerLineFinite <- lowerLine[is.finite(lowerLine)]
@@ -1181,7 +1192,8 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
         ylab <- switch(x[["testName"]],
                        "Z-Test"="mu",
                        "T-Test"="mu",
-                       "logrank"="log(hazard ratio)")
+                       "logrank"="log(hazard ratio)",
+                       "Two Proportions"="propDiff")
 
       graphics::mtext(ylab, side = 2, line = 4,
                       las = 0, cex = cex, adj=0.5)
