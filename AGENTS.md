@@ -207,15 +207,17 @@ unrestricted numerator. `nWeight` is not a design field.
 
 ### 7. Plug-in conditional e-factor on logOR
 
-`savi2x2CondStat(ya, yb, na, nb, logOR, weightGrid = NULL, log = FALSE)`
+`conditionalEValueFixedAlternative(ya, yb, na, nb, logOR, log = FALSE)`
 returns the conditional e-factor of **one** block (scalar counts), not a
-cumulative e-process. It conditions on the block's total `ya + yb`: under
+cumulative e-process; `savi2x2CondStat(ya, yb, na, nb, logOR, ...)` applies
+it blockwise to vectors and returns the per-block e-factors (its `eType` and
+`alternative` dispatch is not designed yet). It conditions on the block's total `ya + yb`: under
 the null `ya` is hypergeometric, under `logOR` (B minus A, anchored on
 `thetaA`) it is Fisher's noncentral hypergeometric, and the log e-factor is
 `ya * logOR - fnchLogPartition(na, nb, ya + yb, logOR) + lchoose(na + nb,
 ya + yb)`, on the log scale when `log = TRUE`. `logOR` is one finite number
-supplied by the caller (plug-in, e.g. GROW or UMP); `weightGrid` (a prior on
-`logOR`) is reserved and errors for now.
+supplied by the caller (plug-in, e.g. GROW or UMP); a prior on `logOR` is
+reserved for later.
 
 `fnchLogPartition(na, nb, totalSuccesses, logOR)` is the log of
 `sum_k choose(na, k) choose(nb, totalSuccesses - k) exp(logOR * k)` over the
@@ -224,20 +226,22 @@ returns `lchoose(na + nb, totalSuccesses)` exactly.
 
 ### 8. UMP plug-in conditional e-factor on logOR
 
-`savi2x2UmpStat(ya, yb, na, nb, alpha = 0.05, alternative = c("twoSided",
-"greater", "less"), log = FALSE)` is the conditional e-factor of **one**
-block, like `savi2x2CondStat`, with `logOR` chosen by the UMP rule:
-`solveUmpLogOR2x2(na, nb, totalSuccesses, alpha, alternative, searchBound =
-100)` finds, by `uniroot` on `(0, 100)` for `"greater"` and `(-100, 0)` for
-`"less"`, the `logOR` where `KL(FNCH(logOR) || FNCH(0)) = log(1/alpha)`, with
-`KL = logOR * mean - fnchLogPartition(logOR) + lchoose(na + nb,
-totalSuccesses)`, the FNCH mean coming from
-`BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR))`. The KL is bounded,
-so when the target is out of reach (e.g. a degenerate conditional
-distribution, or tiny tables) the solver returns `NULL` and the side
-contributes the trivial e-factor `1`. `"twoSided"` is the plain average of the
-`"greater"` and `"less"` e-factors. `alpha` is the target level of the
-one-shot test, not a design field yet.
+`solveUmpLogOR(na, nb, totalSuccesses, alpha, alternative = c("greater",
+"less"), nullLogOR = 0, searchBound = 100)` finds the UMP plug-in `logOR` for
+**one** block by `uniroot` on `(nullLogOR, nullLogOR + 100)` for `"greater"`
+and `(nullLogOR - 100, nullLogOR)` for `"less"`: the `logOR` where
+`KL(FNCH(logOR) || FNCH(nullLogOR)) = log(1/alpha)`, with
+`KL = (logOR - nullLogOR) * mean - fnchLogPartition(logOR) +
+fnchLogPartition(nullLogOR)`, the FNCH mean coming from
+`BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR))`. The KL is
+bounded, so when the target is out of reach (e.g. a degenerate conditional
+distribution, or tiny tables) the solver returns `NULL` and the caller uses
+the trivial e-factor `1`. The e-factor itself is
+`conditionalEValueFixedAlternative` at the solved `logOR`; the former wrapper
+`savi2x2UmpStat` is removed and a `"twoSided"` rule (previously the plain
+average of the two sides) is to be decided with the `eType` dispatch of
+`savi2x2CondStat`. `alpha` is the target level of the one-shot test, not a
+design field yet.
 
 ### 9. Per-block group sizes
 
@@ -255,5 +259,5 @@ Internals always receive full-length vectors and block `i` uses `na[i]`,
 the confidence sequence. The Beta posterior means of `predictiveThetas2x2`
 divide by the cumulative size of blocks `1..i-1`, not `na * (i - 1)`.
 Output: `n = c(na = sum(na), nb = sum(nb), nBlocks)`,
-`posteriorHyperParameters` uses `sum(na)`, `sum(nb)`, and the vectors used
-are stored as `naVec`, `nbVec`. The logOR conditional e-factor is untouched.
+`posteriorHyperParameters` uses `sum(na)`, `sum(nb)`; the per-block vectors
+are not stored on the result. The logOR conditional e-factor is untouched.

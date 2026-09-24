@@ -16,34 +16,6 @@ savi2x2TestStat <- function(ya, yb, na, nb,
   if (log) logEValueVec else exp(logEValueVec)
 }
 
-# Conditional e-value for ONE table, given the block's total successes
-# ya + yb: under the null the count ya is hypergeometric, under logOR it is
-# Fisher's noncentral hypergeometric. The ratio of the two is
-#   ya * logOR - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
-# the last term being the log partition function at logOR = 0.
-# 1. given a logOR, just plug in: GROW case or UMP case
-# 2. given a prior weight, numerically integrate it (report posterior maybe later)
-savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, weightGrid = NULL,
-                            log = FALSE, ...) {
-  if (!is.null(weightGrid)) {
-    stop("savi2x2CondStat() does not support weightGrid yet")
-  }
-  if (is.null(logOR)) {
-    stop("savi2x2CondStat() needs logOR")
-  }
-  if (length(logOR) != 1 || !is.finite(logOR)) {
-    stop("logOR must be one finite number")
-  }
-
-  totalSuccesses <- ya + yb
-  logEFactor <- ya * logOR -
-    fnchLogPartition(na, nb, totalSuccesses, logOR) +
-    lchoose(na + nb, totalSuccesses)
-
-  if (log) logEFactor else exp(logEFactor)
-}
-
-
 # Cumulative log e-value against thetaA = thetaB.
 logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
                                  propDiff = NULL) {
@@ -51,7 +23,8 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
     predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
   } else {
     predictiveThetas2x2PropDiff(ya, yb, na, nb, priorHyperParameters,
-                                propDiff = propDiff)
+      propDiff = propDiff
+    )
   }
   thetaA <- thetas[["thetaA"]]
   thetaB <- thetas[["thetaB"]]
@@ -61,7 +34,54 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
     ya = ya, yb = yb, na = na, nb = nb,
     numeratorThetaA = thetaA, numeratorThetaB = thetaB,
     denominatorThetaA = thetaNull, denominatorThetaB = thetaNull,
-    log = TRUE)
+    log = TRUE
+  )
+}
+
+# Conditional e-factor of ONE table at a fixed logOR (B minus A), given the
+# block's total successes ya + yb: under the null ya is hypergeometric, under
+# logOR it is Fisher's noncentral hypergeometric, and the log ratio is
+#   ya * logOR - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
+# the last term being the log partition function at logOR = 0.
+conditionalEValueFixedAlternative <- function(ya, yb, na, nb, logOR,
+                                              log = FALSE) {
+  totalSuccesses <- ya + yb
+  logEFactor <- ya * logOR -
+    fnchLogPartition(na, nb, totalSuccesses, logOR) +
+    lchoose(na + nb, totalSuccesses)
+
+  if (log) logEFactor else exp(logEFactor)
+}
+
+# Per-block conditional e-factors (not cumulated) at a plug-in logOR.
+# 1. given a logOR, just plug in: GROW case or UMP case
+# 2. given a prior weight, numerically integrate it (report posterior maybe later)
+savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, parameter,
+                            alternative = c("twoSided", "less", "greater"),
+                            eType = c("grow", "ump", "eGauss"),
+                            log = FALSE, ...) {
+  alternative <- match.arg(alternative)
+  eType <- match.arg(eType)
+
+  if (is.null(logOR)) {
+    stop("savi2x2CondStat() needs logOR")
+  }
+  if (length(logOR) != 1 || !is.finite(logOR)) {
+    stop("logOR must be one finite number")
+  }
+
+  # TODO: dispatch on eType and alternative (not designed yet):
+  # - grow + less/greater: plug in the given logOR, one e-factor per block;
+  # - ump: only for one block, logOR from solveUmpLogOR();
+  # - eGauss + twoSided: integrate the e-factor over a prior on logOR.
+  # For now the plug-in case. fnchLogPartition() is scalar, hence mapply().
+  logEFactorVec <- mapply(
+    conditionalEValueFixedAlternative,
+    ya = ya, yb = yb, na = na, nb = nb,
+    MoreArgs = list(logOR = logOR, log = TRUE)
+  )
+
+  if (log) logEFactorVec else exp(logEFactorVec)
 }
 
 
@@ -92,8 +112,8 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
 #' @return A `saviTest` object. `eValueVec[i]` is the cumulative e-process
 #'   after block `i`, using blocks `1` to `i` only, and `eValue` is its last
 #'   element. `estimate` holds the observed proportions and their difference
-#'   B minus A. `n` holds the total group sizes and the number of blocks;
-#'   `naVec` and `nbVec` the sizes used per block. `posteriorHyperParameters`
+#'   B minus A. `n` holds the total group sizes and the number of blocks.
+#'   `posteriorHyperParameters`
 #'   holds the Beta posterior after the last block, which is the prior the
 #'   next block would use.
 #' @noRd
@@ -107,31 +127,37 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     warning("No designObj given. Default pilot design used.")
   }
 
-  if (!identical(designObj[["testName"]], "Two Proportions"))
+  if (!identical(designObj[["testName"]], "Two Proportions")) {
     stop("designObj must be a design from designSavi2x2().")
+  }
 
   propDiffMin <- designObj[["esMin"]]
   alternative <- designObj[["alternative"]]
 
-  if (alternative == "less")
+  if (alternative == "less") {
     stop("alternative = \"less\" is not implemented yet.")
+  }
 
-  if (alternative == "greater" && is.null(propDiffMin))
+  if (alternative == "greater" && is.null(propDiffMin)) {
     stop("alternative = \"greater\" needs a positive propDiffMin.")
+  }
 
   # The e-variable below is built for thetaA = thetaB only; a shifted null
   # thetaB - thetaA = h0 needs a different projection.
-  if (designObj[["h0"]] != 0)
+  if (designObj[["h0"]] != 0) {
     stop("Only h0 = 0 is implemented yet.")
+  }
 
   nBlocks <- length(ya)
 
-  if (nBlocks < 1L || length(yb) != nBlocks)
+  if (nBlocks < 1L || length(yb) != nBlocks) {
     stop("ya and yb must have the same, positive length.")
+  }
 
   if (!is.numeric(ya) || !is.numeric(yb) ||
-      any(!is.finite(c(ya, yb))) || any(c(ya, yb) %% 1 != 0))
+    any(!is.finite(c(ya, yb))) || any(c(ya, yb) %% 1 != 0)) {
     stop("ya and yb must contain finite integer counts.")
+  }
 
   # Observed block sizes: the planned size from the design, one size for all
   # blocks, or one size per block. They may differ from the plan.
@@ -140,17 +166,22 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
   if (length(na) == 1L) na <- rep(na, nBlocks)
   if (length(nb) == 1L) nb <- rep(nb, nBlocks)
 
-  if (length(na) != nBlocks || length(nb) != nBlocks)
+  if (length(na) != nBlocks || length(nb) != nBlocks) {
     stop("na and nb must be NULL, one number, or have one entry per block.")
+  }
 
   if (!is.numeric(na) || !is.numeric(nb) ||
-      any(!is.finite(c(na, nb))) || any(c(na, nb) < 1) ||
-      any(c(na, nb) %% 1 != 0))
+    any(!is.finite(c(na, nb))) || any(c(na, nb) < 1) ||
+    any(c(na, nb) %% 1 != 0)) {
     stop("na and nb must contain positive integer block sizes.")
+  }
 
-  if (any(ya < 0) || any(yb < 0) || any(ya > na) || any(yb > nb))
-    stop("Success counts must lie between zero and the block sizes ",
-         "na and nb of their block.")
+  if (any(ya < 0) || any(yb < 0) || any(ya > na) || any(yb > nb)) {
+    stop(
+      "Success counts must lie between zero and the block sizes ",
+      "na and nb of their block."
+    )
+  }
 
   prior <- designObj[["priorHyperParameters"]]
 
@@ -158,15 +189,18 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     logEValueVec <- logEProcess2x2PlugIn(ya, yb, na, nb, prior)
   } else if (alternative == "greater") {
     logEValueVec <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
-                                         propDiff = propDiffMin)
+      propDiff = propDiffMin
+    )
   } else {
     # Two-sided with a restriction: the equal-weight mixture of the two
     # cumulative e-processes at +propDiffMin and -propDiffMin, which is again
     # an e-process. Averaged on the log scale to avoid overflow.
     logEPlus <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
-                                     propDiff = propDiffMin)
+      propDiff = propDiffMin
+    )
     logEMinus <- logEProcess2x2PlugIn(ya, yb, na, nb, prior,
-                                      propDiff = -propDiffMin)
+      propDiff = -propDiffMin
+    )
     logEValueVec <- pmax(logEPlus, logEMinus) +
       log1p(exp(-abs(logEPlus - logEMinus))) - log(2)
   }
@@ -178,7 +212,8 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     alpha <- designObj[["alpha"]]
     confSetRuns <- computeConfidenceInterval2x2PropDiff(
       ya = ya, yb = yb, na = na, nb = nb,
-      priorHyperParameters = prior, alpha = alpha)
+      priorHyperParameters = prior, alpha = alpha
+    )
 
     # One row per block, as for the other tests: the outermost bounds of that
     # block's union, NA when every candidate is rejected. The hull contains
@@ -186,45 +221,47 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     block <- factor(confSetRuns[, "block"], levels = seq_len(nBlocks))
     confSeqMatrix <- cbind(
       "lowerBound" = as.vector(tapply(confSetRuns[, "lowerBound"], block, min)),
-      "upperBound" = as.vector(tapply(confSetRuns[, "upperBound"], block, max)))
+      "upperBound" = as.vector(tapply(confSetRuns[, "upperBound"], block, max))
+    )
 
     lastBlock <- confSetRuns[, "block"] == nBlocks
 
     result[["confSeqMatrix"]] <- confSeqMatrix
     result[["confSeq"]] <- confSetRuns[lastBlock, c("lowerBound", "upperBound"),
-                                       drop = FALSE]
+      drop = FALSE
+    ]
     result[["ciValue"]] <- 1 - alpha
   }
 
   result[["eValue"]] <- eValueVec[nBlocks]
   result[["eValueVec"]] <- eValueVec
   result[["n"]] <- c("na" = sum(na), "nb" = sum(nb), "nBlocks" = nBlocks)
-  result[["naVec"]] <- na
-  result[["nbVec"]] <- nb
-  # x-axis of plot.saviTest(): the block index.
-  result[["n1Vec"]] <- seq_len(nBlocks)
-  result[["estimate"]] <- 0 # TODO: decided later
   result[["posteriorHyperParameters"]] <- list(
     "betaA1" = prior[["betaA1"]] + sum(ya),
     "betaA2" = prior[["betaA2"]] + sum(na) - sum(ya),
     "betaB1" = prior[["betaB1"]] + sum(yb),
-    "betaB2" = prior[["betaB2"]] + sum(nb) - sum(yb))
+    "betaB2" = prior[["betaB2"]] + sum(nb) - sum(yb)
+  )
   result[["designObj"]] <- designObj
   result[["testType"]] <- "2x2"
   result[["alternative"]] <- designObj[["alternative"]]
   result[["h0"]] <- designObj[["h0"]]
-  result[["dataName"]] <- paste(deparse1(substitute(ya)), "and",
-                                deparse1(substitute(yb)))
+  result[["dataName"]] <- paste(
+    deparse1(substitute(ya)), "and",
+    deparse1(substitute(yb))
+  )
   result[["call"]] <- sys.call()
+
+  # x-axis of plot.saviTest(): the block index.
+  result[["n1Vec"]] <- seq_len(nBlocks)
+  # TODO: decided later: MLE for propDiff and or MLE for logOR?
+  result[["estimate"]] <- 0
 
   return(result)
 }
 
 
 # Design fnts ----
-
-# TODO: a function to find the root of the KL between delta and zero for UMP
-# given alpha.
 
 #' Design a safe anytime-valid 2x2 test
 #'
@@ -257,8 +294,8 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
 #'   `nBlocks`, `na` and `nb`, and `priorHyperParameters` holds the Beta
 #'   prior used by the e-variable.
 #' @noRd
-designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
-                          alpha = 0.05, power = NULL, h0 = 0,
+designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
+                          nPlan = NULL, power = NULL, h0 = 0,
                           alternative = c("twoSided", "greater", "less"),
                           eType = c("grow"),
                           priorHyperParameters = NULL) {
@@ -266,23 +303,28 @@ designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
   eType <- match.arg(eType)
 
   if (length(na) != 1L || length(nb) != 1L ||
-      !is.finite(na) || !is.finite(nb) ||
-      na < 1 || nb < 1 || na %% 1 != 0 || nb %% 1 != 0)
+    !is.finite(na) || !is.finite(nb) ||
+    na < 1 || nb < 1 || na %% 1 != 0 || nb %% 1 != 0) {
     stop("na and nb must be positive integer block sizes.")
+  }
 
-  if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1)
+  if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1) {
     stop("alpha must be strictly between 0 and 1.")
+  }
 
   if (!is.null(propDiffMin) &&
-      (length(propDiffMin) != 1L || !is.finite(propDiffMin) ||
-       propDiffMin <= 0 || propDiffMin >= 1))
+    (length(propDiffMin) != 1L || !is.finite(propDiffMin) ||
+      propDiffMin <= 0 || propDiffMin >= 1)) {
     stop("propDiffMin must be NULL or strictly between 0 and 1.")
+  }
 
-  if (alternative == "less")
+  if (alternative == "less") {
     stop("alternative = \"less\" is not implemented yet.")
+  }
 
-  if (alternative == "greater" && is.null(propDiffMin))
+  if (alternative == "greater" && is.null(propDiffMin)) {
     stop("alternative = \"greater\" needs a positive propDiffMin.")
+  }
 
   result <- constructSaviDesignObj("Two Proportions")
 
@@ -290,15 +332,19 @@ designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
     requiredNames <- names(result[["priorHyperParameters"]])
 
     if (!is.list(priorHyperParameters) ||
-        !setequal(names(priorHyperParameters), requiredNames))
-      stop("priorHyperParameters must be a list named ",
-           paste(requiredNames, collapse = ", "), ".")
+      !setequal(names(priorHyperParameters), requiredNames)) {
+      stop(
+        "priorHyperParameters must be a list named ",
+        paste(requiredNames, collapse = ", "), "."
+      )
+    }
 
     priorValues <- unlist(priorHyperParameters[requiredNames])
 
     if (!is.numeric(priorValues) || any(!is.finite(priorValues)) ||
-        any(priorValues <= 0))
+      any(priorValues <= 0)) {
       stop("priorHyperParameters must be finite and positive.")
+    }
 
     result[["priorHyperParameters"]] <- priorHyperParameters[requiredNames]
   }
@@ -306,7 +352,8 @@ designSavi2x2 <- function(propDiffMin = NULL, na = 1, nb = 1, nPlan = NULL,
   result[["esMin"]] <- propDiffMin
   result[["parameter"]] <- c(
     "Beta hyperparameters" =
-      paste(unlist(result[["priorHyperParameters"]]), collapse = " "))
+      paste(unlist(result[["priorHyperParameters"]]), collapse = " ")
+  )
   result[["eType"]] <- eType
   result[["alpha"]] <- alpha
   result[["alternative"]] <- alternative
@@ -357,9 +404,13 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
   logEValues <- numeric(precision)
   inSet <- rep(TRUE, precision)
 
-  confSeqMatrix <- matrix(numeric(0), ncol = 3,
-                          dimnames = list(NULL, c("block", "lowerBound",
-                                                  "upperBound")))
+  confSeqMatrix <- matrix(numeric(0),
+    ncol = 3,
+    dimnames = list(NULL, c(
+      "block", "lowerBound",
+      "upperBound"
+    ))
+  )
 
   for (i in seq_len(nBlocks)) {
     # A rejected candidate never returns, so its e-process is not advanced.
@@ -367,7 +418,8 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
       propDiff <- propDiffGrid[j]
       nullThetaA <- solveRIPr2x2PropDiff(
         thetaA = thetas[["thetaA"]][i], thetaB = thetas[["thetaB"]][i],
-        na = na[i], nb = nb[i], propDiff = propDiff)
+        na = na[i], nb = nb[i], propDiff = propDiff
+      )
 
       logEValues[j] <- logEValues[j] + savi2x2TestStat(
         ya = ya[i], yb = yb[i], na = na[i], nb = nb[i],
@@ -375,7 +427,8 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
         numeratorThetaB = thetas[["thetaB"]][i],
         denominatorThetaA = nullThetaA,
         denominatorThetaB = nullThetaA + propDiff,
-        log = TRUE)
+        log = TRUE
+      )
     }
 
     inSet <- inSet & logEValues < log(1 / alpha)
@@ -388,14 +441,22 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
 
     confSeqMatrix <- rbind(
       confSeqMatrix,
-      cbind("block" = rep(i, length(runStarts)),
-            "lowerBound" = propDiffGrid[runStarts],
-            "upperBound" = propDiffGrid[runEnds]))
+      cbind(
+        "block" = rep(i, length(runStarts)),
+        "lowerBound" = propDiffGrid[runStarts],
+        "upperBound" = propDiffGrid[runEnds]
+      )
+    )
   }
 
   return(confSeqMatrix)
 }
 
+computeConfidenceInterval2x2LogOR <- function(ya, yb, na, nb,
+                                                 priorHyperParameters,
+                                                 alpha, precision = 100) {
+
+}
 
 # Helpers ----
 
@@ -421,7 +482,8 @@ predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters) {
 
   return(list(
     "thetaA" = (betaA1 + previousYa) / (betaA1 + betaA2 + previousNa),
-    "thetaB" = (betaB1 + previousYb) / (betaB1 + betaB2 + previousNb)))
+    "thetaB" = (betaB1 + previousYb) / (betaB1 + betaB2 + previousNb)
+  ))
 }
 
 predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
@@ -435,8 +497,9 @@ predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
   betaA1 <- priorHyperParameters[["betaA1"]]
   betaA2 <- priorHyperParameters[["betaA2"]]
 
-  if (length(propDiff) != 1L || !is.finite(propDiff) || abs(propDiff) >= 1)
+  if (length(propDiff) != 1L || !is.finite(propDiff) || abs(propDiff) >= 1) {
     stop("propDiff must lie strictly between -1 and 1.")
+  }
 
   # thetaA are restricted by propDiff
   rho <- seq(1 / nWeight, 1 - 1 / nWeight, length.out = nWeight)
@@ -479,14 +542,18 @@ solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
   }
 
   # The derivative is infinite at the edges, so search just inside them.
-  stats::uniroot(derivativeKL, lower = max(0, -propDiff) + 1e-12, upper = min(1, 1 - propDiff) - 1e-12,
-                 tol = 1e-12)[["root"]]
+  stats::uniroot(derivativeKL,
+    lower = max(0, -propDiff) + 1e-12, upper = min(1, 1 - propDiff) - 1e-12,
+    tol = 1e-12
+  )[["root"]]
 }
 
 ## logOR ----
 # Log partition function of Fisher's noncentral hypergeometric distribution
 fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
-  if (logOR == 0) return(lchoose(na + nb, totalSuccesses))
+  if (logOR == 0) {
+    return(lchoose(na + nb, totalSuccesses))
+  }
 
   feasibleSuccesses <-
     max(0, totalSuccesses - nb):min(na, totalSuccesses)
@@ -500,51 +567,40 @@ fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
 }
 
 # UMP plug-in for one table: the logOR on the side of the alternative at which
-#   KL(FNCH(logOR) || FNCH(0)) = log(1 / alpha),
-# with KL = logOR * E_logOR[ya] - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
-# the mean E_logOR[ya] taken from BiasedUrn (odds = exp(logOR)).
-# The KL is 0 at logOR = 0 and increases away from it, but is bounded by
+#   KL(FNCH(logOR) || FNCH(nullLogOR)) = log(1 / alpha),
+# with KL = (logOR - nullLogOR) * E_logOR[ya]
+#           - fnchLogPartition(logOR) + fnchLogPartition(nullLogOR),
+# the mean E_logOR[ya] taken from BiasedUrn (odds = exp(logOR)). At
+# nullLogOR = 0 the last term is lchoose(na + nb, ya + yb).
+# The KL is 0 at nullLogOR and increases away from it, but is bounded by
 # -log P0(ya at its feasible extreme), so the equation may have no root:
 # then NULL is returned and the caller uses the trivial e-factor 1.
-solveUmpLogOR2x2 <- function(na, nb, totalSuccesses, alpha,
-                             alternative = c("greater", "less"),
-                             searchBound = 100) {
+solveUmpLogOR <- function(na, nb, totalSuccesses, alpha,
+                          alternative = c("greater", "less"),
+                          nullLogOR = 0,
+                          searchBound = 100) {
   alternative <- match.arg(alternative)
 
   klMinusTarget <- function(logOR) {
-    logOR * BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR)) -
+    (logOR - nullLogOR) *
+      BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR)) -
       fnchLogPartition(na, nb, totalSuccesses, logOR) +
-      lchoose(na + nb, totalSuccesses) + log(alpha)
+      fnchLogPartition(na, nb, totalSuccesses, nullLogOR) + log(alpha)
   }
 
-  bounds <- if (alternative == "greater") c(0, searchBound) else c(-searchBound, 0)
-  if (klMinusTarget(bounds[1]) * klMinusTarget(bounds[2]) > 0) return(NULL)
-
-  stats::uniroot(klMinusTarget, lower = bounds[1], upper = bounds[2],
-                 tol = 1e-10)[["root"]]
-}
-
-# UMP conditional e-factor of ONE table: savi2x2CondStat() evaluated at the
-# logOR solved by solveUmpLogOR2x2(). "greater" and "less" name the side of
-# the alternative (logOR is B minus A); "twoSided" averages the two one-sided
-# e-factors. A side without a root contributes the trivial e-factor 1.
-savi2x2UmpStat <- function(ya, yb, na, nb, alpha = 0.05,
-                           alternative = c("twoSided", "greater", "less"),
-                           log = FALSE, ...) {
-  alternative <- match.arg(alternative)
-  totalSuccesses <- ya + yb
-
-  oneSided <- function(side) {
-    logOR <- solveUmpLogOR2x2(na, nb, totalSuccesses, alpha, side)
-    if (is.null(logOR)) return(1)
-    savi2x2CondStat(ya, yb, na, nb, logOR = logOR, log = FALSE)
+  # The KL is bounded, so the target may be unreachable within the search
+  # interval; uniroot() would error on equal signs, hence the explicit check.
+  bounds <- if (alternative == "greater") {
+    c(nullLogOR, nullLogOR + searchBound)
+  } else {
+    c(nullLogOR - searchBound, nullLogOR)
+  }
+  if (klMinusTarget(bounds[1]) * klMinusTarget(bounds[2]) > 0) {
+    return(NULL)
   }
 
-  eFactor <- switch(alternative,
-    "greater" = oneSided("greater"),
-    "less" = oneSided("less"),
-    "twoSided" = (oneSided("greater") + oneSided("less")) / 2
-  )
-
-  if (log) log(eFactor) else eFactor
+  stats::uniroot(klMinusTarget,
+    lower = bounds[1], upper = bounds[2],
+    tol = 1e-10
+  )[["root"]]
 }
