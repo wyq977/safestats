@@ -111,6 +111,8 @@ constructSaviTestObj <- function(testName) {
     testSpecificList <- list("stderr"=NULL, "testName"=testName)
   } else if (testName=="Logrank") {
     testSpecificList <- list("sumStats"=NULL, "testName"=testName)
+  } else if (testName=="Two Proportions") {
+    testSpecificList <- list("posteriorHyperParameters"=NULL, "testName"=testName)
   }
 
   result <- utils::modifyList(result, testSpecificList)

@@ -118,3 +118,21 @@ defaults to mean `0` and sd `1`.
 `constructSaviTestObj("Two Proportions")` gets no `sumStats` or
 `eFactorVec`. Note that `modifyList()` drops `NULL` placeholders, so a
 field declared `NULL` in a constructor is absent until a function sets it.
+
+### 3. Test function, unrestricted two-sided case
+
+`savi2x2Test(ya, yb, designObj = NULL)`: `ya`, `yb` are per-block success
+counts in observation order; `na`, `nb`, `alternative`, `h0` and the prior
+all come from `designObj` (`NULL` gives a pilot `designSavi2x2()` with a
+warning). No `ciValue` or confidence sequence yet.
+
+- Numerator for block `i`: Beta posterior means of `thetaA`, `thetaB` given
+  blocks `1..i-1` only. Denominator: the common
+  `(na * thetaA + nb * thetaB) / (na + nb)`, the projection onto
+  `thetaA = thetaB`.
+- `eValueVec` is the cumulative e-process, `eValue` its last element.
+- `n = c(na, nb, nBlocks)` in totals; `estimate` holds both observed
+  proportions and `propDiff` (B minus A); `posteriorHyperParameters` is the
+  Beta posterior after the last block.
+- Errors, until each is designed: non-`NULL` `esMin`, `alternative` other
+  than `"twoSided"`, `h0 != 0`. The design rejects non-positive Beta shapes.
