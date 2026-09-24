@@ -1,7 +1,6 @@
 # Testing fnts ----
 
 # Cumulative likelihood-ratio for two Bernoulli streams.
-# The four theta vectors are predictable: element i uses blocks 1 to i - 1.
 savi2x2TestStat <- function(ya, yb, na, nb,
                             numeratorThetaA, numeratorThetaB,
                             denominatorThetaA, denominatorThetaB,
@@ -17,7 +16,7 @@ savi2x2TestStat <- function(ya, yb, na, nb,
   if (log) logEValueVec else exp(logEValueVec)
 }
 
-# Conditional e-factor for ONE block, given the block's total successes
+# Conditional e-value for ONE table, given the block's total successes
 # ya + yb: under the null the count ya is hypergeometric, under logOR it is
 # Fisher's noncentral hypergeometric. The ratio of the two is
 #   ya * logOR - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
@@ -44,32 +43,8 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, weightGrid = NULL,
   if (log) logEFactor else exp(logEFactor)
 }
 
-# Log partition function of Fisher's noncentral hypergeometric distribution
-# of ya given the total ya + yb = totalSuccesses:
-#   log sum_k choose(na, k) * choose(nb, totalSuccesses - k) * exp(logOR * k),
-# over the feasible ya values k. At logOR = 0 it is the hypergeometric
-# normaliser lchoose(na + nb, totalSuccesses) by Vandermonde's identity,
-# returned exactly rather than through the sum.
-fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
-  if (logOR == 0) return(lchoose(na + nb, totalSuccesses))
 
-  feasibleSuccesses <-
-    max(0, totalSuccesses - nb):min(na, totalSuccesses)
-  logTerms <- lchoose(na, feasibleSuccesses) +
-    lchoose(nb, totalSuccesses - feasibleSuccesses) +
-    logOR * feasibleSuccesses
-
-  # log-sum-exp, shifted by the largest term against overflow
-  maxLogTerm <- max(logTerms)
-  maxLogTerm + log(sum(exp(logTerms - maxLogTerm)))
-}
-
-
-# Cumulative log e-process against thetaA = thetaB. The numerator is the
-# predictable plug-in of predictiveThetas2x2(), or of
-# predictiveThetas2x2PropDiff() on the curve thetaB - thetaA = propDiff when
-# propDiff is given; the denominator is its reverse information projection
-# onto the null, the size-weighted average.
+# Cumulative log e-value against thetaA = thetaB.
 logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
                                  propDiff = NULL) {
   thetas <- if (is.null(propDiff)) {
@@ -473,7 +448,6 @@ predictiveThetas2x2PropDiff <- function(ya, yb, na, nb, priorHyperParameters,
 }
 
 # Find the means that minimize the KL between the alternative and null
-# The alternative is usually learnt and given
 # The null is H0: thetaB - thetaA = propDiff
 # TODO: this can be a cubic function solver
 solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
@@ -489,5 +463,19 @@ solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
 }
 
 ## logOR ----
+# Log partition function of Fisher's noncentral hypergeometric distribution
+fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
+  if (logOR == 0) return(lchoose(na + nb, totalSuccesses))
 
+  feasibleSuccesses <-
+    max(0, totalSuccesses - nb):min(na, totalSuccesses)
+  logTerms <- lchoose(na, feasibleSuccesses) +
+    lchoose(nb, totalSuccesses - feasibleSuccesses) +
+    logOR * feasibleSuccesses
 
+  # log-sum-exp, shifted by the largest term against overflow
+  maxLogTerm <- max(logTerms)
+  maxLogTerm + log(sum(exp(logTerms - maxLogTerm)))
+}
+
+# find the root of UMP
