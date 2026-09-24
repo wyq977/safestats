@@ -19,20 +19,89 @@ savi2x2TestStat <- function(ya, yb, na, nb,
   if (log) logEValueVec else exp(logEValueVec)
 }
 
-# Predictable plug-in for the numerator: the Beta posterior means of thetaA
-# and thetaB for block i, given the counts of blocks 1 to i - 1 only.
-predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters) {
+# Predictable plug-in for the numerator, for block i given the counts of
+# blocks 1 to i - 1 only. With propDiff = NULL: the independent Beta
+# posterior means of thetaA and thetaB. Otherwise the numerator lives on the
+# curve thetaB - thetaA = propDiff, and thetaA is the posterior mean under a
+# grid posterior on that curve.
+predictiveThetas2x2 <- function(ya, yb, na, nb, priorHyperParameters,
+                                propDiff = NULL, nWeight = 1000L) {
   nBlocks <- length(ya)
-  previousYa <- c(0, cumsum(ya))[seq_len(nBlocks)]
-  previousYb <- c(0, cumsum(yb))[seq_len(nBlocks)]
-  previousBlocks <- seq_len(nBlocks) - 1
-
   prior <- priorHyperParameters
-  list(
-    "thetaA" = (prior[["betaA1"]] + previousYa) /
-      (prior[["betaA1"]] + prior[["betaA2"]] + na * previousBlocks),
-    "thetaB" = (prior[["betaB1"]] + previousYb) /
-      (prior[["betaB1"]] + prior[["betaB2"]] + nb * previousBlocks))
+
+  if (is.null(propDiff)) {
+    previousYa <- c(0, cumsum(ya))[seq_len(nBlocks)]
+    previousYb <- c(0, cumsum(yb))[seq_len(nBlocks)]
+    previousBlocks <- seq_len(nBlocks) - 1
+
+    return(list(
+      "thetaA" = (prior[["betaA1"]] + previousYa) /
+        (prior[["betaA1"]] + prior[["betaA2"]] + na * previousBlocks),
+      "thetaB" = (prior[["betaB1"]] + previousYb) /
+        (prior[["betaB1"]] + prior[["betaB2"]] + nb * previousBlocks)))
+  }
+
+  if (length(propDiff) != 1L || !is.finite(propDiff) || abs(propDiff) >= 1)
+    stop("propDiff must lie strictly between -1 and 1.")
+
+  # Fixing the effect leaves one free probability. rho is thetaA rescaled to
+  # its feasible interval, so the Beta(betaA1, betaA2) prior applies to it
+  # for every propDiff; the betaB shapes have nothing left to describe.
+  rho <- seq(1 / nWeight, 1 - 1 / nWeight, length.out = nWeight)
+  thetaAGrid <- max(0, -propDiff) + rho * (1 - abs(propDiff))
+  thetaBGrid <- thetaAGrid + propDiff
+
+  # A support point at exactly 0 or 1 turns a zero count into 0 * -Inf.
+  if (any(c(thetaAGrid, thetaBGrid) <= 0 | c(thetaAGrid, thetaBGrid) >= 1))
+    stop("propDiff = ", propDiff, " is too close to -1 or 1 for a grid of ",
+         nWeight, " points.")
+
+  logThetaA <- log(thetaAGrid)
+  logOneMinusThetaA <- log1p(-thetaAGrid)
+  logThetaB <- log(thetaBGrid)
+  logOneMinusThetaB <- log1p(-thetaBGrid)
+
+  # Unnormalised log posterior weights, shifted so their maximum is 0: the
+  # largest weight is then exactly 1 and the sum can neither underflow nor
+  # overflow, however many blocks have been seen.
+  logWeights <- (prior[["betaA1"]] - 1) * log(rho) +
+    (prior[["betaA2"]] - 1) * log1p(-rho)
+  logWeights <- logWeights - max(logWeights)
+
+  thetaA <- numeric(nBlocks)
+
+  for (i in seq_len(nBlocks)) {
+    # Predict block i before its counts enter the posterior.
+    weights <- exp(logWeights)
+    thetaA[i] <- sum(thetaAGrid * weights) / sum(weights)
+
+    logWeights <- logWeights +
+      ya[i] * logThetaA + (na - ya[i]) * logOneMinusThetaA +
+      yb[i] * logThetaB + (nb - yb[i]) * logOneMinusThetaB
+    logWeights <- logWeights - max(logWeights)
+  }
+
+  list("thetaA" = thetaA, "thetaB" = thetaA + propDiff)
+}
+
+# Cumulative log e-process against thetaA = thetaB. The numerator is the
+# predictable plug-in of predictiveThetas2x2(), restricted to
+# thetaB - thetaA = propDiff unless propDiff is NULL; the denominator is its
+# reverse information projection onto the null, the size-weighted average.
+logEProcess2x2 <- function(ya, yb, na, nb, priorHyperParameters,
+                           propDiff = NULL) {
+  thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters,
+                                propDiff = propDiff)
+  thetaA <- thetas[["thetaA"]]
+  thetaB <- thetas[["thetaB"]]
+  thetaNull <- (na * thetaA + nb * thetaB) / (na + nb)
+
+  # Every theta is strictly inside (0, 1), so no 0 * log(0) term arises.
+  savi2x2TestStat(
+    ya = ya, yb = yb, na = na, nb = nb,
+    numeratorThetaA = thetaA, numeratorThetaB = thetaB,
+    denominatorThetaA = thetaNull, denominatorThetaB = thetaNull,
+    log = TRUE)
 }
 
 # compute conditional e-variable
@@ -49,7 +118,13 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, alternative=c("twoSide
 #' taken from the design. The numerator predicts each block with the Beta
 #' posterior means of `thetaA` and `thetaB` given the earlier blocks only; the
 #' denominator uses their size-weighted average, the projection of that
-#' prediction onto the null. Only the unrestricted, two-sided case exists.
+#' prediction onto the null.
+#'
+#' With `propDiffMin` set in the design, the numerator is restricted to the
+#' curve `thetaB - thetaA = propDiffMin` and learns `thetaA` along it from
+#' the earlier blocks. For `alternative = "greater"` that is the e-process;
+#' for `"twoSided"` it is the average of the e-processes restricted at
+#' `+propDiffMin` and `-propDiffMin`. The null is always `thetaA = thetaB`.
 #'
 #' @param ya,yb integer vectors, the number of successes in group A and group
 #'   B in each block, in the order the blocks were observed.
@@ -74,11 +149,14 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   if (!identical(designObj[["testName"]], "Two Proportions"))
     stop("designObj must be a design from designSavi2x2().")
 
-  if (!is.null(designObj[["esMin"]]))
-    stop("A restricted alternative (propDiffMin) is not implemented yet.")
+  propDiffMin <- designObj[["esMin"]]
+  alternative <- designObj[["alternative"]]
 
-  if (designObj[["alternative"]] != "twoSided")
-    stop("Only alternative = \"twoSided\" is implemented yet.")
+  if (alternative == "less")
+    stop("alternative = \"less\" is not implemented yet.")
+
+  if (alternative == "greater" && is.null(propDiffMin))
+    stop("alternative = \"greater\" needs a positive propDiffMin.")
 
   # The e-variable below is built for thetaA = thetaB only; a shifted null
   # thetaB - thetaA = h0 needs a different projection.
@@ -102,20 +180,22 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 
   prior <- designObj[["priorHyperParameters"]]
 
-  thetas <- predictiveThetas2x2(ya, yb, na, nb, prior)
-  thetaA <- thetas[["thetaA"]]
-  thetaB <- thetas[["thetaB"]]
+  if (is.null(propDiffMin)) {
+    logEValueVec <- logEProcess2x2(ya, yb, na, nb, prior)
+  } else if (alternative == "greater") {
+    logEValueVec <- logEProcess2x2(ya, yb, na, nb, prior,
+                                   propDiff = propDiffMin)
+  } else {
+    # Two-sided with a restriction: the equal-weight mixture of the two
+    # cumulative e-processes at +propDiffMin and -propDiffMin, which is again
+    # an e-process. Averaged on the log scale to avoid overflow.
+    logEPlus <- logEProcess2x2(ya, yb, na, nb, prior, propDiff = propDiffMin)
+    logEMinus <- logEProcess2x2(ya, yb, na, nb, prior, propDiff = -propDiffMin)
+    logEValueVec <- pmax(logEPlus, logEMinus) +
+      log1p(exp(-abs(logEPlus - logEMinus))) - log(2)
+  }
 
-  # Reverse information projection of the product Bernoulli prediction onto
-  # thetaA = thetaB: the common theta is the size-weighted average.
-  thetaNull <- (na * thetaA + nb * thetaB) / (na + nb)
-
-  # Positive Beta shapes keep every theta strictly inside (0, 1), so no
-  # 0 * log(0) term arises.
-  eValueVec <- savi2x2TestStat(
-    ya = ya, yb = yb, na = na, nb = nb,
-    numeratorThetaA = thetaA, numeratorThetaB = thetaB,
-    denominatorThetaA = thetaNull, denominatorThetaB = thetaNull)
+  eValueVec <- exp(logEValueVec)
 
   ## Confidence Sequence ----
   if (wantCi) {
@@ -163,8 +243,10 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 #' blocks of `na` observations from group A and `nb` from group B. No
 #' sample-size planning is done yet: `nPlan[["nBlocks"]]` is `NA`.
 #'
-#' @param propDiffMin numeric or `NULL`, the minimal relevant difference
-#'   `thetaB - thetaA`. Not used yet.
+#' @param propDiffMin `NULL`, or a number strictly between 0 and 1: the
+#'   minimal relevant difference `thetaB - thetaA`. When set, the e-variable's
+#'   numerator is restricted to `thetaB - thetaA = propDiffMin` (and, for
+#'   `"twoSided"`, also to `-propDiffMin`).
 #' @param na,nb positive integers, the number of observations per block in
 #'   group A and group B.
 #' @param nPlan integer or `NULL`, the planned number of blocks. Not used yet.
@@ -174,7 +256,8 @@ savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
 #' @param h0 numeric, the difference under the null.
 #' @param alternative one of `"twoSided"`, `"greater"`, `"less"`. The
 #'   direction refers to the effect B minus A, so `"greater"` means group B
-#'   has the larger success probability.
+#'   has the larger success probability. `"greater"` requires `propDiffMin`;
+#'   `"less"` is not implemented yet.
 #' @param eType the e-variable type, currently only `"grow"`.
 #' @param priorHyperParameters `NULL`, or a list named `betaA1`, `betaA2`,
 #'   `betaB1`, `betaB2`: the success and failure shapes of the Beta priors on
@@ -199,6 +282,17 @@ designSavi2x2 <- function(propDiffMin=NULL, na = 1, nb = 1, nPlan=NULL, alpha = 
 
   if (length(alpha) != 1L || !is.finite(alpha) || alpha <= 0 || alpha >= 1)
     stop("alpha must be strictly between 0 and 1.")
+
+  if (!is.null(propDiffMin) &&
+      (length(propDiffMin) != 1L || !is.finite(propDiffMin) ||
+       propDiffMin <= 0 || propDiffMin >= 1))
+    stop("propDiffMin must be NULL or strictly between 0 and 1.")
+
+  if (alternative == "less")
+    stop("alternative = \"less\" is not implemented yet.")
+
+  if (alternative == "greater" && is.null(propDiffMin))
+    stop("alternative = \"greater\" needs a positive propDiffMin.")
 
   result <- constructSaviDesignObj("Two Proportions")
 
