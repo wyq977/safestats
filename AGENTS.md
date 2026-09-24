@@ -136,3 +136,26 @@ warning). No `ciValue` or confidence sequence yet.
   Beta posterior after the last block.
 - Errors, until each is designed: non-`NULL` `esMin`, `alternative` other
   than `"twoSided"`, `h0 != 0`. The design rejects non-positive Beta shapes.
+
+### 4. Confidence sequence for propDiff
+
+`computeConfidenceInterval2x2PropDiff(ya, yb, na, nb, priorHyperParameters,
+alpha, precision = 100)` inverts the test on `precision` equally spaced
+candidates strictly inside `(-1, 1)`. Each candidate `propDiff` is a point
+null with its own e-process: numerator the predictable Beta posterior mean
+(shared helper `predictiveThetas2x2`), denominator its reverse information
+projection onto `thetaB - thetaA = propDiff`, found by `uniroot` on the KL
+derivative (`solveRIPr2x2PropDiff`). Running intersection: a candidate
+leaves for good at `1/alpha`. Each run of consecutive non-rejected
+candidates is one interval, and the confidence set is the union of the
+intervals; min and max over the whole set are not taken, since that would
+fill holes. Returns a matrix with columns `block`, `lowerBound`,
+`upperBound`: one row per block without holes, as for the z-test, several
+rows for a block with holes, none for a block with everything rejected.
+
+`savi2x2Test(..., wantCi = TRUE)` stores that matrix as `confSeqMatrix`, the
+rows of the last block as `confSeq` (a `k x 2` matrix of `lowerBound`,
+`upperBound`; `k = 1` without holes), and `ciValue = 1 - alpha` (no
+separate `ciValue` argument).
+`savi2x2TestStat` returns the cumulative e-process, on the log scale when
+`log = TRUE`.

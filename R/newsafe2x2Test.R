@@ -62,7 +62,7 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, alternative=c("twoSide
 #'   B minus A. `posteriorHyperParameters` holds the Beta posterior after the
 #'   last block, which is the prior the next block would use.
 #' @noRd
-savi2x2Test <- function(ya, yb, designObj = NULL) {
+savi2x2Test <- function(ya, yb, designObj = NULL, wantCi = TRUE) {
   result <- constructSaviTestObj("Two Proportions")
 
   if (is.null(designObj)) {
@@ -116,6 +116,21 @@ savi2x2Test <- function(ya, yb, designObj = NULL) {
     ya = ya, yb = yb, na = na, nb = nb,
     numeratorThetaA = thetaA, numeratorThetaB = thetaB,
     denominatorThetaA = thetaNull, denominatorThetaB = thetaNull)
+
+  ## Confidence Sequence ----
+  if (wantCi) {
+    alpha <- designObj[["alpha"]]
+    confSeqMatrix <- computeConfidenceInterval2x2PropDiff(
+      ya = ya, yb = yb, na = na, nb = nb,
+      priorHyperParameters = prior, alpha = alpha)
+
+    lastBlock <- confSeqMatrix[, "block"] == nBlocks
+
+    result[["confSeqMatrix"]] <- confSeqMatrix
+    result[["confSeq"]] <- confSeqMatrix[lastBlock, c("lowerBound", "upperBound"),
+                                         drop = FALSE]
+    result[["ciValue"]] <- 1 - alpha
+  }
 
   result[["eValue"]] <- eValueVec[nBlocks]
   result[["eValueVec"]] <- eValueVec
@@ -216,4 +231,100 @@ designSavi2x2 <- function(propDiffMin=NULL, na = 1, nb = 1, nPlan=NULL, alpha = 
   result[["timeStamp"]] <- Sys.time()
 
   return(result)
+}
+
+
+# Confidence Interval ----
+
+# Find the means that minimize the KL between the alternative and null
+# The alternative is usually learnt and given
+# The null is H0: thetaB - thetaA = propDiff
+solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
+  derivativeKL <- function(nullThetaA) {
+    nullThetaB <- nullThetaA + propDiff
+    na * ((1 - thetaA) / (1 - nullThetaA) - thetaA / nullThetaA) +
+      nb * ((1 - thetaB) / (1 - nullThetaB) - thetaB / nullThetaB)
+  }
+
+  # The derivative is infinite at the edges, so search just inside them.
+  lower <- max(0, -propDiff)
+  upper <- min(1, 1 - propDiff)
+  edge <- 1e-12 * (upper - lower)
+
+  stats::uniroot(derivativeKL, lower = lower + edge, upper = upper - edge,
+                 tol = 1e-12)[["root"]]
+}
+
+#' Anytime-valid confidence sequence for the proportion difference
+#'
+#' Inverts the test: each candidate `propDiff = thetaB - thetaA` on a grid is
+#' a point null with its own e-process, whose numerator is the same
+#' predictable Beta posterior mean as in `savi2x2Test()` and whose
+#' denominator is that prediction projected onto the candidate's null line.
+#' A candidate leaves the set for good once its e-process reaches `1/alpha`
+#' (running intersection), so the sets are nested over blocks.
+#'
+#' @param ya,yb integer vectors, the successes in group A and group B in each
+#'   block.
+#' @param na,nb positive integers, the block sizes.
+#' @param priorHyperParameters list with `betaA1`, `betaA2`, `betaB1`,
+#'   `betaB2`.
+#' @param alpha numeric in (0, 1); the sequence has coverage `1 - alpha`.
+#' @param precision positive integer, the number of equally spaced
+#'   candidates strictly inside `(-1, 1)`.
+#'
+#' @return A matrix with columns `block`, `lowerBound` and `upperBound`.
+#'   Each run of consecutive non-rejected candidates after a block is one
+#'   interval; the confidence set after that block is the union of its rows.
+#'   Without holes there is one row per block, as for the z-test; a block
+#'   whose candidates are all rejected has no row.
+#' @noRd
+computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
+                                                 priorHyperParameters,
+                                                 alpha, precision = 100) {
+  nBlocks <- length(ya)
+  thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
+
+  propDiffGrid <- seq(-1, 1, length.out = precision + 2)[-c(1, precision + 2)]
+  logEValues <- numeric(precision)
+  inSet <- rep(TRUE, precision)
+  logThreshold <- log(1 / alpha)
+
+  confSeqMatrix <- matrix(numeric(0), ncol = 3,
+                          dimnames = list(NULL, c("block", "lowerBound",
+                                                  "upperBound")))
+
+  for (i in seq_len(nBlocks)) {
+    # A rejected candidate never returns, so its e-process is not advanced.
+    for (j in which(inSet)) {
+      propDiff <- propDiffGrid[j]
+      nullThetaA <- solveRIPr2x2PropDiff(
+        thetaA = thetas[["thetaA"]][i], thetaB = thetas[["thetaB"]][i],
+        na = na, nb = nb, propDiff = propDiff)
+
+      logEValues[j] <- logEValues[j] + savi2x2TestStat(
+        ya = ya[i], yb = yb[i], na = na, nb = nb,
+        numeratorThetaA = thetas[["thetaA"]][i],
+        numeratorThetaB = thetas[["thetaB"]][i],
+        denominatorThetaA = nullThetaA,
+        denominatorThetaB = nullThetaA + propDiff,
+        log = TRUE)
+    }
+
+    inSet <- inSet & logEValues < logThreshold
+
+    # Split the non-rejected candidates into runs of neighbours on the grid;
+    # each run is one interval of the union.
+    runs <- rle(inSet)
+    runEnds <- cumsum(runs[["lengths"]])[runs[["values"]]]
+    runStarts <- runEnds - runs[["lengths"]][runs[["values"]]] + 1
+
+    confSeqMatrix <- rbind(
+      confSeqMatrix,
+      cbind("block" = rep(i, length(runStarts)),
+            "lowerBound" = propDiffGrid[runStarts],
+            "upperBound" = propDiffGrid[runEnds]))
+  }
+
+  return(confSeqMatrix)
 }
