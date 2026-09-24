@@ -447,11 +447,7 @@ solveRIPr2x2PropDiff <- function(thetaA, thetaB, na, nb, propDiff) {
   }
 
   # The derivative is infinite at the edges, so search just inside them.
-  lower <- max(0, -propDiff)
-  upper <- min(1, 1 - propDiff)
-  edge <- 1e-12 * (upper - lower)
-
-  stats::uniroot(derivativeKL, lower = lower + edge, upper = upper - edge,
+  stats::uniroot(derivativeKL, lower = max(0, -propDiff) + 1e-12, upper = min(1, 1 - propDiff) - 1e-12,
                  tol = 1e-12)[["root"]]
 }
 
