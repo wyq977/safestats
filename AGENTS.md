@@ -145,19 +145,23 @@ candidates strictly inside `(-1, 1)`. Each candidate `propDiff` is a point
 null with its own e-process: numerator the predictable Beta posterior mean
 (shared helper `predictiveThetas2x2`), denominator its reverse information
 projection onto `thetaB - thetaA = propDiff`, found by `uniroot` on the KL
-derivative (`solveRIPr2x2PropDiff`). Running intersection: a candidate
-leaves for good at `1/alpha`. Each run of consecutive non-rejected
+derivative (`solveRIPr2x2PropDiff`). `runningIntersection = TRUE` (the
+default): a candidate leaves for good at `1/alpha`, and its e-process is
+not advanced further. `FALSE`: every candidate's e-process is advanced each
+block and block `i` keeps the candidates whose current e-value is below
+`1/alpha`, so the sets need not be nested. Each run of consecutive non-rejected
 candidates is one interval, and the confidence set is the union of the
 intervals; min and max over the whole set are not taken, since that would
 fill holes. Returns a matrix with columns `block`, `lowerBound`,
 `upperBound`: one row per block without holes, as for the z-test, several
 rows for a block with holes, none for a block with everything rejected.
 
-`savi2x2Test(..., wantCi = TRUE)` stores, as the other tests do, a two-column
+`savi2x2Test(..., wantCi = TRUE, runningIntersection = TRUE)` passes
+`runningIntersection` through and stores, as the other tests do, a two-column
 `nBlocks x 2` `confSeqMatrix` (`lowerBound`, `upperBound`; other code reads it
 by position): row `i` is the outermost bounds of block `i`'s union, `NA` for a
 fully rejected block. This hull contains the union, so coverage holds, and
-the rows stay nested. The exact union is kept only for the last block, as
+the rows stay nested under the running intersection. The exact union is kept only for the last block, as
 `confSeq` (a `k x 2` matrix of `lowerBound`, `upperBound`; `k = 1` without
 holes), with `ciValue = 1 - alpha` (no separate `ciValue` argument).
 `savi2x2TestStat` returns the cumulative e-process, on the log scale when
@@ -280,6 +284,6 @@ product over blocks of the conditional e-factors. The plug-in alternative
 for block `i` is predictable: `logit(thetaB) - logit(thetaA)` from the Beta
 posterior means of `predictiveThetas2x2` given blocks `1..i-1` (the prior
 means for block 1, so a symmetric prior gives the trivial factor 1 there).
-The same plug-in serves every candidate. Running intersection, runs and the
+The same plug-in serves every candidate. `runningIntersection`, runs and the
 returned `block`, `lowerBound`, `upperBound` matrix are as in Decision 4.
 Not yet wired into `savi2x2Test`.

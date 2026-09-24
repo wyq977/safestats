@@ -110,6 +110,10 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, parameter,
 #'   gives a pilot design with the default settings and a warning.
 #' @param wantCi logical, whether to compute the anytime-valid confidence
 #'   sequence for `propDiff`; its coverage is `1 - alpha` from the design.
+#' @param runningIntersection logical, whether a candidate `propDiff` that is
+#'   rejected once stays rejected in all later blocks (`TRUE`, nested sets),
+#'   or each block reports the candidates its current e-value has not
+#'   rejected (`FALSE`).
 #'
 #' @return A `saviTest` object. `eValueVec[i]` is the cumulative e-process
 #'   after block `i`, using blocks `1` to `i` only, and `eValue` is its last
@@ -120,7 +124,7 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, parameter,
 #'   next block would use.
 #' @noRd
 savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
-                        wantCi = TRUE) {
+                        wantCi = TRUE, runningIntersection = TRUE) {
   result <- constructSaviTestObj("Two Proportions")
 
   if (is.null(designObj)) {
@@ -214,7 +218,8 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     alpha <- designObj[["alpha"]]
     confSetRuns <- computeConfidenceInterval2x2PropDiff(
       ya = ya, yb = yb, na = na, nb = nb,
-      priorHyperParameters = prior, alpha = alpha
+      priorHyperParameters = prior, alpha = alpha,
+      runningIntersection = runningIntersection
     )
 
     # One row per block, as for the other tests: the outermost bounds of that
@@ -378,8 +383,10 @@ designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
 #' a point null with its own e-process, whose numerator is the same
 #' predictable Beta posterior mean as in `savi2x2Test()` and whose
 #' denominator is that prediction projected onto the candidate's null line.
-#' A candidate leaves the set for good once its e-process reaches `1/alpha`
-#' (running intersection), so the sets are nested over blocks.
+#' With `runningIntersection = TRUE` a candidate leaves the set for good once
+#' its e-process reaches `1/alpha`, so the sets are nested over blocks; with
+#' `FALSE` each block keeps the candidates whose current e-value is below
+#' `1/alpha`.
 #'
 #' @param ya,yb integer vectors, the successes in group A and group B in each
 #'   block.
@@ -389,6 +396,7 @@ designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
 #' @param alpha numeric in (0, 1); the sequence has coverage `1 - alpha`.
 #' @param precision positive integer, the number of equally spaced
 #'   candidates strictly inside `(-1, 1)`.
+#' @param runningIntersection logical, see above.
 #'
 #' @return A matrix with columns `block`, `lowerBound` and `upperBound`.
 #'   Each run of consecutive non-rejected candidates after a block is one
@@ -398,7 +406,8 @@ designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
 #' @noRd
 computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
                                                  priorHyperParameters,
-                                                 alpha, precision = 100) {
+                                                 alpha, precision = 100,
+                                                 runningIntersection = TRUE) {
   nBlocks <- length(ya)
   thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
 
@@ -415,8 +424,11 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
   )
 
   for (i in seq_len(nBlocks)) {
-    # A rejected candidate never returns, so its e-process is not advanced.
-    for (j in which(inSet)) {
+    # Under the running intersection a rejected candidate never returns, so
+    # its e-process is not advanced; otherwise every candidate is followed.
+    activeCandidates <- if (runningIntersection) which(inSet) else seq_len(precision)
+
+    for (j in activeCandidates) {
       propDiff <- propDiffGrid[j]
       nullThetaA <- solveRIPr2x2PropDiff(
         thetaA = thetas[["thetaA"]][i], thetaB = thetas[["thetaB"]][i],
@@ -433,7 +445,8 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
       )
     }
 
-    inSet <- inSet & logEValues < log(1 / alpha)
+    notRejected <- logEValues < log(1 / alpha)
+    inSet <- if (runningIntersection) inSet & notRejected else notRejected
 
     # Split the non-rejected candidates into runs of neighbours on the grid;
     # each run is one interval of the union.
@@ -463,7 +476,9 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
 #' `i` is the log odds ratio of the Beta posterior means given blocks `1` to
 #' `i - 1`, so it is predictable and finite even with empty cells. A
 #' candidate leaves the set for good once its e-process reaches `1/alpha`
-#' (running intersection), so the sets are nested over blocks.
+#' when `runningIntersection = TRUE`, so the sets are nested over blocks;
+#' with `FALSE` each block keeps the candidates whose current e-value is
+#' below `1/alpha`.
 #'
 #' @param ya,yb integer vectors, the successes in group A and group B in each
 #'   block.
@@ -474,6 +489,7 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
 #' @param precision positive integer, the number of equally spaced
 #'   candidates strictly inside `(-logORBound, logORBound)`.
 #' @param logORBound positive number, the half-width of the candidate grid.
+#' @param runningIntersection logical, see above.
 #'
 #' @return A matrix with columns `block`, `lowerBound` and `upperBound`, one
 #'   row per run of consecutive non-rejected candidates after each block, as
@@ -482,7 +498,8 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
 computeConfidenceInterval2x2LogOR <- function(ya, yb, na, nb,
                                               priorHyperParameters,
                                               alpha, precision = 100,
-                                              logORBound = 40) {
+                                              logORBound = 40,
+                                              runningIntersection = TRUE) {
   nBlocks <- length(ya)
   thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
   # Predictable plug-in alternative: B minus A on the logit scale.
@@ -502,15 +519,19 @@ computeConfidenceInterval2x2LogOR <- function(ya, yb, na, nb,
   )
 
   for (i in seq_len(nBlocks)) {
-    # A rejected candidate never returns, so its e-process is not advanced.
-    for (j in which(inSet)) {
+    # Under the running intersection a rejected candidate never returns, so
+    # its e-process is not advanced; otherwise every candidate is followed.
+    activeCandidates <- if (runningIntersection) which(inSet) else seq_len(precision)
+
+    for (j in activeCandidates) {
       logEValues[j] <- logEValues[j] + conditionalEValueFixedAlternative(
         ya = ya[i], yb = yb[i], na = na[i], nb = nb[i],
         logOR = plugInLogOR[i], nullLogOR = logORGrid[j], log = TRUE
       )
     }
 
-    inSet <- inSet & logEValues < log(1 / alpha)
+    notRejected <- logEValues < log(1 / alpha)
+    inSet <- if (runningIntersection) inSet & notRejected else notRejected
 
     runs <- rle(inSet)
     runEnds <- cumsum(runs[["lengths"]])[runs[["values"]]]
