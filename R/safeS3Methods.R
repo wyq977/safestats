@@ -77,6 +77,7 @@ constructSaviDesignObj <- function(testName) {
       "priorHyperParameters"=list("betaA1"=0.18, "betaA2"=0.18,
                                   "betaB1"=0.18, "betaB2"=0.18),
       "relevanceTest"=FALSE,
+      "runningIntersection"=TRUE,
       "testName"=testName)
   }
 
@@ -179,7 +180,9 @@ print.saviTest <- function(x, digits = getOption("digits"), prefix = "\t",
   }
 
   if (is.null(runningIntersection)) {
-    if (is.null(designObj[["runningIntersection"]]))
+    runningIntersection <- designObj[["runningIntersection"]]
+
+    if (is.null(runningIntersection))
       runningIntersection <- FALSE
   }
 
@@ -1099,7 +1102,9 @@ plot.saviTest <- function(x, main=NULL, xlab=NULL, ylab=NULL,
   designObj <- x[["designObj"]]
 
   if (is.null(runningIntersection)) {
-    if (is.null(designObj[["runningIntersection"]]))
+    runningIntersection <- designObj[["runningIntersection"]]
+
+    if (is.null(runningIntersection))
       runningIntersection <- FALSE
   }
 

@@ -109,11 +109,8 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, parameter,
 #' @param designObj a `saviDesign` object from `designSavi2x2()`. `NULL`
 #'   gives a pilot design with the default settings and a warning.
 #' @param wantCi logical, whether to compute the anytime-valid confidence
-#'   sequence for `propDiff`; its coverage is `1 - alpha` from the design.
-#' @param runningIntersection logical, whether a candidate `propDiff` that is
-#'   rejected once stays rejected in all later blocks (`TRUE`, nested sets),
-#'   or each block reports the candidates its current e-value has not
-#'   rejected (`FALSE`).
+#'   sequence for `propDiff`; its coverage is `1 - alpha` and its
+#'   `runningIntersection` setting come from the design.
 #'
 #' @return A `saviTest` object. `eValueVec[i]` is the cumulative e-process
 #'   after block `i`, using blocks `1` to `i` only, and `eValue` is its last
@@ -124,7 +121,7 @@ savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, parameter,
 #'   next block would use.
 #' @noRd
 savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
-                        wantCi = TRUE, runningIntersection = TRUE) {
+                        wantCi = TRUE) {
   result <- constructSaviTestObj("Two Proportions")
 
   if (is.null(designObj)) {
@@ -219,7 +216,7 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
     confSetRuns <- computeConfidenceInterval2x2PropDiff(
       ya = ya, yb = yb, na = na, nb = nb,
       priorHyperParameters = prior, alpha = alpha,
-      runningIntersection = runningIntersection
+      runningIntersection = designObj[["runningIntersection"]]
     )
 
     # One row per block, as for the other tests: the outermost bounds of that
@@ -296,6 +293,10 @@ savi2x2Test <- function(ya, yb, na = NULL, nb = NULL, designObj = NULL,
 #'   `betaB1`, `betaB2`: the success and failure shapes of the Beta priors on
 #'   `thetaA` and `thetaB`. `NULL` keeps the default of 0.18 for all four,
 #'   set in [constructSaviDesignObj()].
+#' @param runningIntersection logical, whether the confidence sequence keeps
+#'   a candidate out for good once it is rejected (`TRUE`, nested sets), or
+#'   reports per block the candidates its current e-value has not rejected
+#'   (`FALSE`). Also read by `plot()` and `print()`.
 #'
 #' @return A `saviDesign` object. `h0` is named `propDiff`, `nPlan` holds
 #'   `nBlocks`, `na` and `nb`, and `priorHyperParameters` holds the Beta
@@ -305,9 +306,14 @@ designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
                           nPlan = NULL, power = NULL, h0 = 0,
                           alternative = c("twoSided", "greater", "less"),
                           eType = c("grow"),
-                          priorHyperParameters = NULL) {
+                          priorHyperParameters = NULL,
+                          runningIntersection = TRUE) {
   alternative <- match.arg(alternative)
   eType <- match.arg(eType)
+
+  if (!isTRUE(runningIntersection) && !isFALSE(runningIntersection)) {
+    stop("runningIntersection must be TRUE or FALSE.")
+  }
 
   if (length(na) != 1L || length(nb) != 1L ||
     !is.finite(na) || !is.finite(nb) ||
@@ -362,6 +368,7 @@ designSavi2x2 <- function(propDiffMin = NULL, alpha = 0.05, na = 1, nb = 1,
       paste(unlist(result[["priorHyperParameters"]]), collapse = " ")
   )
   result[["eType"]] <- eType
+  result[["runningIntersection"]] <- runningIntersection
   result[["alpha"]] <- alpha
   result[["alternative"]] <- alternative
   result[["h0"]] <- c("propDiff" = h0)

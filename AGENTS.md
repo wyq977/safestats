@@ -100,7 +100,8 @@ resamples. `nPlan = c(nBlocks, na, nb)`, with `nBlocks` first because
 
 Only `eType = "grow"` for now, and the effect is always `propDiff`; there
 is no `effectMeasure` field. `designSavi2x2(propDiffmin, na, nb, nPlan,
-alpha, power, h0, alternative, eType, priorHyperParameters)` returns a
+alpha, power, h0, alternative, eType, priorHyperParameters,
+runningIntersection)` returns a
 `saviDesign` with `testName = "Two Proportions"`, `testType = "2x2"`,
 `h0 = c(propDiff = h0)`, and:
 
@@ -111,6 +112,10 @@ alpha, power, h0, alternative, eType, priorHyperParameters)` returns a
   not `NULL`, and errors on other names.
 - `parameter`: a length-one named string summarising the prior, for
   printing.
+- `runningIntersection`: `TRUE` or `FALSE`, default `TRUE` in
+  `constructSaviDesignObj("Two Proportions")`. The test reads it for the
+  confidence sequence (Decision 4); `plot()` and `print()` read it as for
+  the other tests.
 
 Reserved for when the conditional e-variable returns: its prior on `logOR`
 defaults to mean `0` and sd `1`.
@@ -156,7 +161,7 @@ fill holes. Returns a matrix with columns `block`, `lowerBound`,
 `upperBound`: one row per block without holes, as for the z-test, several
 rows for a block with holes, none for a block with everything rejected.
 
-`savi2x2Test(..., wantCi = TRUE, runningIntersection = TRUE)` passes
+`savi2x2Test(..., wantCi = TRUE)` passes the design's
 `runningIntersection` through and stores, as the other tests do, a two-column
 `nBlocks x 2` `confSeqMatrix` (`lowerBound`, `upperBound`; other code reads it
 by position): row `i` is the outermost bounds of block `i`'s union, `NA` for a
