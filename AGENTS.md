@@ -212,10 +212,13 @@ returns the conditional e-factor of **one** block (scalar counts), not a
 cumulative e-process; `savi2x2CondStat(ya, yb, na, nb, logOR, ...)` applies
 it blockwise to vectors and returns the per-block e-factors (its `eType` and
 `alternative` dispatch is not designed yet). It conditions on the block's total `ya + yb`: under
-the null `ya` is hypergeometric, under `logOR` (B minus A, anchored on
-`thetaA`) it is Fisher's noncentral hypergeometric, and the log e-factor is
-`ya * logOR - fnchLogPartition(na, nb, ya + yb, logOR) + lchoose(na + nb,
-ya + yb)`, on the log scale when `log = TRUE`. `logOR` is one finite number
+the null `yb` is hypergeometric, under `logOR` (B minus A, anchored on
+`thetaA`) it is Fisher's noncentral hypergeometric with odds `exp(logOR)` on
+group B, and the log e-factor is `yb * logOR - fnchLogPartition(nb, na, ya +
+yb, logOR) + lchoose(na + nb, ya + yb)`, on the log scale when `log = TRUE`.
+Weighting `yb` is what gives the B-minus-A sign; an earlier version weighted
+`ya` and so measured A minus B.
+`logOR` is one finite number
 supplied by the caller (plug-in, e.g. GROW or UMP); a prior on `logOR` is
 reserved for later.
 
@@ -231,9 +234,9 @@ returns `lchoose(na + nb, totalSuccesses)` exactly.
 **one** block by `uniroot` on `(nullLogOR, nullLogOR + 100)` for `"greater"`
 and `(nullLogOR - 100, nullLogOR)` for `"less"`: the `logOR` where
 `KL(FNCH(logOR) || FNCH(nullLogOR)) = log(1/alpha)`, with
-`KL = (logOR - nullLogOR) * mean - fnchLogPartition(logOR) +
-fnchLogPartition(nullLogOR)`, the FNCH mean coming from
-`BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR))`. The KL is
+`KL = (logOR - nullLogOR) * mean - fnchLogPartition(nb, na, logOR) +
+fnchLogPartition(nb, na, nullLogOR)`, the FNCH mean of `yb` coming from
+`BiasedUrn::meanFNCHypergeo(nb, na, totalSuccesses, exp(logOR))`. The KL is
 bounded, so when the target is out of reach (e.g. a degenerate conditional
 distribution, or tiny tables) the solver returns `NULL` and the caller uses
 the trivial e-factor `1`. The e-factor itself is
@@ -261,3 +264,22 @@ divide by the cumulative size of blocks `1..i-1`, not `na * (i - 1)`.
 Output: `n = c(na = sum(na), nb = sum(nb), nBlocks)`,
 `posteriorHyperParameters` uses `sum(na)`, `sum(nb)`; the per-block vectors
 are not stored on the result. The logOR conditional e-factor is untouched.
+
+### 10. Confidence sequence for logOR
+
+`conditionalEValueFixedAlternative(ya, yb, na, nb, logOR, nullLogOR = 0,
+log = FALSE)` gains the null: the log e-factor is `ya * (logOR - nullLogOR) -
+fnchLogPartition(logOR) + fnchLogPartition(nullLogOR)`, unchanged at
+`nullLogOR = 0`.
+
+`computeConfidenceInterval2x2LogOR(ya, yb, na, nb, priorHyperParameters,
+alpha, precision = 100, logORBound = 40)` inverts the conditional test on
+`precision` equally spaced candidates strictly inside `(-logORBound,
+logORBound)`. Each candidate is the `nullLogOR` of its own e-process, the
+product over blocks of the conditional e-factors. The plug-in alternative
+for block `i` is predictable: `logit(thetaB) - logit(thetaA)` from the Beta
+posterior means of `predictiveThetas2x2` given blocks `1..i-1` (the prior
+means for block 1, so a symmetric prior gives the trivial factor 1 there).
+The same plug-in serves every candidate. Running intersection, runs and the
+returned `block`, `lowerBound`, `upperBound` matrix are as in Decision 4.
+Not yet wired into `savi2x2Test`.

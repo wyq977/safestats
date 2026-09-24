@@ -38,17 +38,19 @@ logEProcess2x2PlugIn <- function(ya, yb, na, nb, priorHyperParameters,
   )
 }
 
-# Conditional e-factor of ONE table at a fixed logOR (B minus A), given the
-# block's total successes ya + yb: under the null ya is hypergeometric, under
-# logOR it is Fisher's noncentral hypergeometric, and the log ratio is
-#   ya * logOR - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
-# the last term being the log partition function at logOR = 0.
+# Conditional e-factor of ONE table at a fixed logOR (B minus A) against the
+# null nullLogOR, given the block's total successes ya + yb: under either
+# value yb is Fisher's noncentral hypergeometric with odds exp(logOR) on group
+# B (central at 0), and the log ratio of the two is
+#   yb * (logOR - nullLogOR) - fnchLogPartition(logOR) + fnchLogPartition(nullLogOR),
+# the last term being lchoose(na + nb, ya + yb) when nullLogOR = 0. Weighting
+# yb, not ya, is what makes logOR the log odds of B over A.
 conditionalEValueFixedAlternative <- function(ya, yb, na, nb, logOR,
-                                              log = FALSE) {
+                                              nullLogOR = 0, log = FALSE) {
   totalSuccesses <- ya + yb
-  logEFactor <- ya * logOR -
-    fnchLogPartition(na, nb, totalSuccesses, logOR) +
-    lchoose(na + nb, totalSuccesses)
+  logEFactor <- yb * (logOR - nullLogOR) -
+    fnchLogPartition(nb, na, totalSuccesses, logOR) +
+    fnchLogPartition(nb, na, totalSuccesses, nullLogOR)
 
   if (log) logEFactor else exp(logEFactor)
 }
@@ -452,10 +454,79 @@ computeConfidenceInterval2x2PropDiff <- function(ya, yb, na, nb,
   return(confSeqMatrix)
 }
 
+#' Anytime-valid confidence sequence for the log odds ratio
+#'
+#' Inverts the conditional test: each candidate `logOR = logit(thetaB) -
+#' logit(thetaA)` on a grid is the null of its own e-process, the product over
+#' blocks of the conditional e-factors of
+#' `conditionalEValueFixedAlternative()`. The plug-in alternative for block
+#' `i` is the log odds ratio of the Beta posterior means given blocks `1` to
+#' `i - 1`, so it is predictable and finite even with empty cells. A
+#' candidate leaves the set for good once its e-process reaches `1/alpha`
+#' (running intersection), so the sets are nested over blocks.
+#'
+#' @param ya,yb integer vectors, the successes in group A and group B in each
+#'   block.
+#' @param na,nb integer vectors of length `length(ya)`, the block sizes.
+#' @param priorHyperParameters list with `betaA1`, `betaA2`, `betaB1`,
+#'   `betaB2`.
+#' @param alpha numeric in (0, 1); the sequence has coverage `1 - alpha`.
+#' @param precision positive integer, the number of equally spaced
+#'   candidates strictly inside `(-logORBound, logORBound)`.
+#' @param logORBound positive number, the half-width of the candidate grid.
+#'
+#' @return A matrix with columns `block`, `lowerBound` and `upperBound`, one
+#'   row per run of consecutive non-rejected candidates after each block, as
+#'   for `computeConfidenceInterval2x2PropDiff()`.
+#' @noRd
 computeConfidenceInterval2x2LogOR <- function(ya, yb, na, nb,
-                                                 priorHyperParameters,
-                                                 alpha, precision = 100) {
+                                              priorHyperParameters,
+                                              alpha, precision = 100,
+                                              logORBound = 40) {
+  nBlocks <- length(ya)
+  thetas <- predictiveThetas2x2(ya, yb, na, nb, priorHyperParameters)
+  # Predictable plug-in alternative: B minus A on the logit scale.
+  # TODO: to be decided here
+  plugInLogOR <- stats::qlogis(thetas[["thetaB"]]) -
+    stats::qlogis(thetas[["thetaA"]])
 
+  logORGrid <- seq(-logORBound, logORBound,
+    length.out = precision + 2
+  )[-c(1, precision + 2)]
+  logEValues <- numeric(precision)
+  inSet <- rep(TRUE, precision)
+
+  confSeqMatrix <- matrix(numeric(0),
+    ncol = 3,
+    dimnames = list(NULL, c("block", "lowerBound", "upperBound"))
+  )
+
+  for (i in seq_len(nBlocks)) {
+    # A rejected candidate never returns, so its e-process is not advanced.
+    for (j in which(inSet)) {
+      logEValues[j] <- logEValues[j] + conditionalEValueFixedAlternative(
+        ya = ya[i], yb = yb[i], na = na[i], nb = nb[i],
+        logOR = plugInLogOR[i], nullLogOR = logORGrid[j], log = TRUE
+      )
+    }
+
+    inSet <- inSet & logEValues < log(1 / alpha)
+
+    runs <- rle(inSet)
+    runEnds <- cumsum(runs[["lengths"]])[runs[["values"]]]
+    runStarts <- runEnds - runs[["lengths"]][runs[["values"]]] + 1
+
+    confSeqMatrix <- rbind(
+      confSeqMatrix,
+      cbind(
+        "block" = rep(i, length(runStarts)),
+        "lowerBound" = logORGrid[runStarts],
+        "upperBound" = logORGrid[runEnds]
+      )
+    )
+  }
+
+  return(confSeqMatrix)
 }
 
 # Helpers ----
@@ -568,9 +639,9 @@ fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
 
 # UMP plug-in for one table: the logOR on the side of the alternative at which
 #   KL(FNCH(logOR) || FNCH(nullLogOR)) = log(1 / alpha),
-# with KL = (logOR - nullLogOR) * E_logOR[ya]
+# with KL = (logOR - nullLogOR) * E_logOR[yb]
 #           - fnchLogPartition(logOR) + fnchLogPartition(nullLogOR),
-# the mean E_logOR[ya] taken from BiasedUrn (odds = exp(logOR)). At
+# the mean E_logOR[yb] taken from BiasedUrn (odds = exp(logOR) on B). At
 # nullLogOR = 0 the last term is lchoose(na + nb, ya + yb).
 # The KL is 0 at nullLogOR and increases away from it, but is bounded by
 # -log P0(ya at its feasible extreme), so the equation may have no root:
@@ -581,11 +652,12 @@ solveUmpLogOR <- function(na, nb, totalSuccesses, alpha,
                           searchBound = 100) {
   alternative <- match.arg(alternative)
 
+  # logOR is B minus A, so the weighted count is yb: group B goes first.
   klMinusTarget <- function(logOR) {
     (logOR - nullLogOR) *
-      BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR)) -
-      fnchLogPartition(na, nb, totalSuccesses, logOR) +
-      fnchLogPartition(na, nb, totalSuccesses, nullLogOR) + log(alpha)
+      BiasedUrn::meanFNCHypergeo(nb, na, totalSuccesses, exp(logOR)) -
+      fnchLogPartition(nb, na, totalSuccesses, logOR) +
+      fnchLogPartition(nb, na, totalSuccesses, nullLogOR) + log(alpha)
   }
 
   # The KL is bounded, so the target may be unreachable within the search
