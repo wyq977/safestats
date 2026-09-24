@@ -478,4 +478,52 @@ fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
   maxLogTerm + log(sum(exp(logTerms - maxLogTerm)))
 }
 
-# find the root of UMP
+# UMP plug-in for one table: the logOR on the side of the alternative at which
+#   KL(FNCH(logOR) || FNCH(0)) = log(1 / alpha),
+# with KL = logOR * E_logOR[ya] - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
+# the mean E_logOR[ya] taken from BiasedUrn (odds = exp(logOR)).
+# The KL is 0 at logOR = 0 and increases away from it, but is bounded by
+# -log P0(ya at its feasible extreme), so the equation may have no root:
+# then NULL is returned and the caller uses the trivial e-factor 1.
+solveUmpLogOR2x2 <- function(na, nb, totalSuccesses, alpha,
+                             alternative = c("greater", "less"),
+                             searchBound = 100) {
+  alternative <- match.arg(alternative)
+
+  klMinusTarget <- function(logOR) {
+    logOR * BiasedUrn::meanFNCHypergeo(na, nb, totalSuccesses, exp(logOR)) -
+      fnchLogPartition(na, nb, totalSuccesses, logOR) +
+      lchoose(na + nb, totalSuccesses) + log(alpha)
+  }
+
+  bounds <- if (alternative == "greater") c(0, searchBound) else c(-searchBound, 0)
+  if (klMinusTarget(bounds[1]) * klMinusTarget(bounds[2]) > 0) return(NULL)
+
+  stats::uniroot(klMinusTarget, lower = bounds[1], upper = bounds[2],
+                 tol = 1e-10)[["root"]]
+}
+
+# UMP conditional e-factor of ONE table: savi2x2CondStat() evaluated at the
+# logOR solved by solveUmpLogOR2x2(). "greater" and "less" name the side of
+# the alternative (logOR is B minus A); "twoSided" averages the two one-sided
+# e-factors. A side without a root contributes the trivial e-factor 1.
+savi2x2UmpStat <- function(ya, yb, na, nb, alpha = 0.05,
+                           alternative = c("twoSided", "greater", "less"),
+                           log = FALSE, ...) {
+  alternative <- match.arg(alternative)
+  totalSuccesses <- ya + yb
+
+  oneSided <- function(side) {
+    logOR <- solveUmpLogOR2x2(na, nb, totalSuccesses, alpha, side)
+    if (is.null(logOR)) return(1)
+    savi2x2CondStat(ya, yb, na, nb, logOR = logOR, log = FALSE)
+  }
+
+  eFactor <- switch(alternative,
+    "greater" = oneSided("greater"),
+    "less" = oneSided("less"),
+    "twoSided" = (oneSided("greater") + oneSided("less")) / 2
+  )
+
+  if (log) log(eFactor) else eFactor
+}
