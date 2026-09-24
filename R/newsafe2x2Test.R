@@ -17,14 +17,51 @@ savi2x2TestStat <- function(ya, yb, na, nb,
   if (log) logEValueVec else exp(logEValueVec)
 }
 
-# compute conditional e-variable for ONE BLOCK!
+# Conditional e-factor for ONE block, given the block's total successes
+# ya + yb: under the null the count ya is hypergeometric, under logOR it is
+# Fisher's noncentral hypergeometric. The ratio of the two is
+#   ya * logOR - fnchLogPartition(logOR) + lchoose(na + nb, ya + yb),
+# the last term being the log partition function at logOR = 0.
 # 1. given a logOR, just plug in: GROW case or UMP case
 # 2. given a prior weight, numerically integrate it (report posterior maybe later)
 savi2x2CondStat <- function(ya, yb, na, nb, logOR = NULL, weightGrid = NULL,
                             log = FALSE, ...) {
-  # if given logOR, return plugging in conditional likelihood ratio
+  if (!is.null(weightGrid)) {
+    stop("savi2x2CondStat() does not support weightGrid yet")
+  }
+  if (is.null(logOR)) {
+    stop("savi2x2CondStat() needs logOR")
+  }
+  if (length(logOR) != 1 || !is.finite(logOR)) {
+    stop("logOR must be one finite number")
+  }
 
-  # if given weightGrid, multiplied to get the marginalized
+  totalSuccesses <- ya + yb
+  logEFactor <- ya * logOR -
+    fnchLogPartition(na, nb, totalSuccesses, logOR) +
+    lchoose(na + nb, totalSuccesses)
+
+  if (log) logEFactor else exp(logEFactor)
+}
+
+# Log partition function of Fisher's noncentral hypergeometric distribution
+# of ya given the total ya + yb = totalSuccesses:
+#   log sum_k choose(na, k) * choose(nb, totalSuccesses - k) * exp(logOR * k),
+# over the feasible ya values k. At logOR = 0 it is the hypergeometric
+# normaliser lchoose(na + nb, totalSuccesses) by Vandermonde's identity,
+# returned exactly rather than through the sum.
+fnchLogPartition <- function(na, nb, totalSuccesses, logOR) {
+  if (logOR == 0) return(lchoose(na + nb, totalSuccesses))
+
+  feasibleSuccesses <-
+    max(0, totalSuccesses - nb):min(na, totalSuccesses)
+  logTerms <- lchoose(na, feasibleSuccesses) +
+    lchoose(nb, totalSuccesses - feasibleSuccesses) +
+    logOR * feasibleSuccesses
+
+  # log-sum-exp, shifted by the largest term against overflow
+  maxLogTerm <- max(logTerms)
+  maxLogTerm + log(sum(exp(logTerms - maxLogTerm)))
 }
 
 

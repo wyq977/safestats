@@ -204,3 +204,20 @@ The denominator stays the pooled projection onto `thetaA = thetaB`, so the
 null is always the point `thetaA = thetaB`; `"greater"` names the direction
 of the alternative, not a composite null. The confidence sequence keeps the
 unrestricted numerator. `nWeight` is not a design field.
+
+### 7. Plug-in conditional e-factor on logOR
+
+`savi2x2CondStat(ya, yb, na, nb, logOR, weightGrid = NULL, log = FALSE)`
+returns the conditional e-factor of **one** block (scalar counts), not a
+cumulative e-process. It conditions on the block's total `ya + yb`: under
+the null `ya` is hypergeometric, under `logOR` (B minus A, anchored on
+`thetaA`) it is Fisher's noncentral hypergeometric, and the log e-factor is
+`ya * logOR - fnchLogPartition(na, nb, ya + yb, logOR) + lchoose(na + nb,
+ya + yb)`, on the log scale when `log = TRUE`. `logOR` is one finite number
+supplied by the caller (plug-in, e.g. GROW or UMP); `weightGrid` (a prior on
+`logOR`) is reserved and errors for now.
+
+`fnchLogPartition(na, nb, totalSuccesses, logOR)` is the log of
+`sum_k choose(na, k) choose(nb, totalSuccesses - k) exp(logOR * k)` over the
+feasible `k`, computed by a max-shifted log-sum-exp; at `logOR = 0` it
+returns `lchoose(na + nb, totalSuccesses)` exactly.
