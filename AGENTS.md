@@ -95,3 +95,26 @@ function, its inputs, its output, and the convention it relies on.
 resamples. `nPlan = c(nBlocks, na, nb)`, with `nBlocks` first because
 `plot.saviDesign` reads `nPlan[1]`. The 2x2 design has no `nMax`,
 `highN` or `nPlanBatch` (left `NULL`), and no `thetaA` scenario.
+
+### 2. Design and test object fields
+
+Only `eType = "grow"` for now, and the effect is always `propDiff`; there
+is no `effectMeasure` field. `designSavi2x2(propDiffmin, na, nb, nPlan,
+alpha, power, h0, alternative, eType, priorHyperParameters)` returns a
+`saviDesign` with `testName = "Two Proportions"`, `testType = "2x2"`,
+`h0 = c(propDiff = h0)`, and:
+
+- `priorHyperParameters`: `list(betaA1, betaA2, betaB1, betaB2)`, the
+  success and failure shapes of the Beta priors on `thetaA` and `thetaB`.
+  The default, all four `0.18`, lives in `constructSaviDesignObj("Two
+  Proportions")`; the design function replaces it only when the argument is
+  not `NULL`, and errors on other names.
+- `parameter`: a length-one named string summarising the prior, for
+  printing.
+
+Reserved for when the conditional e-variable returns: its prior on `logOR`
+defaults to mean `0` and sd `1`.
+
+`constructSaviTestObj("Two Proportions")` gets no `sumStats` or
+`eFactorVec`. Note that `modifyList()` drops `NULL` placeholders, so a
+field declared `NULL` in a constructor is absent until a function sets it.
